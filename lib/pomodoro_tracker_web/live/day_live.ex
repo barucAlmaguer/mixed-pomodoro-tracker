@@ -519,7 +519,7 @@ defmodule PomodoroTrackerWeb.DayLive do
         t.id not in exclude_ids and
         (tag_filter == nil or tag_filter in (t.tags || []))
     end)
-    |> Enum.sort_by(fn t -> {priority_rank(t.priority), t.title} end)
+    |> Enum.sort_by(fn t -> {priority_rank(t.priority), sortable_title(t.title)} end)
   end
 
   @doc """
@@ -536,13 +536,19 @@ defmodule PomodoroTrackerWeb.DayLive do
         t.id not in exclude_ids and
         want_break == ("break" in (t.tags || []))
     end)
-    |> Enum.sort_by(fn t -> {priority_rank(t.priority), t.title} end)
+    |> Enum.sort_by(fn t -> {priority_rank(t.priority), sortable_title(t.title)} end)
   end
 
   defp priority_rank("high"), do: 0
   defp priority_rank("med"), do: 1
   defp priority_rank("low"), do: 2
   defp priority_rank(_), do: 3
+
+  defp sortable_title(title) when is_binary(title) do
+    title |> String.normalize(:nfd) |> String.downcase()
+  end
+
+  defp sortable_title(_), do: ""
 
   def short_url(url) do
     case URI.parse(url) do
