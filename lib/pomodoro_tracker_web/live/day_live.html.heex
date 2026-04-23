@@ -144,8 +144,11 @@
       </div>
     </div>
 
-    <!-- BREAK MODE: pick a break task -->
-    <section :if={break_phase?(@timer.phase)} class="mt-6">
+    <!-- BREAK MODE: pick a break task (hidden once one is picked) -->
+    <section
+      :if={break_phase?(@timer.phase) and now_ids(@day.active, @tasks, @timer.phase) == []}
+      class="mt-6"
+    >
       <h2 class="text-xs uppercase tracking-wider text-white/70 mb-2">
         {if @timer.phase == :active_break, do: "Elige una tarea para este break",
           else: "Elige algo para descansar"}
