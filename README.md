@@ -48,8 +48,8 @@ To change the port, add `PORT=4555` (or whatever) to `.env`. To run on boot, wra
 
 | Var | Default | Purpose |
 |-----|---------|---------|
-| `WORK_VAULT_PATH` | `~/repos/valiot/valiot-knowledge` | Work Obsidian vault |
-| `PERSONAL_VAULT_PATH` | `~/repos/personal/personal-knowledge` | Personal Obsidian vault |
+| `WORK_VAULT_PATH` | `./vaults/work` | Work Obsidian vault (point at your actual vault) |
+| `PERSONAL_VAULT_PATH` | `./vaults/personal` | Personal Obsidian vault |
 | `WORK_START_HOUR` | `9` | Work zone begins (local time) |
 | `WORK_STOP_HOUR` | `18` | Work zone ends |
 | `POMO_WORK_MIN` | `25` | Focus interval |

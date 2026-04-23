@@ -9,8 +9,10 @@ Keep the pomodoro-tracker backlog in sync with Linear, Slack, and GitHub. The ba
 
 ## Vault paths
 
-- **Work** — `~/repos/valiot/valiot-knowledge/pomodoro-tracker/`
-- **Personal** — `~/repos/personal/personal-knowledge/pomodoro-tracker/`
+Read from env (or `config/runtime.exs` defaults):
+
+- **Work** — `$WORK_VAULT_PATH/pomodoro-tracker/`
+- **Personal** — `$PERSONAL_VAULT_PATH/pomodoro-tracker/`
 
 Each has these subdirs:
 
@@ -40,7 +42,7 @@ Before creating a task file, check whether one already exists with the same `sou
 If it exists: skip silently. Never overwrite. Never "update". If the user moved the file, that's intentional.
 
 Match key:
-- Linear → `source: linear, source_id: <identifier>` (e.g. `VAL-1234`)
+- Linear → `source: linear, source_id: <identifier>` (e.g. `ENG-1234`)
 - GitHub → `source: github, source_id: <owner>/<repo>#<number>`
 - Slack → `source: slack, source_id: <channel_id>/<thread_ts>`
 
@@ -50,7 +52,7 @@ Match key:
 backlog/<source_id-slug>.md
 ```
 
-Examples: `backlog/VAL-1234.md`, `backlog/valiot_repo_456.md`, `backlog/slack_C123_1714.md`
+Examples: `backlog/ENG-1234.md`, `backlog/myorg_myrepo_456.md`, `backlog/slack_C123_1714.md`
 
 Keep the filename filesystem-safe: replace `/` `#` `:` with `_`.
 
@@ -101,7 +103,7 @@ If a tool isn't available, fall back to the CLI (`gh`, `linear` API via curl) or
 1. **Scan existing** — list every `.md` in `backlog/` + `templates/` across both vaults. Build a set of `source:source_id` pairs already tracked.
 2. **Fetch sources** — query Linear, Slack, GitHub in parallel when possible.
 3. **Filter out duplicates** — drop any item whose `source:source_id` is already tracked.
-4. **Write new files** — one `.md` per new item into `~/repos/valiot/valiot-knowledge/pomodoro-tracker/backlog/`. Use the schema above.
+4. **Write new files** — one `.md` per new item into `$WORK_VAULT_PATH/pomodoro-tracker/backlog/`. Use the schema above.
 5. **Report** — print a one-line summary per source: `linear: +3 / github: +1 / slack: +2` and list the filenames created.
 
 Do not delete, rename, or modify existing files. Do not touch `days/` or `sessions/`.
@@ -110,19 +112,19 @@ Do not delete, rename, or modify existing files. Do not touch `days/` or `sessio
 
 ```yaml
 ---
-id: VAL-1234
+id: ENG-1234
 title: Fix auth middleware session tokens
 zone: work
 priority: high
 tags: [linear, compliance]
 source: linear
-source_id: VAL-1234
+source_id: ENG-1234
 related:
-  - https://linear.app/valiot/issue/VAL-1234
+  - https://linear.app/myorg/issue/ENG-1234
 created_at: 2026-04-23
 ---
 
-Assigned by: Juan
+Assigned by: teammate
 State: In Progress
 Labels: backend, compliance
 ```

@@ -13,7 +13,7 @@ config :pomodoro_tracker, PomodoroTrackerWeb.Endpoint,
   check_origin: false,
   code_reloader: true,
   debug_errors: true,
-  secret_key_base: "y/wctABVueb9moKWJN9mwHLHFzDAMzkKjhn4QbA+DBthCLmFlv5dMp+fQXqPlClK",
+  secret_key_base: "znLKHrnH+zrK97zPUqwOYWpJhnMxKtzQRWGLQ6Zx0Wa6JAfIwdidKwh21wkPuKuG",
   watchers: [
     esbuild: {Esbuild, :install_and_run, [:pomodoro_tracker, ~w(--sourcemap=inline --watch)]},
     tailwind: {Tailwind, :install_and_run, [:pomodoro_tracker, ~w(--watch)]}

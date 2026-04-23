@@ -4,7 +4,7 @@ import Config
 # you can enable the server option below.
 config :pomodoro_tracker, PomodoroTrackerWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],
-  secret_key_base: "3If7MTB39XEIVIsDFUjXiggqkaLgGTrv4q2ECnDcBLlKi0aGfaRa2/3GG3YQRrV7",
+  secret_key_base: "Ob8c+zk+syYvpYHgy3Hr25si3BqA7ofRjVFx5PERkCJOn63XvPKAn0diBfdRiQKT",
   server: false
 
 # Print only warnings and errors during test

@@ -26,13 +26,16 @@ config :pomodoro_tracker, PomodoroTrackerWeb.Endpoint,
     port: String.to_integer(System.get_env("PORT", "4123"))
   ]
 
+# Point these at your Obsidian vaults (or any directory you want tasks to
+# live in). Defaults keep everything inside the project so the app boots
+# without extra setup; override via env for real vaults.
 work_vault =
   System.get_env("WORK_VAULT_PATH") ||
-    Path.expand("~/repos/valiot/valiot-knowledge")
+    Path.expand("vaults/work", File.cwd!())
 
 personal_vault =
   System.get_env("PERSONAL_VAULT_PATH") ||
-    Path.expand("~/repos/personal/personal-knowledge")
+    Path.expand("vaults/personal", File.cwd!())
 
 config :pomodoro_tracker, :vaults,
   work: Path.expand(work_vault),
