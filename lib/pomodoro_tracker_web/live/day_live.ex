@@ -601,7 +601,10 @@ defmodule PomodoroTrackerWeb.DayLive do
     |> break_picker_candidates(phase, exclude_ids)
     |> Enum.filter(fn t -> tag_filter == nil or tag_filter in (t.tags || []) end)
     |> Enum.sort_by(fn t ->
-      {if(t.id in day_order, do: 0, else: 1), priority_rank(t.priority), sortable_title(t.title)}
+      case Enum.find_index(day_order, &(&1 == t.id)) do
+        nil -> {1, priority_rank(t.priority), sortable_title(t.title)}
+        idx -> {0, idx, ""}
+      end
     end)
   end
 
