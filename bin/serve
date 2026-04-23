@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Start the app in production mode for local/LAN use.
+# - Reads env from ./.env if present (PORT, PHX_HOST, WORK_VAULT_PATH, PERSONAL_VAULT_PATH, etc.)
+# - Generates + persists SECRET_KEY_BASE in ./.env on first run.
+# - Binds to 0.0.0.0 so any device on your LAN can connect at http://<your-ip>:$PORT.
+
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+ENV_FILE=".env"
+touch "$ENV_FILE"
+
+if ! grep -q '^SECRET_KEY_BASE=' "$ENV_FILE"; then
+  secret=$(mix phx.gen.secret 2>/dev/null || openssl rand -base64 48 | tr -d '\n')
+  echo "SECRET_KEY_BASE=$secret" >> "$ENV_FILE"
+  echo "→ generated SECRET_KEY_BASE in $ENV_FILE"
+fi
+
+# shellcheck disable=SC2046
+export $(grep -v '^#' "$ENV_FILE" | xargs -I {} echo {})
+
+export MIX_ENV=prod
+export PHX_SERVER=true
+export PORT="${PORT:-4123}"
+
+echo "→ compiling + digesting assets"
+mix deps.get --only prod >/dev/null
+mix assets.deploy >/dev/null
+
+ip=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo "localhost")
+echo ""
+echo "pomodoro-tracker listening on:"
+echo "  http://localhost:$PORT"
+echo "  http://$ip:$PORT  (LAN)"
+echo ""
+
+exec mix phx.server

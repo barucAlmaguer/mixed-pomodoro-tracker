@@ -25,10 +25,24 @@ Day plans and session logs live in the **personal vault** (single source of trut
 
 ```bash
 mix setup                    # deps + assets
-mix phx.server               # http://localhost:4000
+mix phx.server               # dev mode — http://localhost:4000
 ```
 
-LAN access (e.g. from phone): the dev server binds `0.0.0.0`. Use your machine's IP on port 4000.
+## Production mode (leave it running)
+
+For a background tab on your machine:
+
+```bash
+./bin/serve                  # http://<your-ip>:4123, MIX_ENV=prod
+```
+
+The script:
+- generates + persists `SECRET_KEY_BASE` in `.env` on first run (gitignored)
+- loads any other env vars from `.env` (e.g. `PORT=4123`, `PHX_HOST=...`, vault paths)
+- digests assets, then boots Phoenix with `MIX_ENV=prod`
+- binds to `0.0.0.0` so any device on your LAN can open `http://<your-ip>:4123`
+
+To change the port, add `PORT=4555` (or whatever) to `.env`. To run on boot, wrap it in launchd / a tmux session / a terminal tab — whatever fits your habit.
 
 ## Environment variables
 

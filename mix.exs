@@ -76,6 +76,7 @@ defmodule PomodoroTracker.MixProject do
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
       "assets.build": ["compile", "tailwind pomodoro_tracker", "esbuild pomodoro_tracker"],
       "assets.deploy": [
+        "compile",
         "tailwind pomodoro_tracker --minify",
         "esbuild pomodoro_tracker --minify",
         "phx.digest"
