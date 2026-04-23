@@ -92,7 +92,7 @@
             :for={i <- 1..4}
             class={[
               "w-2 h-2 rounded-full",
-              if(i <= rem(@timer.rounds_completed, 4), do: "bg-white", else: "bg-white/30")
+              if(i <= rounds_lit(@timer), do: "bg-white", else: "bg-white/30")
             ]}
           />
         </div>

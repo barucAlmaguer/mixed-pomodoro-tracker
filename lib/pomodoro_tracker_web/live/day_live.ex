@@ -549,6 +549,19 @@ defmodule PomodoroTrackerWeb.DayLive do
 
   def next_break_minutes(timer), do: Timer.default_break_minutes(timer.rounds_completed)
 
+  @doc """
+  Dots lit in the 4-pomodoro cycle indicator.
+  After the 4th work interval, show all 4 lit until the next work starts,
+  instead of wrapping back to 0 (which looks like the cycle reset early).
+  """
+  def rounds_lit(%{rounds_completed: n, phase: phase}) do
+    cond do
+      n == 0 -> 0
+      rem(n, 4) == 0 and phase != :work -> 4
+      true -> rem(n, 4)
+    end
+  end
+
   def alt_break_minutes(timer) do
     cfg = Application.fetch_env!(:pomodoro_tracker, :pomodoro)
     if next_break_minutes(timer) == cfg[:break_minutes],
