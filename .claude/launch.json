@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "pomo-phx",
+      "runtimeExecutable": "echo",
+      "runtimeArgs": ["already running on 4000"],
+      "port": 4000
+    }
+  ]
+}
