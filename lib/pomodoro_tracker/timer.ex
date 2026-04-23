@@ -32,13 +32,25 @@ defmodule PomodoroTracker.Timer do
   def start_work(zone, task_ids) when zone in [:work, :personal] and is_list(task_ids),
     do: GenServer.call(__MODULE__, {:start, :work, zone, task_ids})
 
-  def start_break(kind) when kind in [:active_break, :passive_break, :long_break],
-    do: GenServer.call(__MODULE__, {:start_break, kind})
+  def start_break(kind, override_minutes \\ nil)
+      when kind in [:active_break, :passive_break],
+      do: GenServer.call(__MODULE__, {:start_break, kind, override_minutes})
 
   def pause, do: GenServer.call(__MODULE__, :pause)
   def resume, do: GenServer.call(__MODULE__, :resume)
   def reset, do: GenServer.call(__MODULE__, :reset)
   def skip, do: GenServer.call(__MODULE__, :skip)
+  def adjust(delta_ms) when is_integer(delta_ms),
+    do: GenServer.call(__MODULE__, {:adjust, delta_ms})
+
+  @doc "Minutes the next break would use, given rounds completed so far."
+  def default_break_minutes(rounds_completed) do
+    if rounds_completed > 0 and rem(rounds_completed, 4) == 0,
+      do: cfg(:long_break_minutes),
+      else: cfg(:break_minutes)
+  end
+
+  def work_minutes, do: cfg(:work_minutes)
 
   # ---------------------------------------------------------------------------
   # Callbacks
@@ -79,14 +91,11 @@ defmodule PomodoroTracker.Timer do
     {:reply, :ok, schedule(new) |> broadcast()}
   end
 
-  def handle_call({:start_break, kind}, _from, state) do
+  def handle_call({:start_break, kind, override_minutes}, _from, state) do
     cancel(state.tref)
 
-    ms =
-      case kind do
-        :long_break -> cfg(:long_break_minutes) * 60_000
-        _ -> cfg(:break_minutes) * 60_000
-      end
+    minutes = override_minutes || default_break_minutes(state.rounds_completed)
+    ms = minutes * 60_000
 
     new = %{
       state
@@ -99,6 +108,25 @@ defmodule PomodoroTracker.Timer do
     }
 
     {:reply, :ok, schedule(new) |> broadcast()}
+  end
+
+  def handle_call({:adjust, _delta}, _from, %{phase: :idle} = state),
+    do: {:reply, :noop, state}
+
+  def handle_call({:adjust, delta_ms}, _from, state) do
+    new_remaining = max(5_000, state.remaining_ms + delta_ms)
+
+    new_duration =
+      if delta_ms > 0 do
+        state.duration_ms + delta_ms
+      else
+        max(new_remaining, state.duration_ms + delta_ms)
+      end
+
+    cancel(state.tref)
+    new = %{state | remaining_ms: new_remaining, duration_ms: new_duration}
+    new = if state.running, do: schedule(new), else: new
+    {:reply, :ok, broadcast(new)}
   end
 
   def handle_call(:pause, _from, state) do

@@ -76,8 +76,14 @@ defmodule PomodoroTrackerWeb.DayLive do
     end
   end
 
-  def handle_event("timer:break", %{"kind" => kind}, socket) do
-    Timer.start_break(String.to_existing_atom(kind))
+  def handle_event("timer:break", %{"kind" => kind} = params, socket) do
+    override =
+      case params["minutes"] do
+        m when is_binary(m) and m != "" -> String.to_integer(m)
+        _ -> nil
+      end
+
+    Timer.start_break(String.to_existing_atom(kind), override)
     {:noreply, socket}
   end
 
@@ -85,6 +91,11 @@ defmodule PomodoroTrackerWeb.DayLive do
   def handle_event("timer:resume", _, socket), do: (Timer.resume(); {:noreply, socket})
   def handle_event("timer:reset", _, socket), do: (Timer.reset(); {:noreply, socket})
   def handle_event("timer:skip", _, socket), do: (Timer.skip(); {:noreply, socket})
+
+  def handle_event("timer:adjust", %{"delta" => delta}, socket) do
+    Timer.adjust(String.to_integer(delta) * 1000)
+    {:noreply, socket}
+  end
 
   # ---------------------------------------------------------------------------
   # Filters + collapse
@@ -534,10 +545,20 @@ defmodule PomodoroTrackerWeb.DayLive do
   def phase_label(:work), do: "Work"
   def phase_label(:active_break), do: "Active break"
   def phase_label(:passive_break), do: "Break"
-  def phase_label(:long_break), do: "Long break"
   def phase_label(:idle), do: "Ready"
 
-  def break_phase?(phase), do: phase in [:active_break, :passive_break, :long_break]
+  def next_break_minutes(timer), do: Timer.default_break_minutes(timer.rounds_completed)
+
+  def alt_break_minutes(timer) do
+    cfg = Application.fetch_env!(:pomodoro_tracker, :pomodoro)
+    if next_break_minutes(timer) == cfg[:break_minutes],
+      do: cfg[:long_break_minutes],
+      else: cfg[:break_minutes]
+  end
+
+  def work_minutes, do: Application.fetch_env!(:pomodoro_tracker, :pomodoro)[:work_minutes]
+
+  def break_phase?(phase), do: phase in [:active_break, :passive_break]
 
   @doc "During break: work-zone tasks are deferred ('up next'). Outside break: none."
   def upnext_ids(active, tasks) do
@@ -619,7 +640,7 @@ defmodule PomodoroTrackerWeb.DayLive do
 
     candidates
     |> Enum.flat_map(fn t -> t.tags || [] end)
-    |> Enum.reject(fn tag -> phase in [:passive_break, :long_break] and tag == "break" end)
+    |> Enum.reject(fn tag -> phase == :passive_break and tag == "break" end)
     |> Enum.frequencies()
     |> Enum.reject(fn {_tag, count} -> total > 1 and count == total end)
     |> Enum.sort_by(fn {tag, _} -> tag end)
@@ -627,7 +648,7 @@ defmodule PomodoroTrackerWeb.DayLive do
   end
 
   defp break_picker_candidates(tasks, phase, exclude_ids) do
-    want_break = phase in [:passive_break, :long_break]
+    want_break = phase == :passive_break
 
     candidates =
       tasks

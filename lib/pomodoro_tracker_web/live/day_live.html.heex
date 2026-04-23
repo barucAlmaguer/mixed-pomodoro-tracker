@@ -70,7 +70,22 @@
 
       <div class="text-center">
         <div class="text-sm uppercase tracking-wider text-white/70">{phase_label(@timer.phase)}</div>
-        <div class="text-6xl font-light tabular-nums py-2">{fmt_time(@timer.remaining_ms)}</div>
+
+        <div class="group relative flex items-center justify-center py-2">
+          <button
+            :if={@timer.phase != :idle}
+            phx-click="timer:adjust" phx-value-delta="-300"
+            class="absolute left-4 w-8 h-8 rounded-full bg-white/10 hover:bg-white/30 text-sm leading-none opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+            title="Remove 5 minutes"
+          >−5</button>
+          <div class="text-6xl font-light tabular-nums">{fmt_time(@timer.remaining_ms)}</div>
+          <button
+            :if={@timer.phase != :idle}
+            phx-click="timer:adjust" phx-value-delta="300"
+            class="absolute right-4 w-8 h-8 rounded-full bg-white/10 hover:bg-white/30 text-sm leading-none opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+            title="Add 5 minutes"
+          >+5</button>
+        </div>
 
         <div class="flex justify-center gap-1 mb-3">
           <span
@@ -82,18 +97,53 @@
           />
         </div>
 
-        <div class="flex justify-center gap-2 flex-wrap">
+        <div class="flex justify-center gap-3 flex-wrap">
           <%= cond do %>
             <% @timer.phase == :idle -> %>
-              <button phx-click="timer:start_work" class="px-6 py-2 rounded-full bg-white text-black font-medium">
-                Start work
-              </button>
-              <button phx-click="timer:break" phx-value-kind="passive_break" class="px-4 py-2 rounded-full bg-white/20 text-sm">
-                Passive
-              </button>
-              <button phx-click="timer:break" phx-value-kind="active_break" class="px-4 py-2 rounded-full bg-white/20 text-sm">
-                Active break
-              </button>
+              <div class="relative">
+                <button phx-click="timer:start_work" class="px-6 py-2 rounded-full bg-white text-black font-medium">
+                  Start work
+                </button>
+                <span class="absolute -bottom-1 -right-1 px-1.5 py-0.5 rounded-full bg-black/60 text-[10px] tabular-nums">
+                  {work_minutes()}m
+                </span>
+              </div>
+
+              <div class="relative">
+                <button phx-click="timer:break" phx-value-kind="passive_break"
+                        class="px-4 py-2 rounded-full bg-white/20 text-sm">
+                  Passive
+                </button>
+                <span class="absolute -bottom-1 -right-1 px-1.5 py-0.5 rounded-full bg-black/60 text-[10px] tabular-nums">
+                  {next_break_minutes(@timer)}m
+                </span>
+                <button
+                  phx-click="timer:break" phx-value-kind="passive_break"
+                  phx-value-minutes={alt_break_minutes(@timer)}
+                  class="absolute -top-2 -right-2 px-1.5 py-0.5 rounded-full bg-amber-400 text-black text-[9px] font-medium hover:bg-amber-300 whitespace-nowrap"
+                  title={"Start a #{alt_break_minutes(@timer)} minute passive break instead"}
+                >
+                  {alt_break_minutes(@timer)}m instead
+                </button>
+              </div>
+
+              <div class="relative">
+                <button phx-click="timer:break" phx-value-kind="active_break"
+                        class="px-4 py-2 rounded-full bg-white/20 text-sm">
+                  Active break
+                </button>
+                <span class="absolute -bottom-1 -right-1 px-1.5 py-0.5 rounded-full bg-black/60 text-[10px] tabular-nums">
+                  {next_break_minutes(@timer)}m
+                </span>
+                <button
+                  phx-click="timer:break" phx-value-kind="active_break"
+                  phx-value-minutes={alt_break_minutes(@timer)}
+                  class="absolute -top-2 -right-2 px-1.5 py-0.5 rounded-full bg-amber-400 text-black text-[9px] font-medium hover:bg-amber-300 whitespace-nowrap"
+                  title={"Start a #{alt_break_minutes(@timer)} minute active break instead"}
+                >
+                  {alt_break_minutes(@timer)}m instead
+                </button>
+              </div>
 
             <% @timer.running -> %>
               <button phx-click="timer:pause" class="px-6 py-2 rounded-full bg-white/20">Pause</button>
