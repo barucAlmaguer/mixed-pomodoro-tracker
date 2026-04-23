@@ -17,7 +17,7 @@ defmodule PomodoroTrackerWeb.DayLive do
      |> assign(:now, NaiveDateTime.from_erl!(:calendar.local_time()))
      |> assign(:timer, Timer.state())
      |> assign(:zone_filter, :auto)
-     |> assign(:tag_filter, nil)
+     |> assign(:tag_filter, MapSet.new())
      |> assign(:new_task_form, nil)
      |> assign(:edit_form, nil)
      |> assign(:break_tag_filter, nil)
@@ -107,8 +107,17 @@ defmodule PomodoroTrackerWeb.DayLive do
 
   def handle_event("filter:tag", %{"tag" => tag}, socket) do
     current = socket.assigns.tag_filter
-    new = if current == tag, do: nil, else: tag
+
+    new =
+      if MapSet.member?(current, tag),
+        do: MapSet.delete(current, tag),
+        else: MapSet.put(current, tag)
+
     {:noreply, assign(socket, :tag_filter, new)}
+  end
+
+  def handle_event("filter:clear_tags", _, socket) do
+    {:noreply, assign(socket, :tag_filter, MapSet.new())}
   end
 
   def handle_event("filter:break_tag", %{"tag" => tag}, socket) do
@@ -341,6 +350,33 @@ defmodule PomodoroTrackerWeb.DayLive do
 
       {:error, reason} ->
         {:noreply, put_flash(socket, :error, "Update failed: #{inspect(reason)}")}
+    end
+  end
+
+  def handle_event("edit:delete", _, socket) do
+    f = socket.assigns.edit_form
+
+    if f do
+      Vault.delete_task(f.path)
+
+      day = socket.assigns.day
+
+      new_day = %{
+        day
+        | order: List.delete(day.order, f.id),
+          active: List.delete(day.active, f.id),
+          done: List.delete(day.done, f.id)
+      }
+
+      if new_day != day, do: Vault.save_day(new_day)
+
+      {:noreply,
+       socket
+       |> assign(:edit_form, nil)
+       |> assign(:day, new_day)
+       |> load_vault()}
+    else
+      {:noreply, socket}
     end
   end
 
@@ -598,22 +634,47 @@ defmodule PomodoroTrackerWeb.DayLive do
   end
 
   def filtered_backlog(tasks, zone, tag_filter, exclude_ids) do
+    tasks
+    |> backlog_candidates(zone, exclude_ids)
+    |> Enum.filter(fn t -> MapSet.subset?(tag_filter, MapSet.new(t.tags || [])) end)
+    |> Enum.sort_by(fn t -> {priority_rank(t.priority), sortable_title(t.title)} end)
+  end
+
+  @doc """
+  Tags present across the backlog candidates — rendered as filter chips.
+  Hides tags shared by 100% of candidates (filtering would be a no-op).
+  """
+  def backlog_tags(tasks, zone, exclude_ids) do
+    candidates = backlog_candidates(tasks, zone, exclude_ids)
+    total = length(candidates)
+
+    candidates
+    |> Enum.flat_map(fn t -> t.tags || [] end)
+    |> Enum.frequencies()
+    |> Enum.reject(fn {_tag, count} -> total > 1 and count == total end)
+    |> Enum.sort_by(fn {tag, _} -> tag end)
+    |> Enum.map(&elem(&1, 0))
+  end
+
+  defp backlog_candidates(tasks, zone, exclude_ids) do
     candidates =
       tasks
       |> Map.values()
       |> Enum.filter(fn t ->
         t.kind in [:backlog, :templates] and
           t.zone == zone and
-          t.id not in exclude_ids and
-          (tag_filter == nil or tag_filter in (t.tags || []))
+          t.id not in exclude_ids
       end)
 
     instantiated =
-      for %{kind: :backlog, from_template: ft} <- candidates, is_binary(ft), into: MapSet.new(), do: ft
+      for %{kind: :backlog, from_template: ft} <- candidates,
+          is_binary(ft),
+          into: MapSet.new(),
+          do: ft
 
-    candidates
-    |> Enum.reject(fn t -> t.kind == :templates and MapSet.member?(instantiated, t.id) end)
-    |> Enum.sort_by(fn t -> {priority_rank(t.priority), sortable_title(t.title)} end)
+    Enum.reject(candidates, fn t ->
+      t.kind == :templates and MapSet.member?(instantiated, t.id)
+    end)
   end
 
   @doc """

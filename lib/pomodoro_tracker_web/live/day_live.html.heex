@@ -33,7 +33,7 @@
             phx-value-tag="mensaje-slack"
             class={[
               "relative w-9 h-9 rounded-full flex items-center justify-center",
-              if(@tag_filter == "mensaje-slack", do: "bg-white/30", else: "bg-white/10 hover:bg-white/20")
+              if(MapSet.member?(@tag_filter, "mensaje-slack"), do: "bg-white/30", else: "bg-white/10 hover:bg-white/20")
             ]}
             title="Slack messages"
           >
@@ -50,7 +50,7 @@
             phx-value-tag="review"
             class={[
               "relative w-9 h-9 rounded-full flex items-center justify-center",
-              if(@tag_filter == "review", do: "bg-white/30", else: "bg-white/10 hover:bg-white/20")
+              if(MapSet.member?(@tag_filter, "review"), do: "bg-white/30", else: "bg-white/10 hover:bg-white/20")
             ]}
             title="GitHub PR reviews"
           >
@@ -385,9 +385,22 @@
         </button>
       </div>
 
-      <div :if={@tag_filter} class="text-xs text-amber-300 mb-2">
-        Filtering tag: {@tag_filter}
-        <button phx-click="filter:tag" phx-value-tag={@tag_filter} class="underline ml-1">clear</button>
+      <% backlog_chip_tags = backlog_tags(@tasks, backlog_zone(@now, @zone_filter), @day.order ++ @day.done) %>
+      <div :if={backlog_chip_tags != []} class="flex flex-wrap gap-1 mb-2">
+        <button
+          :for={tag <- backlog_chip_tags}
+          phx-click="filter:tag"
+          phx-value-tag={tag}
+          class={[
+            "text-[11px] px-2 py-0.5 rounded",
+            if(MapSet.member?(@tag_filter, tag), do: "bg-amber-400 text-black", else: "bg-white/10 hover:bg-white/20")
+          ]}
+        >{tag}</button>
+        <button
+          :if={MapSet.size(@tag_filter) > 0}
+          phx-click="filter:clear_tags"
+          class="text-[11px] px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-white/70"
+        >clear</button>
       </div>
 
       <ul class="space-y-1">
@@ -518,14 +531,22 @@
           <textarea name="task[body]" rows="5"
                     class="w-full bg-white/10 rounded px-3 py-2 text-xs">{@edit_form.body}</textarea>
         </div>
-        <div class="flex gap-2 justify-between items-center">
-          <button
-            :if={@edit_form.kind == :backlog and is_nil(@edit_form.from_template)}
-            type="button"
-            phx-click="edit:promote"
-            class="px-3 py-1.5 rounded bg-amber-500/80 hover:bg-amber-500 text-black text-xs"
-            title="Copy this task into templates/ for reuse"
-          >Convert to template</button>
+        <div class="flex gap-2 justify-between items-center flex-wrap">
+          <div class="flex gap-2">
+            <button
+              type="button"
+              phx-click="edit:delete"
+              data-confirm={"Delete '#{@edit_form.title}' permanently?"}
+              class="px-3 py-1.5 rounded bg-red-600/80 hover:bg-red-600 text-white text-xs"
+            >Delete</button>
+            <button
+              :if={@edit_form.kind == :backlog and is_nil(@edit_form.from_template)}
+              type="button"
+              phx-click="edit:promote"
+              class="px-3 py-1.5 rounded bg-amber-500/80 hover:bg-amber-500 text-black text-xs"
+              title="Copy this task into templates/ for reuse"
+            >Convert to template</button>
+          </div>
           <div class="flex gap-2 ml-auto">
             <button type="button" phx-click="edit:close" class="px-3 py-1.5 rounded bg-white/10 text-sm">Cancel</button>
             <button type="submit" class="px-3 py-1.5 rounded bg-white text-black text-sm font-medium">Save</button>
