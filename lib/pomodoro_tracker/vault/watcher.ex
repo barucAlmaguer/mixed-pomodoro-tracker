@@ -17,22 +17,18 @@ defmodule PomodoroTracker.Vault.Watcher do
 
   @impl true
   def init(_) do
-    paths =
+    dirs =
       [:work, :personal]
-      |> Enum.map(&PomodoroTracker.Vault.subdir/1)
-      |> Enum.filter(&File.dir?/1)
+      |> Enum.map(fn zone ->
+        dir = PomodoroTracker.Vault.subdir(zone)
+        File.mkdir_p!(dir)
+        dir
+      end)
 
-    case paths do
-      [] ->
-        Logger.warning("Vault.Watcher: no vault subdirs found, skipping watcher")
-        :ignore
-
-      dirs ->
-        {:ok, pid} = FileSystem.start_link(dirs: dirs)
-        FileSystem.subscribe(pid)
-        Logger.info("Vault.Watcher: watching #{inspect(dirs)}")
-        {:ok, %{pid: pid, debounce: nil}}
-    end
+    {:ok, pid} = FileSystem.start_link(dirs: dirs)
+    FileSystem.subscribe(pid)
+    Logger.info("Vault.Watcher: watching #{inspect(dirs)}")
+    {:ok, %{pid: pid, debounce: nil}}
   end
 
   @impl true
