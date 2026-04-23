@@ -410,6 +410,14 @@ defmodule PomodoroTrackerWeb.DayLive do
     if idx == nil or idx == length(list) - 1, do: list, else: swap(list, idx, idx + 1)
   end
 
+  defp move(list, id, "top") do
+    if id in list, do: [id | List.delete(list, id)], else: list
+  end
+
+  defp move(list, id, "bottom") do
+    if id in list, do: List.delete(list, id) ++ [id], else: list
+  end
+
   defp swap(list, i, j) do
     a = Enum.at(list, i)
     b = Enum.at(list, j)
@@ -451,6 +459,42 @@ defmodule PomodoroTrackerWeb.DayLive do
     wday = Date.day_of_week(NaiveDateTime.to_date(dt))
     dt.hour >= cfg[:start] and dt.hour < cfg[:stop] and wday in cfg[:weekdays]
   end
+
+  # Timeline strip across the top: 7am (left) to 8pm (right).
+  # Weekdays split 7-9am personal, 9am-6pm work, 6pm-8pm personal.
+  # Weekends are fully personal.
+  @timeline_start_min 7 * 60
+  @timeline_end_min 20 * 60
+  @timeline_span_min 13 * 60
+
+  def day_timeline(%NaiveDateTime{} = now) do
+    weekend? = Date.day_of_week(NaiveDateTime.to_date(now)) in [6, 7]
+    now_min = now.hour * 60 + now.minute
+
+    zones =
+      if weekend? do
+        [%{start: 0.0, width: 100.0, color: "bg-blue-500/70"}]
+      else
+        m_end = (9 * 60 - @timeline_start_min) / @timeline_span_min * 100
+        w_end = (18 * 60 - @timeline_start_min) / @timeline_span_min * 100
+
+        [
+          %{start: 0.0, width: m_end, color: "bg-blue-500/70"},
+          %{start: m_end, width: w_end - m_end, color: "bg-red-500/70"},
+          %{start: w_end, width: 100 - w_end, color: "bg-blue-500/70"}
+        ]
+      end
+
+    %{
+      zones: zones,
+      now_pct: clamp((now_min - @timeline_start_min) / @timeline_span_min * 100, 0, 100),
+      in_range?: now_min >= @timeline_start_min and now_min <= @timeline_end_min
+    }
+  end
+
+  defp clamp(x, lo, _hi) when x < lo, do: lo
+  defp clamp(x, _lo, hi) when x > hi, do: hi
+  defp clamp(x, _lo, _hi), do: x
 
   @doc """
   Background follows current situation (timer first, then time of day).

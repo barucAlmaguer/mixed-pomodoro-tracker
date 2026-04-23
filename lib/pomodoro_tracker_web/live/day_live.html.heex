@@ -2,6 +2,22 @@
   "min-h-screen text-white font-sans transition-colors",
   situation_bg(@timer, @now)
 ]}>
+  <% tl = day_timeline(@now) %>
+  <div class="fixed top-0 left-0 right-0 h-[3px] z-50 pointer-events-none">
+    <div class="relative h-full bg-black/30">
+      <div
+        :for={z <- tl.zones}
+        class={["absolute top-0 h-full", z.color]}
+        style={"left: #{z.start}%; width: #{z.width}%"}
+      />
+      <div
+        :if={tl.in_range?}
+        class="absolute top-0 h-full w-[2px] bg-white shadow-[0_0_4px_rgba(255,255,255,0.8)]"
+        style={"left: #{tl.now_pct}%"}
+      />
+    </div>
+  </div>
+
   <PomodoroTrackerWeb.Layouts.flash_group flash={@flash} />
 
   <div class="mx-auto max-w-md px-3 pb-24">
@@ -228,26 +244,38 @@
           <li
             :for={{id, idx} <- Enum.with_index(@day.order)}
             :if={t = @tasks[id]}
-            class={[
-              "flex items-center gap-2 px-2 py-2 rounded border",
+            class="flex items-stretch gap-1"
+          >
+            <div class="flex flex-col justify-between py-0.5">
+              <button phx-click="day:move" phx-value-id={t.id} phx-value-dir="top"
+                      class="w-4 h-4 rounded bg-white/5 hover:bg-white/20 text-[11px] leading-none" title="Move to top">⤒</button>
+              <button phx-click="day:move" phx-value-id={t.id} phx-value-dir="up"
+                      class="w-4 h-4 rounded bg-white/5 hover:bg-white/20 text-[11px] leading-none" title="Up">↑</button>
+              <button phx-click="day:move" phx-value-id={t.id} phx-value-dir="down"
+                      class="w-4 h-4 rounded bg-white/5 hover:bg-white/20 text-[11px] leading-none" title="Down">↓</button>
+              <button phx-click="day:move" phx-value-id={t.id} phx-value-dir="bottom"
+                      class="w-4 h-4 rounded bg-white/5 hover:bg-white/20 text-[11px] leading-none" title="Move to bottom">⤓</button>
+            </div>
+            <div class={[
+              "group relative flex-1 flex items-center gap-2 px-2 py-2 rounded border",
               zone_card_class(t.zone),
               if(t.id in @day.active, do: "ring-1 ring-white/40", else: "")
-            ]}
-          >
-            <div class="text-xs opacity-40 w-4 text-right tabular-nums">{idx + 1}</div>
-            <button phx-click="day:toggle_active" phx-value-id={t.id} class="flex-1 text-left min-w-0">
-              <div class="text-sm truncate">{t.title}</div>
-              <div class="flex gap-2 text-[10px] opacity-60 mt-0.5">
-                <span>{t.zone}</span>
-                <span :if={t.priority}>· {t.priority}</span>
-                <span :if={@day.pomodoros[t.id]}>· {@day.pomodoros[t.id]}🍅</span>
-              </div>
-            </button>
-            <div class="flex gap-0.5">
-              <button phx-click="edit:open" phx-value-id={t.id} class="w-6 h-6 rounded bg-white/5 hover:bg-white/15 text-xs" title="Edit">✎</button>
-              <button phx-click="day:move" phx-value-id={t.id} phx-value-dir="up" class="w-6 h-6 rounded bg-white/5 hover:bg-white/15 text-xs">↑</button>
-              <button phx-click="day:move" phx-value-id={t.id} phx-value-dir="down" class="w-6 h-6 rounded bg-white/5 hover:bg-white/15 text-xs">↓</button>
-              <button phx-click="day:remove" phx-value-id={t.id} class="w-6 h-6 rounded bg-white/5 hover:bg-white/15 text-xs">×</button>
+            ]}>
+              <div class="text-xs opacity-40 w-4 text-right tabular-nums">{idx + 1}</div>
+              <button phx-click="day:toggle_active" phx-value-id={t.id} class="flex-1 text-left min-w-0">
+                <div class="text-sm truncate">{t.title}</div>
+                <div class="flex gap-2 text-[10px] opacity-60 mt-0.5">
+                  <span>{t.zone}</span>
+                  <span :if={t.priority}>· {t.priority}</span>
+                  <span :if={@day.pomodoros[t.id]}>· {@day.pomodoros[t.id]}🍅</span>
+                </div>
+              </button>
+              <button phx-click="edit:open" phx-value-id={t.id}
+                      class="w-6 h-6 rounded bg-white/5 hover:bg-white/15 text-xs shrink-0"
+                      title="Edit">✎</button>
+              <button phx-click="day:remove" phx-value-id={t.id}
+                      class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-white/20 hover:bg-red-500 text-xs leading-none opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                      title="Remove from today">×</button>
             </div>
           </li>
         </ul>
