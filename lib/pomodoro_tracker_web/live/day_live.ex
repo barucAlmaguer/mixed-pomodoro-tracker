@@ -562,13 +562,6 @@ defmodule PomodoroTrackerWeb.DayLive do
     end
   end
 
-  def alt_break_minutes(timer) do
-    cfg = Application.fetch_env!(:pomodoro_tracker, :pomodoro)
-    if next_break_minutes(timer) == cfg[:break_minutes],
-      do: cfg[:long_break_minutes],
-      else: cfg[:break_minutes]
-  end
-
   def work_minutes, do: Application.fetch_env!(:pomodoro_tracker, :pomodoro)[:work_minutes]
 
   def break_phase?(phase), do: phase in [:active_break, :passive_break]
