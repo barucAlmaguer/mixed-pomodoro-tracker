@@ -98,9 +98,31 @@
         {if @timer.phase == :active_break, do: "Elige una tarea para este break",
           else: "Elige algo para descansar"}
       </h2>
-      <% picker = break_picker_tasks(@tasks, @timer.phase, @day.active ++ @day.done, @day.order) %>
+
+      <% break_tags = break_picker_tags(@tasks, @timer.phase, @day.active ++ @day.done) %>
+      <div :if={break_tags != []} class="flex flex-wrap gap-1 mb-2">
+        <button
+          :for={tag <- break_tags}
+          phx-click="filter:break_tag"
+          phx-value-tag={tag}
+          class={[
+            "text-[11px] px-2 py-0.5 rounded",
+            if(@break_tag_filter == tag, do: "bg-amber-400 text-black", else: "bg-white/10 hover:bg-white/20")
+          ]}
+        >{tag}</button>
+        <button
+          :if={@break_tag_filter}
+          phx-click="filter:break_tag"
+          phx-value-tag={@break_tag_filter}
+          class="text-[11px] px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-white/70"
+        >clear</button>
+      </div>
+
+      <% picker = break_picker_tasks(@tasks, @timer.phase, @day.active ++ @day.done, @day.order, @break_tag_filter) %>
       <div :if={picker == []} class="text-sm text-white/50 italic py-3 text-center border border-dashed border-white/20 rounded">
-        No hay tareas {if @timer.phase == :active_break, do: "rápidas", else: "de break"} disponibles.
+        {if @break_tag_filter,
+          do: "No hay tareas con ese tag.",
+          else: (if @timer.phase == :active_break, do: "No hay tareas rápidas disponibles.", else: "No hay tareas de break disponibles.")}
       </div>
       <ul :if={picker != []} class="space-y-1">
         <li

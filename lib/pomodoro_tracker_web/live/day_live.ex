@@ -20,6 +20,7 @@ defmodule PomodoroTrackerWeb.DayLive do
      |> assign(:tag_filter, nil)
      |> assign(:new_task_form, nil)
      |> assign(:edit_form, nil)
+     |> assign(:break_tag_filter, nil)
      |> assign(:today_collapsed, false)
      |> assign(:done_collapsed, true)
      |> load_vault()}
@@ -30,7 +31,16 @@ defmodule PomodoroTrackerWeb.DayLive do
   # ---------------------------------------------------------------------------
 
   @impl true
-  def handle_info({:timer, state}, socket), do: {:noreply, assign(socket, :timer, state)}
+  def handle_info({:timer, state}, socket) do
+    socket =
+      if break_phase?(socket.assigns.timer.phase) and not break_phase?(state.phase) do
+        assign(socket, :break_tag_filter, nil)
+      else
+        socket
+      end
+
+    {:noreply, assign(socket, :timer, state)}
+  end
   def handle_info(:vault_changed, socket), do: {:noreply, load_vault(socket)}
 
   def handle_info(:tick_clock, socket) do
@@ -88,6 +98,12 @@ defmodule PomodoroTrackerWeb.DayLive do
     current = socket.assigns.tag_filter
     new = if current == tag, do: nil, else: tag
     {:noreply, assign(socket, :tag_filter, new)}
+  end
+
+  def handle_event("filter:break_tag", %{"tag" => tag}, socket) do
+    current = socket.assigns.break_tag_filter
+    new = if current == tag, do: nil, else: tag
+    {:noreply, assign(socket, :break_tag_filter, new)}
   end
 
   def handle_event("toggle:today", _, socket) do
@@ -536,8 +552,35 @@ defmodule PomodoroTrackerWeb.DayLive do
   Templates whose instance already exists are hidden (dedupe). Tasks already
   on today's plan rank above everything else so you see them first.
   """
-  def break_picker_tasks(tasks, phase, exclude_ids, day_order) do
-    want_break = phase == :passive_break or phase == :long_break
+  def break_picker_tasks(tasks, phase, exclude_ids, day_order, tag_filter) do
+    tasks
+    |> break_picker_candidates(phase, exclude_ids)
+    |> Enum.filter(fn t -> tag_filter == nil or tag_filter in (t.tags || []) end)
+    |> Enum.sort_by(fn t ->
+      {if(t.id in day_order, do: 0, else: 1), priority_rank(t.priority), sortable_title(t.title)}
+    end)
+  end
+
+  @doc """
+  Tags present across the break picker candidates, for rendering filter chips.
+  Excludes the implicit `break` tag during passive break (every item has it)
+  and any tag shared by 100% of candidates (filtering would be a no-op).
+  """
+  def break_picker_tags(tasks, phase, exclude_ids) do
+    candidates = break_picker_candidates(tasks, phase, exclude_ids)
+    total = length(candidates)
+
+    candidates
+    |> Enum.flat_map(fn t -> t.tags || [] end)
+    |> Enum.reject(fn tag -> phase in [:passive_break, :long_break] and tag == "break" end)
+    |> Enum.frequencies()
+    |> Enum.reject(fn {_tag, count} -> total > 1 and count == total end)
+    |> Enum.sort_by(fn {tag, _} -> tag end)
+    |> Enum.map(&elem(&1, 0))
+  end
+
+  defp break_picker_candidates(tasks, phase, exclude_ids) do
+    want_break = phase in [:passive_break, :long_break]
 
     candidates =
       tasks
@@ -549,12 +592,13 @@ defmodule PomodoroTrackerWeb.DayLive do
       end)
 
     instantiated =
-      for %{kind: :backlog, from_template: ft} <- candidates, is_binary(ft), into: MapSet.new(), do: ft
+      for %{kind: :backlog, from_template: ft} <- candidates,
+          is_binary(ft),
+          into: MapSet.new(),
+          do: ft
 
-    candidates
-    |> Enum.reject(fn t -> t.kind == :templates and MapSet.member?(instantiated, t.id) end)
-    |> Enum.sort_by(fn t ->
-      {if(t.id in day_order, do: 0, else: 1), priority_rank(t.priority), sortable_title(t.title)}
+    Enum.reject(candidates, fn t ->
+      t.kind == :templates and MapSet.member?(instantiated, t.id)
     end)
   end
 
