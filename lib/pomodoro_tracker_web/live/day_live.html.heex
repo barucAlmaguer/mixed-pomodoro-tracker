@@ -98,7 +98,7 @@
         {if @timer.phase == :active_break, do: "Elige una tarea para este break",
           else: "Elige algo para descansar"}
       </h2>
-      <% picker = break_picker_tasks(@tasks, @timer.phase, @day.active ++ @day.done) %>
+      <% picker = break_picker_tasks(@tasks, @timer.phase, @day.active ++ @day.done, @day.order) %>
       <div :if={picker == []} class="text-sm text-white/50 italic py-3 text-center border border-dashed border-white/20 rounded">
         No hay tareas {if @timer.phase == :active_break, do: "rápidas", else: "de break"} disponibles.
       </div>

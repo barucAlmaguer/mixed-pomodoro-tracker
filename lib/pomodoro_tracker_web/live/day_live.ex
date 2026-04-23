@@ -511,32 +511,51 @@ defmodule PomodoroTrackerWeb.DayLive do
   end
 
   def filtered_backlog(tasks, zone, tag_filter, exclude_ids) do
-    tasks
-    |> Map.values()
-    |> Enum.filter(fn t ->
-      t.kind in [:backlog, :templates] and
-        t.zone == zone and
-        t.id not in exclude_ids and
-        (tag_filter == nil or tag_filter in (t.tags || []))
-    end)
+    candidates =
+      tasks
+      |> Map.values()
+      |> Enum.filter(fn t ->
+        t.kind in [:backlog, :templates] and
+          t.zone == zone and
+          t.id not in exclude_ids and
+          (tag_filter == nil or tag_filter in (t.tags || []))
+      end)
+
+    instantiated =
+      for %{kind: :backlog, from_template: ft} <- candidates, is_binary(ft), into: MapSet.new(), do: ft
+
+    candidates
+    |> Enum.reject(fn t -> t.kind == :templates and MapSet.member?(instantiated, t.id) end)
     |> Enum.sort_by(fn t -> {priority_rank(t.priority), sortable_title(t.title)} end)
   end
 
   @doc """
   Tasks offered during a break. Active break → personal WITHOUT `break` tag
   (quick chores). Passive break → personal WITH `break` tag (rest).
+
+  Templates whose instance already exists are hidden (dedupe). Tasks already
+  on today's plan rank above everything else so you see them first.
   """
-  def break_picker_tasks(tasks, phase, exclude_ids) do
+  def break_picker_tasks(tasks, phase, exclude_ids, day_order) do
     want_break = phase == :passive_break or phase == :long_break
 
-    tasks
-    |> Map.values()
-    |> Enum.filter(fn t ->
-      t.zone == :personal and
-        t.id not in exclude_ids and
-        want_break == ("break" in (t.tags || []))
+    candidates =
+      tasks
+      |> Map.values()
+      |> Enum.filter(fn t ->
+        t.zone == :personal and
+          t.id not in exclude_ids and
+          want_break == ("break" in (t.tags || []))
+      end)
+
+    instantiated =
+      for %{kind: :backlog, from_template: ft} <- candidates, is_binary(ft), into: MapSet.new(), do: ft
+
+    candidates
+    |> Enum.reject(fn t -> t.kind == :templates and MapSet.member?(instantiated, t.id) end)
+    |> Enum.sort_by(fn t ->
+      {if(t.id in day_order, do: 0, else: 1), priority_rank(t.priority), sortable_title(t.title)}
     end)
-    |> Enum.sort_by(fn t -> {priority_rank(t.priority), sortable_title(t.title)} end)
   end
 
   defp priority_rank("high"), do: 0
