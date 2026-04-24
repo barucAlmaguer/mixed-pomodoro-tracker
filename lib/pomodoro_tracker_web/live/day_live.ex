@@ -22,7 +22,12 @@ defmodule PomodoroTrackerWeb.DayLive do
      |> assign(:edit_form, nil)
      |> assign(:break_tag_filter, nil)
      |> assign(:today_collapsed, false)
-     |> assign(:done_collapsed, true)
+     |> assign(:unfinished_collapsed, true)
+     |> assign(:archive_visible, false)
+     |> assign(:archive, nil)
+     |> assign(:archive_state_filter, :unfinished)
+     |> assign(:archive_zone_filter, :all)
+     |> assign(:show_off_hour_work, false)
      |> load_vault()}
   end
 
@@ -130,8 +135,36 @@ defmodule PomodoroTrackerWeb.DayLive do
     {:noreply, assign(socket, :today_collapsed, not socket.assigns.today_collapsed)}
   end
 
-  def handle_event("toggle:done", _, socket) do
-    {:noreply, assign(socket, :done_collapsed, not socket.assigns.done_collapsed)}
+  def handle_event("toggle:unfinished", _, socket) do
+    {:noreply, assign(socket, :unfinished_collapsed, not socket.assigns.unfinished_collapsed)}
+  end
+
+  def handle_event("toggle:off_hour_work", _, socket) do
+    {:noreply, assign(socket, :show_off_hour_work, not socket.assigns.show_off_hour_work)}
+  end
+
+  def handle_event("archive:show", _, socket) do
+    {:noreply,
+     socket
+     |> assign(:archive_visible, true)
+     |> assign(:archive, load_archive())}
+  end
+
+  def handle_event("archive:hide", _, socket) do
+    {:noreply, socket |> assign(:archive_visible, false) |> assign(:archive, nil)}
+  end
+
+  def handle_event("archive:state_filter", %{"state" => s}, socket) do
+    {:noreply, assign(socket, :archive_state_filter, String.to_existing_atom(s))}
+  end
+
+  def handle_event("archive:zone_filter", %{"zone" => z}, socket) do
+    {:noreply, assign(socket, :archive_zone_filter, String.to_existing_atom(z))}
+  end
+
+  def handle_event("unfinished:dismiss", %{"id" => id}, socket) do
+    dismiss_from_recent(id, 7)
+    {:noreply, load_vault(socket)}
   end
 
   # ---------------------------------------------------------------------------
@@ -747,6 +780,204 @@ defmodule PomodoroTrackerWeb.DayLive do
   end
 
   defp sortable_title(_), do: ""
+
+  # ---------------------------------------------------------------------------
+  # Today split + counts
+  # ---------------------------------------------------------------------------
+
+  @doc "IDs still open today (order minus done), optionally hiding work-zone."
+  def today_pending_ids(day, tasks, hide_work?) do
+    done_set = MapSet.new(day.done || [])
+
+    day.order
+    |> Enum.reject(&MapSet.member?(done_set, &1))
+    |> Enum.reject(fn id ->
+      hide_work? and
+        (case tasks[id] do
+           %{zone: :work} -> true
+           _ -> false
+         end)
+    end)
+  end
+
+  @doc "Finished-today IDs newest-first (day.done is appended chronologically)."
+  def today_done_ids(day), do: Enum.reverse(day.done || [])
+
+  @doc "Zone counters for today: %{work: %{done, total}, personal: %{done, total}}."
+  def zone_counts(day, tasks) do
+    done_set = MapSet.new(day.done || [])
+    all = Enum.uniq(day.order ++ (day.done || []))
+
+    Enum.reduce(
+      all,
+      %{work: %{done: 0, total: 0}, personal: %{done: 0, total: 0}},
+      fn id, acc ->
+        case tasks[id] do
+          %{zone: zone} when zone in [:work, :personal] ->
+            acc
+            |> update_in([zone, :total], &(&1 + 1))
+            |> (fn a ->
+                  if MapSet.member?(done_set, id),
+                    do: update_in(a, [zone, :done], &(&1 + 1)),
+                    else: a
+                end).()
+
+          _ ->
+            acc
+        end
+      end
+    )
+  end
+
+  def has_work_in_pending?(day, tasks) do
+    done_set = MapSet.new(day.done || [])
+
+    Enum.any?(day.order, fn id ->
+      not MapSet.member?(done_set, id) and
+        (case tasks[id] do
+           %{zone: :work} -> true
+           _ -> false
+         end)
+    end)
+  end
+
+  @doc """
+  Auto-hide work tasks from Today's pending list when we're outside work
+  hours and the user hasn't explicitly opted in via the banner.
+  """
+  def auto_hide_work?(now, show_off_hour_work?) do
+    not work_hours?(now) and not show_off_hour_work?
+  end
+
+  # ---------------------------------------------------------------------------
+  # Unfinished (last 7 days) + archive (older / done)
+  # ---------------------------------------------------------------------------
+
+  @unfinished_window_days 7
+
+  @doc """
+  Returns [{date, task}] for tasks that were planned but never finished
+  in the last 7 days (excluding today). Deduped across days by id, using
+  the most recent unfinished date.
+  """
+  def unfinished_recent(tasks, current_day) do
+    today = Date.utc_today()
+    current_ids = MapSet.new(current_day.order ++ (current_day.done || []))
+
+    1..@unfinished_window_days
+    |> Enum.flat_map(fn days_ago ->
+      date = Date.add(today, -days_ago)
+
+      case PomodoroTracker.Vault.load_day(date) do
+        {:ok, day} ->
+          done_set = MapSet.new(day.done || [])
+
+          day.order
+          |> Enum.reject(&MapSet.member?(done_set, &1))
+          |> Enum.map(fn id -> {id, date} end)
+
+        _ ->
+          []
+      end
+    end)
+    |> Enum.reduce(%{}, fn {id, date}, acc ->
+      Map.update(acc, id, date, fn prev ->
+        if Date.compare(date, prev) == :gt, do: date, else: prev
+      end)
+    end)
+    |> Enum.filter(fn {id, _} ->
+      Map.has_key?(tasks, id) and not MapSet.member?(current_ids, id)
+    end)
+    |> Enum.map(fn {id, date} -> {date, Map.fetch!(tasks, id)} end)
+    |> Enum.sort_by(fn {date, _} -> date end, {:desc, Date})
+  end
+
+  @doc """
+  Walks past day files outside the 7-day window, collects their unfinished
+  and finished task ids, and returns an archive structure. Only called when
+  the user clicks 'Ver archivadas'.
+  """
+  def load_archive do
+    today = Date.utc_today()
+    cutoff = Date.add(today, -@unfinished_window_days)
+
+    tasks = PomodoroTracker.Vault.list_all_tasks() |> Map.new(&{&1.id, &1})
+
+    {unfinished, finished} =
+      PomodoroTracker.Vault.day_dates()
+      |> Enum.filter(fn d -> Date.compare(d, cutoff) == :lt end)
+      |> Enum.reduce({%{}, %{}}, fn date, {unf, fin} ->
+        case PomodoroTracker.Vault.load_day(date) do
+          {:ok, day} ->
+            done_set = MapSet.new(day.done || [])
+
+            unf =
+              day.order
+              |> Enum.reject(&MapSet.member?(done_set, &1))
+              |> Enum.filter(&Map.has_key?(tasks, &1))
+              |> Enum.reduce(unf, fn id, acc ->
+                Map.update(acc, id, date, fn prev ->
+                  if Date.compare(date, prev) == :gt, do: date, else: prev
+                end)
+              end)
+
+            fin =
+              (day.done || [])
+              |> Enum.filter(&Map.has_key?(tasks, &1))
+              |> Enum.reduce(fin, fn id, acc ->
+                Map.update(acc, id, date, fn prev ->
+                  if Date.compare(date, prev) == :gt, do: date, else: prev
+                end)
+              end)
+
+            {unf, fin}
+
+          _ ->
+            {unf, fin}
+        end
+      end)
+
+    %{tasks: tasks, unfinished: unfinished, finished: finished}
+  end
+
+  @doc "Removes the given task id from the order of every day file in the window."
+  def dismiss_from_recent(id, days) do
+    today = Date.utc_today()
+
+    for n <- 1..days do
+      date = Date.add(today, -n)
+
+      case PomodoroTracker.Vault.load_day(date) do
+        {:ok, day} ->
+          if id in day.order do
+            PomodoroTracker.Vault.save_day(%{day | order: List.delete(day.order, id)})
+          end
+
+        _ ->
+          :ok
+      end
+    end
+
+    :ok
+  end
+
+  def archive_entries(archive, state_filter, zone_filter) do
+    base =
+      case state_filter do
+        :unfinished -> archive.unfinished
+        :finished -> archive.finished
+      end
+
+    base
+    |> Enum.filter(fn {id, _date} ->
+      case archive.tasks[id] do
+        nil -> false
+        %{zone: zone} -> zone_filter == :all or zone == zone_filter
+      end
+    end)
+    |> Enum.map(fn {id, date} -> {date, archive.tasks[id]} end)
+    |> Enum.sort_by(fn {date, _} -> date end, {:desc, Date})
+  end
 
   def short_url(url) do
     case URI.parse(url) do

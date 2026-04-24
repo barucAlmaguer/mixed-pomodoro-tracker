@@ -160,6 +160,28 @@ defmodule PomodoroTracker.Vault do
     Path.join(dir(:personal, :days), "#{Date.to_iso8601(date)}.md")
   end
 
+  @doc "All dates we have day files for, newest first."
+  def day_dates do
+    dir = dir(:personal, :days)
+    File.mkdir_p!(dir)
+
+    dir
+    |> File.ls!()
+    |> Enum.flat_map(fn name ->
+      case Regex.run(~r/^(\d{4}-\d{2}-\d{2})\.md$/, name, capture: :all_but_first) do
+        [iso] ->
+          case Date.from_iso8601(iso) do
+            {:ok, d} -> [d]
+            _ -> []
+          end
+
+        _ ->
+          []
+      end
+    end)
+    |> Enum.sort({:desc, Date})
+  end
+
   def load_day(date \\ Date.utc_today()) do
     path = day_path(date)
 
