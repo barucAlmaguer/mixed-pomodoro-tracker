@@ -33,7 +33,10 @@
             phx-value-tag="mensaje-slack"
             class={[
               "relative w-9 h-9 rounded-full flex items-center justify-center",
-              if(MapSet.member?(@tag_filter, "mensaje-slack"), do: "bg-white/30", else: "bg-white/10 hover:bg-white/20")
+              if(MapSet.member?(@tag_filter, "mensaje-slack"),
+                do: "bg-white/30",
+                else: "bg-white/10 hover:bg-white/20"
+              )
             ]}
             title="Slack messages"
           >
@@ -50,7 +53,10 @@
             phx-value-tag="review"
             class={[
               "relative w-9 h-9 rounded-full flex items-center justify-center",
-              if(MapSet.member?(@tag_filter, "review"), do: "bg-white/30", else: "bg-white/10 hover:bg-white/20")
+              if(MapSet.member?(@tag_filter, "review"),
+                do: "bg-white/30",
+                else: "bg-white/10 hover:bg-white/20"
+              )
             ]}
             title="GitHub PR reviews"
           >
@@ -69,23 +75,33 @@
       </div>
 
       <div class="text-center">
-        <div class="text-sm uppercase tracking-wider text-white/70">{phase_label(@timer.phase)}</div>
+        <div class="text-sm uppercase tracking-wider text-white/70">
+          {phase_label(@timer.phase)}
+        </div>
 
         <div class="flex justify-center py-2">
           <div class="group relative">
-            <div class="text-6xl font-light tabular-nums px-14">{fmt_time(@timer.remaining_ms)}</div>
+            <div class="text-6xl font-light tabular-nums px-14">
+              {fmt_time(@timer.remaining_ms)}
+            </div>
             <button
               :if={@timer.phase != :idle}
-              phx-click="timer:adjust" phx-value-delta="-300"
+              phx-click="timer:adjust"
+              phx-value-delta="-300"
               class="absolute top-1/2 -translate-y-1/2 left-0 w-9 h-9 rounded-full bg-white/10 hover:bg-white/30 text-xs leading-none opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity tabular-nums"
               title="Remove 5 minutes"
-            >−5</button>
+            >
+              −5
+            </button>
             <button
               :if={@timer.phase != :idle}
-              phx-click="timer:adjust" phx-value-delta="300"
+              phx-click="timer:adjust"
+              phx-value-delta="300"
               class="absolute top-1/2 -translate-y-1/2 right-0 w-9 h-9 rounded-full bg-white/10 hover:bg-white/30 text-xs leading-none opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity tabular-nums"
               title="Add 5 minutes"
-            >+5</button>
+            >
+              +5
+            </button>
           </div>
         </div>
 
@@ -103,7 +119,10 @@
           <%= cond do %>
             <% @timer.phase == :idle -> %>
               <div class="relative">
-                <button phx-click="timer:start_work" class="px-6 py-2 rounded-full bg-white text-black font-medium">
+                <button
+                  phx-click="timer:start_work"
+                  class="px-6 py-2 rounded-full bg-white text-black font-medium"
+                >
                   Start work
                 </button>
                 <span class="absolute -bottom-1 -right-1 px-1.5 py-0.5 rounded-full bg-black/60 text-[10px] tabular-nums">
@@ -112,8 +131,11 @@
               </div>
 
               <div class="relative">
-                <button phx-click="timer:break" phx-value-kind="passive_break"
-                        class="px-4 py-2 rounded-full bg-white/20 text-sm">
+                <button
+                  phx-click="timer:break"
+                  phx-value-kind="passive_break"
+                  class="px-4 py-2 rounded-full bg-white/20 text-sm"
+                >
                   Passive
                 </button>
                 <span class="absolute -bottom-1 -right-1 px-1.5 py-0.5 rounded-full bg-black/60 text-[10px] tabular-nums">
@@ -122,35 +144,50 @@
               </div>
 
               <div class="relative">
-                <button phx-click="timer:break" phx-value-kind="active_break"
-                        class="px-4 py-2 rounded-full bg-white/20 text-sm">
+                <button
+                  phx-click="timer:break"
+                  phx-value-kind="active_break"
+                  class="px-4 py-2 rounded-full bg-white/20 text-sm"
+                >
                   Active break
                 </button>
                 <span class="absolute -bottom-1 -right-1 px-1.5 py-0.5 rounded-full bg-black/60 text-[10px] tabular-nums">
                   {next_break_minutes(@timer)}m
                 </span>
               </div>
-
             <% @timer.running -> %>
-              <button phx-click="timer:pause" class="px-6 py-2 rounded-full bg-white/20">Pause</button>
-              <button phx-click="timer:skip" class="px-4 py-2 rounded-full bg-white/10 text-sm">Skip</button>
-              <button phx-click="timer:reset" class="px-4 py-2 rounded-full bg-white/10 text-sm">Reset</button>
-
+              <button phx-click="timer:pause" class="px-6 py-2 rounded-full bg-white/20">
+                Pause
+              </button>
+              <button phx-click="timer:skip" class="px-4 py-2 rounded-full bg-white/10 text-sm">
+                Skip
+              </button>
+              <button phx-click="timer:reset" class="px-4 py-2 rounded-full bg-white/10 text-sm">
+                Reset
+              </button>
             <% true -> %>
-              <button phx-click="timer:resume" class="px-6 py-2 rounded-full bg-white text-black font-medium">Resume</button>
-              <button phx-click="timer:reset" class="px-4 py-2 rounded-full bg-white/10 text-sm">Reset</button>
+              <button
+                phx-click="timer:resume"
+                class="px-6 py-2 rounded-full bg-white text-black font-medium"
+              >
+                Resume
+              </button>
+              <button phx-click="timer:reset" class="px-4 py-2 rounded-full bg-white/10 text-sm">
+                Reset
+              </button>
           <% end %>
         </div>
       </div>
     </div>
-
-    <!-- BREAK MODE: pick a break task (hidden once one is picked) -->
+    
+<!-- BREAK MODE: pick a break task (hidden once one is picked) -->
     <section
       :if={break_phase?(@timer.phase) and now_ids(@day.active, @tasks, @timer.phase) == []}
       class="mt-6"
     >
       <h2 class="text-xs uppercase tracking-wider text-white/70 mb-2">
-        {if @timer.phase == :active_break, do: "Elige una tarea para este break",
+        {if @timer.phase == :active_break,
+          do: "Elige una tarea para este break",
           else: "Elige algo para descansar"}
       </h2>
 
@@ -162,56 +199,98 @@
           phx-value-tag={tag}
           class={[
             "text-[11px] px-2 py-0.5 rounded",
-            if(@break_tag_filter == tag, do: "bg-amber-400 text-black", else: "bg-white/10 hover:bg-white/20")
+            if(@break_tag_filter == tag,
+              do: "bg-amber-400 text-black",
+              else: "bg-white/10 hover:bg-white/20"
+            )
           ]}
-        >{tag}</button>
+        >
+          {tag}
+        </button>
         <button
           :if={@break_tag_filter}
           phx-click="filter:break_tag"
           phx-value-tag={@break_tag_filter}
           class="text-[11px] px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-white/70"
-        >clear</button>
+        >
+          clear
+        </button>
       </div>
 
-      <% picker = break_picker_tasks(@tasks, @timer.phase, @day.active ++ @day.done, @day.order, @break_tag_filter) %>
-      <div :if={picker == []} class="text-sm text-white/50 italic py-3 text-center border border-dashed border-white/20 rounded">
+      <% picker =
+        break_picker_tasks(
+          @tasks,
+          @timer.phase,
+          @day.active ++ @day.done,
+          @day.order,
+          @break_tag_filter
+        ) %>
+      <div
+        :if={picker == []}
+        class="text-sm text-white/50 italic py-3 text-center border border-dashed border-white/20 rounded"
+      >
         {if @break_tag_filter,
           do: "No hay tareas con ese tag.",
-          else: (if @timer.phase == :active_break, do: "No hay tareas rápidas disponibles.", else: "No hay tareas de break disponibles.")}
+          else:
+            if(@timer.phase == :active_break,
+              do: "No hay tareas rápidas disponibles.",
+              else: "No hay tareas de break disponibles."
+            )}
       </div>
       <ul :if={picker != []} class="space-y-1">
         <li
           :for={t <- Enum.take(picker, 6)}
           class="flex items-center gap-2 px-2 py-2 rounded bg-white/10 hover:bg-white/15"
         >
-          <button phx-click="day:toggle_active" phx-value-id={t.id} class="flex-1 text-left text-sm">
+          <button
+            phx-click="day:toggle_active"
+            phx-value-id={t.id}
+            class="flex-1 text-left text-sm"
+          >
             {t.title}
           </button>
-          <button phx-click="day:toggle_active" phx-value-id={t.id} class="text-xs px-2 py-1 rounded bg-white/15">pick</button>
+          <button
+            phx-click="day:toggle_active"
+            phx-value-id={t.id}
+            class="text-xs px-2 py-1 rounded bg-white/15"
+          >
+            pick
+          </button>
         </li>
       </ul>
     </section>
-
-    <!-- "Up next" — mini pills for tasks waiting across a break. Only during break. -->
-    <section :if={break_phase?(@timer.phase) and upnext_ids(@day.active, @tasks) != []} class="mt-6">
+    
+<!-- "Up next" — mini pills for tasks waiting across a break. Only during break. -->
+    <section
+      :if={break_phase?(@timer.phase) and upnext_ids(@day.active, @tasks) != []}
+      class="mt-6"
+    >
       <div class="space-y-1">
         <div
           :for={id <- upnext_ids(@day.active, @tasks)}
           :if={t = @tasks[id]}
           class={[
             "flex items-center gap-2 px-3 py-1.5 rounded text-sm",
-            if(t.zone == :work, do: "bg-red-600/70 border border-red-500/60", else: "bg-blue-600/70 border border-blue-500/60")
+            if(t.zone == :work,
+              do: "bg-red-600/70 border border-red-500/60",
+              else: "bg-blue-600/70 border border-blue-500/60"
+            )
           ]}
         >
           <span class="text-white/70 text-xs uppercase tracking-wider">Up next:</span>
           <span class="truncate flex-1">{t.title}</span>
-          <button phx-click="day:toggle_active" phx-value-id={t.id}
-                  class="text-[10px] px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20">×</button>
+          <button
+            phx-click="day:toggle_active"
+            phx-value-id={t.id}
+            class="text-[10px] px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20"
+          >
+            ×
+          </button>
         </div>
       </div>
     </section>
-
-    <!-- Doing now — full card. During work: all active tasks. During break: only "now_ids" (break-zone tasks). -->
+    
+<!-- Doing now — full card. During work: all active tasks. During break: only "now_ids" (break-zone tasks). -->
     <section :if={now_ids(@day.active, @tasks, @timer.phase) != []} class="mt-6">
       <h2 class="text-xs uppercase tracking-wider text-white/60 mb-2">
         {if break_phase?(@timer.phase), do: "Doing this break", else: "In progress"}
@@ -232,32 +311,53 @@
             </div>
             <div class="flex gap-1 shrink-0">
               <button
-                phx-click="edit:open" phx-value-id={t.id}
+                phx-click="edit:open"
+                phx-value-id={t.id}
                 class="text-xs w-7 h-7 rounded bg-white/10 hover:bg-white/20"
                 title="Edit"
-              >✎</button>
-              <button phx-click="day:toggle_active" phx-value-id={t.id}
-                      class="text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/20">Pause</button>
-              <button phx-click="day:finish" phx-value-id={t.id}
-                      class="text-xs px-2 py-1 rounded bg-emerald-500/70 hover:bg-emerald-500/90">Finish</button>
+              >
+                ✎
+              </button>
+              <button
+                phx-click="day:toggle_active"
+                phx-value-id={t.id}
+                class="text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/20"
+              >
+                Pause
+              </button>
+              <button
+                phx-click="day:finish"
+                phx-value-id={t.id}
+                class="text-xs px-2 py-1 rounded bg-emerald-500/70 hover:bg-emerald-500/90"
+              >
+                Finish
+              </button>
             </div>
           </div>
 
           <div :if={t.related != []} class="mt-2 flex flex-wrap gap-1">
-            <a :for={url <- t.related} href={url} target="_blank" rel="noopener"
-               class="text-xs px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 underline">
+            <a
+              :for={url <- t.related}
+              href={url}
+              target="_blank"
+              rel="noopener"
+              class="text-xs px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 underline"
+            >
               {short_url(url)}
             </a>
           </div>
 
-          <div :if={t.body && String.trim(t.body) != ""} class="mt-2 text-xs text-white/80 whitespace-pre-wrap">
+          <div
+            :if={t.body && String.trim(t.body) != ""}
+            class="mt-2 text-xs text-white/80 whitespace-pre-wrap"
+          >
             {t.body}
           </div>
         </div>
       </div>
     </section>
-
-    <!-- Empty box when idle and nothing active: "elige algo para trabajar" -->
+    
+<!-- Empty box when idle and nothing active: "elige algo para trabajar" -->
     <section :if={not break_phase?(@timer.phase) and @day.active == []} class="mt-6">
       <div class="text-sm text-white/60 italic py-6 text-center border border-dashed border-white/25 rounded">
         {if @day.order == [],
@@ -265,8 +365,8 @@
           else: "Elige algo para trabajar ↓"}
       </div>
     </section>
-
-    <!-- Off-hours banner: hiding work tasks from Today (auto) -->
+    
+<!-- Off-hours banner: hiding work tasks from Today (auto) -->
     <% hide_work = auto_hide_work?(@now, @show_off_hour_work) %>
     <div
       :if={not work_hours?(@now) and has_work_in_pending?(@day, @tasks)}
@@ -277,15 +377,48 @@
           do: "Filtrando tareas de trabajo · fuera de horario",
           else: "Mostrando tareas de trabajo · es tiempo personal"}
       </span>
-      <button phx-click="toggle:off_hour_work" class="px-2 py-0.5 rounded bg-white/10 hover:bg-white/20">
+      <button
+        phx-click="toggle:off_hour_work"
+        class="px-2 py-0.5 rounded bg-white/10 hover:bg-white/20"
+      >
         {if hide_work, do: "ver", else: "ocultar"}
       </button>
     </div>
-
-    <!-- Today (collapsible) -->
+    
+<!-- Today (collapsible) -->
     <% zc = zone_counts(@day, @tasks) %>
     <% pending = today_pending_ids(@day, @tasks, hide_work) %>
     <% done_ids = today_done_ids(@day) %>
+    <% due = due_soon_for_today(@day, @tasks, @now) %>
+    
+<!-- Deadline banner — appears when any task in TODAY is due in <2h -->
+    <div
+      :if={due != []}
+      class="mt-4 px-3 py-2 rounded bg-amber-900/30 border border-amber-700/50 text-xs flex items-start gap-2"
+    >
+      <span class="text-amber-300">⏰</span>
+      <div class="flex-1 min-w-0 space-y-0.5">
+        <div :for={{t, mins} <- due} class="flex items-center gap-2">
+          <span class={[
+            "tabular-nums shrink-0",
+            if(mins < 0, do: "text-red-300", else: "text-amber-200")
+          ]}>
+            {PomodoroTracker.Priority.humanize_minutes(mins)}
+          </span>
+          <span class="opacity-50">·</span>
+          <span class="truncate">{t.title}</span>
+          <button
+            phx-click="day:move"
+            phx-value-id={t.id}
+            phx-value-dir="top"
+            class="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20 shrink-0"
+          >
+            subir al tope
+          </button>
+        </div>
+      </div>
+    </div>
+
     <section class="mt-6">
       <button phx-click="toggle:today" class="w-full flex items-center justify-between mb-2 gap-2">
         <div class="flex items-center gap-1.5 flex-wrap">
@@ -293,11 +426,15 @@
           <span
             :if={zc.work.total > 0}
             class="text-[10px] px-1.5 py-0.5 rounded bg-red-900/60 border border-red-700/50 tabular-nums"
-          >{zc.work.done}/{zc.work.total}</span>
+          >
+            {zc.work.done}/{zc.work.total}
+          </span>
           <span
             :if={zc.personal.total > 0}
             class="text-[10px] px-1.5 py-0.5 rounded bg-blue-900/60 border border-blue-700/50 tabular-nums"
-          >{zc.personal.done}/{zc.personal.total}</span>
+          >
+            {zc.personal.done}/{zc.personal.total}
+          </span>
         </div>
         <span class="text-xs text-white/40">{if @today_collapsed, do: "▸", else: "▾"}</span>
       </button>
@@ -317,14 +454,42 @@
             class="flex items-stretch gap-1"
           >
             <div class="flex flex-col justify-between py-0.5">
-              <button phx-click="day:move" phx-value-id={t.id} phx-value-dir="top"
-                      class="w-4 h-4 rounded bg-white/5 hover:bg-white/20 text-[11px] leading-none" title="Move to top">⤒</button>
-              <button phx-click="day:move" phx-value-id={t.id} phx-value-dir="up"
-                      class="w-4 h-4 rounded bg-white/5 hover:bg-white/20 text-[11px] leading-none" title="Up">↑</button>
-              <button phx-click="day:move" phx-value-id={t.id} phx-value-dir="down"
-                      class="w-4 h-4 rounded bg-white/5 hover:bg-white/20 text-[11px] leading-none" title="Down">↓</button>
-              <button phx-click="day:move" phx-value-id={t.id} phx-value-dir="bottom"
-                      class="w-4 h-4 rounded bg-white/5 hover:bg-white/20 text-[11px] leading-none" title="Move to bottom">⤓</button>
+              <button
+                phx-click="day:move"
+                phx-value-id={t.id}
+                phx-value-dir="top"
+                class="w-4 h-4 rounded bg-white/5 hover:bg-white/20 text-[11px] leading-none"
+                title="Move to top"
+              >
+                ⤒
+              </button>
+              <button
+                phx-click="day:move"
+                phx-value-id={t.id}
+                phx-value-dir="up"
+                class="w-4 h-4 rounded bg-white/5 hover:bg-white/20 text-[11px] leading-none"
+                title="Up"
+              >
+                ↑
+              </button>
+              <button
+                phx-click="day:move"
+                phx-value-id={t.id}
+                phx-value-dir="down"
+                class="w-4 h-4 rounded bg-white/5 hover:bg-white/20 text-[11px] leading-none"
+                title="Down"
+              >
+                ↓
+              </button>
+              <button
+                phx-click="day:move"
+                phx-value-id={t.id}
+                phx-value-dir="bottom"
+                class="w-4 h-4 rounded bg-white/5 hover:bg-white/20 text-[11px] leading-none"
+                title="Move to bottom"
+              >
+                ⤓
+              </button>
             </div>
             <div class={[
               "group relative flex-1 flex items-center gap-2 px-2 py-2 rounded border",
@@ -332,20 +497,43 @@
               if(t.id in @day.active, do: "ring-1 ring-white/40", else: "")
             ]}>
               <div class="text-xs opacity-40 w-4 text-right tabular-nums">{idx + 1}</div>
-              <button phx-click="day:toggle_active" phx-value-id={t.id} class="flex-1 text-left min-w-0">
-                <div class="text-sm truncate">{t.title}</div>
+              <button
+                phx-click="day:toggle_active"
+                phx-value-id={t.id}
+                class="flex-1 text-left min-w-0"
+              >
+                <div class="text-sm truncate flex items-center gap-1">
+                  <span
+                    :if={t.id in (@day.auto_injected || [])}
+                    title="Auto-inyectada (recurrente)"
+                    class="text-[11px]"
+                  >
+                    🔁
+                  </span>
+                  <span class="truncate">{t.title}</span>
+                </div>
                 <div class="flex gap-2 text-[10px] opacity-60 mt-0.5">
                   <span>{t.zone}</span>
                   <span :if={t.priority}>· {t.priority}</span>
                   <span :if={@day.pomodoros[t.id]}>· {@day.pomodoros[t.id]}🍅</span>
                 </div>
               </button>
-              <button phx-click="edit:open" phx-value-id={t.id}
-                      class="w-6 h-6 rounded bg-white/5 hover:bg-white/15 text-xs shrink-0"
-                      title="Edit">✎</button>
-              <button phx-click="day:remove" phx-value-id={t.id}
-                      class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-white/20 hover:bg-red-500 text-xs leading-none opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
-                      title="Remove from today">×</button>
+              <button
+                phx-click="edit:open"
+                phx-value-id={t.id}
+                class="w-6 h-6 rounded bg-white/5 hover:bg-white/15 text-xs shrink-0"
+                title="Edit"
+              >
+                ✎
+              </button>
+              <button
+                phx-click="day:remove"
+                phx-value-id={t.id}
+                class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-white/20 hover:bg-red-500 text-xs leading-none opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                title="Remove from today"
+              >
+                ×
+              </button>
             </div>
           </li>
         </ul>
@@ -364,13 +552,19 @@
                 <span :if={@day.pomodoros[t.id]}>· {@day.pomodoros[t.id]}🍅</span>
               </div>
             </div>
-            <button phx-click="day:unfinish" phx-value-id={t.id} class="text-[10px] px-2 py-0.5 rounded bg-white/10 hover:bg-white/20">undo</button>
+            <button
+              phx-click="day:unfinish"
+              phx-value-id={t.id}
+              class="text-[10px] px-2 py-0.5 rounded bg-white/10 hover:bg-white/20"
+            >
+              undo
+            </button>
           </li>
         </ul>
       </div>
     </section>
-
-    <!-- Unfinished from the last 7 days -->
+    
+<!-- Unfinished from the last 7 days -->
     <% unfinished = unfinished_recent(@tasks, @day) %>
     <section :if={unfinished != []} class="mt-8">
       <button phx-click="toggle:unfinished" class="w-full flex items-center justify-between mb-2">
@@ -393,43 +587,81 @@
               <span>{Date.to_iso8601(date)}</span>
               <span>· {t.zone}</span>
               <span :if={t.priority}>· {t.priority}</span>
-              <span :for={tag <- Enum.take(t.tags || [], 2)} class="px-1 rounded bg-white/10">{tag}</span>
+              <span :for={tag <- Enum.take(t.tags || [], 2)} class="px-1 rounded bg-white/10">
+                {tag}
+              </span>
             </div>
           </button>
           <div class="flex gap-0.5">
-            <button phx-click="edit:open" phx-value-id={t.id}
-                    class="w-6 h-6 rounded bg-white/10 hover:bg-white/20 text-xs" title="Edit">✎</button>
-            <button phx-click="day:add" phx-value-id={t.id}
-                    class="w-6 h-6 rounded bg-white/10 hover:bg-white/20 text-xs" title="Add to today">+</button>
-            <button phx-click="unfinished:dismiss" phx-value-id={t.id}
-                    data-confirm="Quitar de inconclusas? La tarea sigue en backlog."
-                    class="w-6 h-6 rounded bg-white/10 hover:bg-white/20 text-xs" title="Dismiss from unfinished">×</button>
+            <button
+              phx-click="edit:open"
+              phx-value-id={t.id}
+              class="w-6 h-6 rounded bg-white/10 hover:bg-white/20 text-xs"
+              title="Edit"
+            >
+              ✎
+            </button>
+            <button
+              phx-click="day:add"
+              phx-value-id={t.id}
+              class="w-6 h-6 rounded bg-white/10 hover:bg-white/20 text-xs"
+              title="Add to today"
+            >
+              +
+            </button>
+            <button
+              phx-click="unfinished:dismiss"
+              phx-value-id={t.id}
+              data-confirm="Quitar de inconclusas? La tarea sigue en backlog."
+              class="w-6 h-6 rounded bg-white/10 hover:bg-white/20 text-xs"
+              title="Dismiss from unfinished"
+            >
+              ×
+            </button>
           </div>
         </li>
       </ul>
     </section>
-
-    <!-- Backlog -->
+    
+<!-- Backlog -->
     <section class="mt-8">
       <div class="flex items-center justify-between mb-2">
         <h2 class="text-xs uppercase tracking-wider text-white/60">Backlog</h2>
         <div class="flex gap-1 text-xs">
           <button
-            phx-click="filter:zone" phx-value-zone="auto"
-            class={["px-2 py-1 rounded", if(@zone_filter == :auto, do: "bg-white/20", else: "bg-white/5")]}
-          >auto</button>
+            phx-click="filter:zone"
+            phx-value-zone="auto"
+            class={[
+              "px-2 py-1 rounded",
+              if(@zone_filter == :auto, do: "bg-white/20", else: "bg-white/5")
+            ]}
+          >
+            auto
+          </button>
           <button
-            phx-click="filter:zone" phx-value-zone="work"
-            class={["px-2 py-1 rounded", if(@zone_filter == :work, do: "bg-red-500/40", else: "bg-white/5")]}
-          >work</button>
+            phx-click="filter:zone"
+            phx-value-zone="work"
+            class={[
+              "px-2 py-1 rounded",
+              if(@zone_filter == :work, do: "bg-red-500/40", else: "bg-white/5")
+            ]}
+          >
+            work
+          </button>
           <button
-            phx-click="filter:zone" phx-value-zone="personal"
-            class={["px-2 py-1 rounded", if(@zone_filter == :personal, do: "bg-blue-500/40", else: "bg-white/5")]}
-          >personal</button>
+            phx-click="filter:zone"
+            phx-value-zone="personal"
+            class={[
+              "px-2 py-1 rounded",
+              if(@zone_filter == :personal, do: "bg-blue-500/40", else: "bg-white/5")
+            ]}
+          >
+            personal
+          </button>
         </div>
       </div>
-
-      <!-- Add buttons ABOVE the list -->
+      
+<!-- Add buttons ABOVE the list -->
       <div class="flex gap-2 text-xs mb-3">
         <button
           phx-click="new:open"
@@ -449,7 +681,8 @@
         </button>
       </div>
 
-      <% backlog_chip_tags = backlog_tags(@tasks, backlog_zone(@now, @zone_filter), @day.order ++ @day.done) %>
+      <% backlog_chip_tags =
+        backlog_tags(@tasks, backlog_zone(@now, @zone_filter), @day.order ++ @day.done) %>
       <div :if={backlog_chip_tags != []} class="flex flex-wrap gap-1 mb-2">
         <button
           :for={tag <- backlog_chip_tags}
@@ -457,19 +690,34 @@
           phx-value-tag={tag}
           class={[
             "text-[11px] px-2 py-0.5 rounded",
-            if(MapSet.member?(@tag_filter, tag), do: "bg-amber-400 text-black", else: "bg-white/10 hover:bg-white/20")
+            if(MapSet.member?(@tag_filter, tag),
+              do: "bg-amber-400 text-black",
+              else: "bg-white/10 hover:bg-white/20"
+            )
           ]}
-        >{tag}</button>
+        >
+          {tag}
+        </button>
         <button
           :if={MapSet.size(@tag_filter) > 0}
           phx-click="filter:clear_tags"
           class="text-[11px] px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-white/70"
-        >clear</button>
+        >
+          clear
+        </button>
       </div>
 
       <ul class="space-y-1">
         <li
-          :for={t <- filtered_backlog(@tasks, backlog_zone(@now, @zone_filter), @tag_filter, @day.order ++ @day.done)}
+          :for={
+            t <-
+              filtered_backlog(
+                @tasks,
+                backlog_zone(@now, @zone_filter),
+                @tag_filter,
+                @day.order ++ @day.done
+              )
+          }
           class={[
             "flex items-center gap-2 px-2 py-2 rounded border",
             zone_card_class(t.zone)
@@ -480,18 +728,34 @@
             <div class="flex gap-2 text-[10px] opacity-60 mt-0.5">
               <span>{t.kind}</span>
               <span :if={t.priority}>· {t.priority}</span>
-              <span :for={tag <- Enum.take(t.tags || [], 3)} class="px-1 rounded bg-white/10">{tag}</span>
+              <span :for={tag <- Enum.take(t.tags || [], 3)} class="px-1 rounded bg-white/10">
+                {tag}
+              </span>
             </div>
           </button>
           <div class="flex gap-0.5">
-            <button phx-click="edit:open" phx-value-id={t.id} class="w-6 h-6 rounded bg-white/10 hover:bg-white/20 text-xs" title="Edit">✎</button>
-            <button phx-click="day:add" phx-value-id={t.id} class="w-6 h-6 rounded bg-white/10 hover:bg-white/20 text-xs" title="Add to today">+</button>
+            <button
+              phx-click="edit:open"
+              phx-value-id={t.id}
+              class="w-6 h-6 rounded bg-white/10 hover:bg-white/20 text-xs"
+              title="Edit"
+            >
+              ✎
+            </button>
+            <button
+              phx-click="day:add"
+              phx-value-id={t.id}
+              class="w-6 h-6 rounded bg-white/10 hover:bg-white/20 text-xs"
+              title="Add to today"
+            >
+              +
+            </button>
           </div>
         </li>
       </ul>
     </section>
-
-    <!-- Archive (lazy-loaded, shows older unfinished and finished tasks) -->
+    
+<!-- Archive (lazy-loaded, shows older unfinished and finished tasks) -->
     <section class="mt-8">
       <div :if={not @archive_visible} class="flex justify-center">
         <button
@@ -505,31 +769,69 @@
       <div :if={@archive_visible}>
         <div class="flex items-center justify-between mb-2">
           <h2 class="text-xs uppercase tracking-wider text-white/60">Archivadas</h2>
-          <button phx-click="archive:hide" class="text-xs text-white/50 hover:text-white">ocultar ▴</button>
+          <button phx-click="archive:hide" class="text-xs text-white/50 hover:text-white">
+            ocultar ▴
+          </button>
         </div>
 
         <div class="flex flex-wrap gap-1 mb-2 text-xs">
           <button
-            phx-click="archive:state_filter" phx-value-state="unfinished"
-            class={["px-2 py-0.5 rounded", if(@archive_state_filter == :unfinished, do: "bg-amber-400 text-black", else: "bg-white/10 hover:bg-white/20")]}
-          >unfinished</button>
+            phx-click="archive:state_filter"
+            phx-value-state="unfinished"
+            class={[
+              "px-2 py-0.5 rounded",
+              if(@archive_state_filter == :unfinished,
+                do: "bg-amber-400 text-black",
+                else: "bg-white/10 hover:bg-white/20"
+              )
+            ]}
+          >
+            unfinished
+          </button>
           <button
-            phx-click="archive:state_filter" phx-value-state="finished"
-            class={["px-2 py-0.5 rounded", if(@archive_state_filter == :finished, do: "bg-emerald-400 text-black", else: "bg-white/10 hover:bg-white/20")]}
-          >finished</button>
+            phx-click="archive:state_filter"
+            phx-value-state="finished"
+            class={[
+              "px-2 py-0.5 rounded",
+              if(@archive_state_filter == :finished,
+                do: "bg-emerald-400 text-black",
+                else: "bg-white/10 hover:bg-white/20"
+              )
+            ]}
+          >
+            finished
+          </button>
           <span class="mx-1 text-white/30">·</span>
           <button
-            phx-click="archive:zone_filter" phx-value-zone="all"
-            class={["px-2 py-0.5 rounded", if(@archive_zone_filter == :all, do: "bg-white/20", else: "bg-white/5")]}
-          >all</button>
+            phx-click="archive:zone_filter"
+            phx-value-zone="all"
+            class={[
+              "px-2 py-0.5 rounded",
+              if(@archive_zone_filter == :all, do: "bg-white/20", else: "bg-white/5")
+            ]}
+          >
+            all
+          </button>
           <button
-            phx-click="archive:zone_filter" phx-value-zone="work"
-            class={["px-2 py-0.5 rounded", if(@archive_zone_filter == :work, do: "bg-red-500/40", else: "bg-white/5")]}
-          >work</button>
+            phx-click="archive:zone_filter"
+            phx-value-zone="work"
+            class={[
+              "px-2 py-0.5 rounded",
+              if(@archive_zone_filter == :work, do: "bg-red-500/40", else: "bg-white/5")
+            ]}
+          >
+            work
+          </button>
           <button
-            phx-click="archive:zone_filter" phx-value-zone="personal"
-            class={["px-2 py-0.5 rounded", if(@archive_zone_filter == :personal, do: "bg-blue-500/40", else: "bg-white/5")]}
-          >personal</button>
+            phx-click="archive:zone_filter"
+            phx-value-zone="personal"
+            class={[
+              "px-2 py-0.5 rounded",
+              if(@archive_zone_filter == :personal, do: "bg-blue-500/40", else: "bg-white/5")
+            ]}
+          >
+            personal
+          </button>
         </div>
 
         <% archive_items = archive_entries(@archive, @archive_state_filter, @archive_zone_filter) %>
@@ -546,7 +848,10 @@
             ]}
           >
             <button phx-click="edit:open" phx-value-id={t.id} class="flex-1 text-left min-w-0">
-              <div class={["text-sm truncate", if(@archive_state_filter == :finished, do: "line-through", else: "")]}>
+              <div class={[
+                "text-sm truncate",
+                if(@archive_state_filter == :finished, do: "line-through", else: "")
+              ]}>
                 {t.title}
               </div>
               <div class="flex gap-2 text-[10px] opacity-60 mt-0.5">
@@ -557,17 +862,20 @@
             </button>
             <button
               :if={@archive_state_filter == :unfinished}
-              phx-click="day:add" phx-value-id={t.id}
+              phx-click="day:add"
+              phx-value-id={t.id}
               class="text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/20"
               title="Add to today"
-            >+ today</button>
+            >
+              + today
+            </button>
           </li>
         </ul>
       </div>
     </section>
   </div>
-
-  <!-- New task modal (click-outside-only close, phx-change controlled) -->
+  
+<!-- New task modal (click-outside-only close, phx-change controlled) -->
   <div :if={@new_task_form}>
     <div class="fixed inset-0 bg-black/60 z-30" phx-click="new:close"></div>
     <div class="fixed inset-0 z-40 flex items-center justify-center p-4 pointer-events-none">
@@ -601,23 +909,45 @@
             class="flex-1 bg-white/10 rounded px-2 py-2 text-sm"
           />
         </div>
-        <label :if={@new_task_form.kind == :templates and @new_task_form.zone == :personal} class="flex items-center gap-2 text-xs">
-          <input type="checkbox" name="task[is_break]" value="true" checked={@new_task_form.is_break} />
-          Es break? (agrega tag <code>break</code>)
+        <label
+          :if={@new_task_form.kind == :templates and @new_task_form.zone == :personal}
+          class="flex items-center gap-2 text-xs"
+        >
+          <input
+            type="checkbox"
+            name="task[is_break]"
+            value="true"
+            checked={@new_task_form.is_break}
+          /> Es break? (agrega tag <code>break</code>)
         </label>
         <label class="flex items-center gap-2 text-xs">
-          <input type="checkbox" name="task[add_to_today]" value="true" checked={@new_task_form.add_to_today} />
-          Add to today
+          <input
+            type="checkbox"
+            name="task[add_to_today]"
+            value="true"
+            checked={@new_task_form.add_to_today}
+          /> Add to today
         </label>
         <div class="flex gap-2 justify-end">
-          <button type="button" phx-click="new:close" class="px-3 py-1.5 rounded bg-white/10 text-sm">Cancel</button>
-          <button type="submit" class="px-3 py-1.5 rounded bg-white text-black text-sm font-medium">Create</button>
+          <button
+            type="button"
+            phx-click="new:close"
+            class="px-3 py-1.5 rounded bg-white/10 text-sm"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            class="px-3 py-1.5 rounded bg-white text-black text-sm font-medium"
+          >
+            Create
+          </button>
         </div>
       </form>
     </div>
   </div>
-
-  <!-- Edit task modal -->
+  
+<!-- Edit task modal -->
   <div :if={@edit_form}>
     <div class="fixed inset-0 bg-black/60 z-30" phx-click="edit:close"></div>
     <div class="fixed inset-0 z-40 flex items-center justify-center p-4 pointer-events-none">
@@ -661,14 +991,20 @@
         </label>
         <div>
           <label class="text-xs text-white/60">Related links (one per line)</label>
-          <textarea name="task[related]" rows="3"
-                    placeholder="https://linear.app/..."
-                    class="w-full bg-white/10 rounded px-3 py-2 text-xs font-mono">{@edit_form.related}</textarea>
+          <textarea
+            name="task[related]"
+            rows="3"
+            placeholder="https://linear.app/..."
+            class="w-full bg-white/10 rounded px-3 py-2 text-xs font-mono"
+          >{@edit_form.related}</textarea>
         </div>
         <div>
           <label class="text-xs text-white/60">Notes</label>
-          <textarea name="task[body]" rows="5"
-                    class="w-full bg-white/10 rounded px-3 py-2 text-xs">{@edit_form.body}</textarea>
+          <textarea
+            name="task[body]"
+            rows="5"
+            class="w-full bg-white/10 rounded px-3 py-2 text-xs"
+          >{@edit_form.body}</textarea>
         </div>
         <div class="flex gap-2 justify-between items-center flex-wrap">
           <div class="flex gap-2">
@@ -677,18 +1013,33 @@
               phx-click="edit:delete"
               data-confirm={"Delete '#{@edit_form.title}' permanently?"}
               class="px-3 py-1.5 rounded bg-red-600/80 hover:bg-red-600 text-white text-xs"
-            >Delete</button>
+            >
+              Delete
+            </button>
             <button
               :if={@edit_form.kind == :backlog and is_nil(@edit_form.from_template)}
               type="button"
               phx-click="edit:promote"
               class="px-3 py-1.5 rounded bg-amber-500/80 hover:bg-amber-500 text-black text-xs"
               title="Copy this task into templates/ for reuse"
-            >Convert to template</button>
+            >
+              Convert to template
+            </button>
           </div>
           <div class="flex gap-2 ml-auto">
-            <button type="button" phx-click="edit:close" class="px-3 py-1.5 rounded bg-white/10 text-sm">Cancel</button>
-            <button type="submit" class="px-3 py-1.5 rounded bg-white text-black text-sm font-medium">Save</button>
+            <button
+              type="button"
+              phx-click="edit:close"
+              class="px-3 py-1.5 rounded bg-white/10 text-sm"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              class="px-3 py-1.5 rounded bg-white text-black text-sm font-medium"
+            >
+              Save
+            </button>
           </div>
         </div>
       </form>

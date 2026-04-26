@@ -40,6 +40,7 @@ defmodule PomodoroTracker.Timer do
   def resume, do: GenServer.call(__MODULE__, :resume)
   def reset, do: GenServer.call(__MODULE__, :reset)
   def skip, do: GenServer.call(__MODULE__, :skip)
+
   def adjust(delta_ms) when is_integer(delta_ms),
     do: GenServer.call(__MODULE__, {:adjust, delta_ms})
 
@@ -78,6 +79,7 @@ defmodule PomodoroTracker.Timer do
   def handle_call({:start, :work, zone, task_ids}, _from, state) do
     cancel(state.tref)
     ms = cfg(:work_minutes) * 60_000
+
     new = %{
       state
       | phase: :work,
@@ -88,6 +90,7 @@ defmodule PomodoroTracker.Timer do
         running: true,
         started_at: now()
     }
+
     {:reply, :ok, schedule(new) |> broadcast()}
   end
 
@@ -232,7 +235,15 @@ defmodule PomodoroTracker.Timer do
   end
 
   defp public(state) do
-    Map.take(state, [:phase, :zone, :task_ids, :remaining_ms, :duration_ms, :running, :rounds_completed])
+    Map.take(state, [
+      :phase,
+      :zone,
+      :task_ids,
+      :remaining_ms,
+      :duration_ms,
+      :running,
+      :rounds_completed
+    ])
   end
 
   defp now, do: System.monotonic_time(:millisecond)

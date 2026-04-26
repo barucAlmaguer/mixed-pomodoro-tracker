@@ -37,6 +37,9 @@ pomodoro_tracker-*.tar
 /priv/static/images/*-*.*
 /priv/static/images/*.gz
 
+# But keep the PWA service worker (its name has a hyphen).
+!/priv/static/service-worker.js
+
 # In case you use Node.js/npm, you want to ignore these.
 npm-debug.log
 /assets/node_modules/

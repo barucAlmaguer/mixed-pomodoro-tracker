@@ -68,7 +68,9 @@ defmodule PomodoroTracker.Vault do
     |> Enum.map(&Path.join(dir, &1))
     |> Enum.flat_map(fn path ->
       case read_task(path, zone, kind) do
-        {:ok, task} -> [task]
+        {:ok, task} ->
+          [task]
+
         {:error, reason} ->
           Logger.warning("skip #{path}: #{inspect(reason)}")
           []
@@ -93,6 +95,8 @@ defmodule PomodoroTracker.Vault do
         recurrence: fm["recurrence"],
         duration_hint: fm["duration_hint"],
         from_template: fm["from_template"],
+        due_at: fm["due_at"],
+        lead_time_minutes: fm["lead_time_minutes"],
         kind: kind,
         path: path,
         body: body,
@@ -196,6 +200,8 @@ defmodule PomodoroTracker.Vault do
                active: fm["active"] || [],
                done: fm["done"] || [],
                pomodoros: fm["pomodoros"] || %{},
+               auto_injected: fm["auto_injected"] || [],
+               cadence_ran_for: fm["cadence_ran_for"],
                path: path
              }}
 
@@ -205,7 +211,16 @@ defmodule PomodoroTracker.Vault do
 
       {:error, :enoent} ->
         {:ok,
-         %{date: date, order: [], active: [], done: [], pomodoros: %{}, path: path}}
+         %{
+           date: date,
+           order: [],
+           active: [],
+           done: [],
+           pomodoros: %{},
+           auto_injected: [],
+           cadence_ran_for: nil,
+           path: path
+         }}
 
       other ->
         other
@@ -215,18 +230,25 @@ defmodule PomodoroTracker.Vault do
   def save_day(%{date: date, order: order, active: active, pomodoros: pomos} = day) do
     path = Map.get(day, :path, day_path(date))
 
-    fm = %{
-      "date" => Date.to_iso8601(date),
-      "order" => order,
-      "active" => active,
-      "done" => Map.get(day, :done, []),
-      "pomodoros" => pomos
-    }
+    fm =
+      %{
+        "date" => Date.to_iso8601(date),
+        "order" => order,
+        "active" => active,
+        "done" => Map.get(day, :done, []),
+        "pomodoros" => pomos
+      }
+      |> maybe_put("auto_injected", Map.get(day, :auto_injected, []))
+      |> maybe_put("cadence_ran_for", Map.get(day, :cadence_ran_for))
 
     File.mkdir_p!(Path.dirname(path))
     File.write!(path, render(fm, ""))
     {:ok, path}
   end
+
+  defp maybe_put(map, _k, nil), do: map
+  defp maybe_put(map, _k, []), do: map
+  defp maybe_put(map, k, v), do: Map.put(map, k, v)
 
   @doc """
   Updates a task file in place. `attrs` is a map of frontmatter keys to merge
@@ -398,6 +420,9 @@ defmodule PomodoroTracker.Vault do
 
   defp stringify_value(v) when is_map(v), do: stringify_keys(v)
   defp stringify_value(v) when is_list(v), do: Enum.map(v, &stringify_value/1)
-  defp stringify_value(v) when is_atom(v) and not is_boolean(v) and not is_nil(v), do: Atom.to_string(v)
+
+  defp stringify_value(v) when is_atom(v) and not is_boolean(v) and not is_nil(v),
+    do: Atom.to_string(v)
+
   defp stringify_value(v), do: v
 end

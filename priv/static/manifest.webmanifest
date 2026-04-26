@@ -1,0 +1,20 @@
+{
+  "id": "pomodoro-tracker",
+  "name": "Pomodoro Tracker",
+  "short_name": "Pomo",
+  "description": "Personal command center for tasks, habits, and focus sessions.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "lang": "es",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ]
+}

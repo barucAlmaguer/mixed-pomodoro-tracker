@@ -1,7 +1,7 @@
 defmodule PomodoroTrackerWeb.DayLive do
   use PomodoroTrackerWeb, :live_view
 
-  alias PomodoroTracker.{Timer, Vault}
+  alias PomodoroTracker.{Cadence, Priority, Timer, Vault}
 
   @impl true
   def mount(_params, _session, socket) do
@@ -46,6 +46,7 @@ defmodule PomodoroTrackerWeb.DayLive do
 
     {:noreply, assign(socket, :timer, state)}
   end
+
   def handle_info(:vault_changed, socket), do: {:noreply, load_vault(socket)}
 
   def handle_info(:tick_clock, socket) do
@@ -92,10 +93,33 @@ defmodule PomodoroTrackerWeb.DayLive do
     {:noreply, socket}
   end
 
-  def handle_event("timer:pause", _, socket), do: (Timer.pause(); {:noreply, socket})
-  def handle_event("timer:resume", _, socket), do: (Timer.resume(); {:noreply, socket})
-  def handle_event("timer:reset", _, socket), do: (Timer.reset(); {:noreply, socket})
-  def handle_event("timer:skip", _, socket), do: (Timer.skip(); {:noreply, socket})
+  def handle_event("timer:pause", _, socket),
+    do:
+      (
+        Timer.pause()
+        {:noreply, socket}
+      )
+
+  def handle_event("timer:resume", _, socket),
+    do:
+      (
+        Timer.resume()
+        {:noreply, socket}
+      )
+
+  def handle_event("timer:reset", _, socket),
+    do:
+      (
+        Timer.reset()
+        {:noreply, socket}
+      )
+
+  def handle_event("timer:skip", _, socket),
+    do:
+      (
+        Timer.skip()
+        {:noreply, socket}
+      )
 
   def handle_event("timer:adjust", %{"delta" => delta}, socket) do
     Timer.adjust(String.to_integer(delta) * 1000)
@@ -176,9 +200,11 @@ defmodule PomodoroTrackerWeb.DayLive do
       %{kind: :templates} = tpl ->
         {:ok, new_id} = Vault.instantiate_template(tpl)
         day = socket.assigns.day
-        new_day = if new_id in day.order or new_id in day.done,
-                    do: day,
-                    else: %{day | order: day.order ++ [new_id]}
+
+        new_day =
+          if new_id in day.order or new_id in day.done,
+            do: day,
+            else: %{day | order: day.order ++ [new_id]}
 
         Vault.save_day(new_day)
         {:noreply, socket |> assign(:day, new_day) |> load_vault()}
@@ -456,6 +482,9 @@ defmodule PomodoroTrackerWeb.DayLive do
     day = %{day | order: order, active: active, done: done}
     if a? or b? or c?, do: Vault.save_day(day)
 
+    day = Cadence.ensure_run!(day, tasks)
+    tasks = Vault.list_all_tasks() |> Map.new(&{&1.id, &1})
+
     socket
     |> assign(:tasks, tasks)
     |> assign(:day, day)
@@ -506,6 +535,7 @@ defmodule PomodoroTrackerWeb.DayLive do
 
   defp parse_tags(str, is_break?) do
     base = parse_lines(str, ",")
+
     cond do
       is_break? and "break" not in base -> base ++ ["break"]
       not is_break? -> Enum.reject(base, &(&1 == "break"))
@@ -756,7 +786,7 @@ defmodule PomodoroTrackerWeb.DayLive do
       |> Enum.filter(fn t ->
         t.zone == :personal and
           t.id not in exclude_ids and
-          want_break == ("break" in (t.tags || []))
+          want_break == "break" in (t.tags || [])
       end)
 
     instantiated =
@@ -793,10 +823,10 @@ defmodule PomodoroTrackerWeb.DayLive do
     |> Enum.reject(&MapSet.member?(done_set, &1))
     |> Enum.reject(fn id ->
       hide_work? and
-        (case tasks[id] do
-           %{zone: :work} -> true
-           _ -> false
-         end)
+        case tasks[id] do
+          %{zone: :work} -> true
+          _ -> false
+        end
     end)
   end
 
@@ -829,15 +859,30 @@ defmodule PomodoroTrackerWeb.DayLive do
     )
   end
 
+  @doc """
+  Pending tasks in TODAY whose due_at falls within the next 2 hours.
+  Sorted by minutes-until-due (overdue first).
+  """
+  def due_soon_for_today(day, tasks, %NaiveDateTime{} = now) do
+    day.order
+    |> Enum.flat_map(fn id ->
+      case tasks[id] do
+        nil -> []
+        t -> [t]
+      end
+    end)
+    |> Priority.due_soon(now)
+  end
+
   def has_work_in_pending?(day, tasks) do
     done_set = MapSet.new(day.done || [])
 
     Enum.any?(day.order, fn id ->
       not MapSet.member?(done_set, id) and
-        (case tasks[id] do
-           %{zone: :work} -> true
-           _ -> false
-         end)
+        case tasks[id] do
+          %{zone: :work} -> true
+          _ -> false
+        end
     end)
   end
 

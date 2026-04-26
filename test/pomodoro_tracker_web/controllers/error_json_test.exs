@@ -2,7 +2,9 @@ defmodule PomodoroTrackerWeb.ErrorJSONTest do
   use PomodoroTrackerWeb.ConnCase, async: true
 
   test "renders 404" do
-    assert PomodoroTrackerWeb.ErrorJSON.render("404.json", %{}) == %{errors: %{detail: "Not Found"}}
+    assert PomodoroTrackerWeb.ErrorJSON.render("404.json", %{}) == %{
+             errors: %{detail: "Not Found"}
+           }
   end
 
   test "renders 500" do

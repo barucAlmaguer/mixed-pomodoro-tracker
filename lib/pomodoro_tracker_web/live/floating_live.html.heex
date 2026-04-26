@@ -1,0 +1,123 @@
+<div class={[
+  "fixed inset-0 text-white font-sans select-none overflow-hidden flex flex-col",
+  situation_bg(@timer, @now)
+]}>
+  <% pending = pending_today(@day, @tasks) %>
+  <% due = due_soon(@day, @tasks, @now) %>
+  <% current = current_task(@day, @tasks) %>
+  
+<!-- Header / drag handle -->
+  <div
+    class="flex items-center justify-between px-3 py-2 bg-black/30 backdrop-blur cursor-grab"
+    style="-webkit-app-region: drag;"
+  >
+    <div class="flex items-center gap-2 min-w-0">
+      <span class="text-xs uppercase tracking-wider text-white/60">
+        {phase_label(@timer.phase)}
+      </span>
+      <span :if={current} class="text-sm truncate">{current.title}</span>
+    </div>
+    <div class="text-xs tabular-nums text-white/70 shrink-0">
+      {Calendar.strftime(@now, "%H:%M")}
+    </div>
+  </div>
+  
+<!-- Timer -->
+  <div class="px-3 pt-3 pb-2">
+    <div class="text-5xl font-light tabular-nums text-center">
+      {fmt_time(@timer.remaining_ms)}
+    </div>
+    <div class="mt-1.5 h-1 rounded bg-white/10 overflow-hidden">
+      <div class="h-full bg-white/60 transition-all" style={"width: #{progress_pct(@timer)}%"} />
+    </div>
+    <div class="mt-2 flex gap-1.5 justify-center">
+      <button
+        :if={@timer.phase == :idle and pending != []}
+        phx-click="timer:start_work"
+        class="text-xs px-3 py-1 rounded bg-white text-black font-medium hover:bg-white/90"
+      >
+        Start
+      </button>
+      <button
+        :if={@timer.phase != :idle and @timer.running}
+        phx-click="timer:pause"
+        class="text-xs px-3 py-1 rounded bg-white/20 hover:bg-white/30"
+      >
+        Pause
+      </button>
+      <button
+        :if={@timer.phase != :idle and not @timer.running}
+        phx-click="timer:resume"
+        class="text-xs px-3 py-1 rounded bg-white/20 hover:bg-white/30"
+      >
+        Resume
+      </button>
+      <button
+        :if={@timer.phase != :idle}
+        phx-click="timer:skip"
+        class="text-xs px-3 py-1 rounded bg-white/10 hover:bg-white/20"
+      >
+        Skip
+      </button>
+      <button
+        :if={current}
+        phx-click="day:finish"
+        phx-value-id={current.id}
+        class="text-xs px-3 py-1 rounded bg-emerald-700/70 hover:bg-emerald-600/80"
+      >
+        ✓ done
+      </button>
+    </div>
+  </div>
+  
+<!-- Deadlines -->
+  <div
+    :if={due != []}
+    class="mx-3 mb-2 px-2 py-1.5 rounded bg-amber-900/40 border border-amber-700/50 text-[11px]"
+  >
+    <div :for={{t, mins} <- Enum.take(due, 2)} class="flex items-center gap-1.5 truncate">
+      <span class="text-amber-300">⏰</span>
+      <span class={[
+        "tabular-nums shrink-0",
+        if(mins < 0, do: "text-red-300", else: "text-amber-200")
+      ]}>
+        {Priority.humanize_minutes(mins)}
+      </span>
+      <span class="truncate">{t.title}</span>
+    </div>
+  </div>
+  
+<!-- Pending list -->
+  <div class="flex-1 overflow-y-auto px-3 pb-3">
+    <div class="text-[10px] uppercase tracking-wider text-white/50 mb-1">
+      Pending ({length(pending)})
+    </div>
+    <div :if={pending == []} class="text-xs text-white/40 italic py-2 text-center">
+      Nada en today.
+    </div>
+    <ul :if={pending != []} class="space-y-1">
+      <li
+        :for={t <- pending}
+        class={[
+          "px-2 py-1.5 rounded border text-xs flex items-center gap-1.5",
+          zone_card_class(t.zone),
+          if(t.id in @day.active, do: "ring-1 ring-white/40", else: "")
+        ]}
+      >
+        <span :if={t.id in (@day.auto_injected || [])} title="Auto-inyectada" class="text-[10px]">
+          🔁
+        </span>
+        <span class="truncate flex-1">{t.title}</span>
+        <button
+          :if={t.id not in @day.active}
+          phx-click="day:switch"
+          phx-value-id={t.id}
+          class="text-[10px] px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/25 shrink-0"
+          title="Switch to this task"
+        >
+          ▶
+        </button>
+      </li>
+    </ul>
+  </div>
+</div>
