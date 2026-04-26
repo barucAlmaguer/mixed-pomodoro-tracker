@@ -10,7 +10,17 @@
     </.live_title>
     <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}></script>
-    <%!-- NO service worker registration for floating panel - prevents reconnect loops in hs.webview --%>
+    <%!-- 
+      Unregister any cached service worker to prevent reconnect loops.
+      hs.webview caches SW aggressively; we must explicitly kill it for floating panel.
+    --%>
+    <script>
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.getRegistrations().then(regs => {
+          regs.forEach(r => r.unregister());
+        });
+      }
+    </script>
   </head>
   <body>
     {@inner_content}
