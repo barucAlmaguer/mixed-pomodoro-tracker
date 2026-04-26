@@ -170,6 +170,16 @@ defmodule PomodoroTrackerWeb.FloatingLive do
 
   # ----- view helpers ----------------------------------------------------
 
+  defp active_tasks(day, tasks) do
+    day.active
+    |> Enum.flat_map(fn id ->
+      case tasks[id] do
+        nil -> []
+        t -> [t]
+      end
+    end)
+  end
+
   defp pending_today(day, tasks) do
     done_set = MapSet.new(day.done || [])
 

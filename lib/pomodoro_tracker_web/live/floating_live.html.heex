@@ -5,11 +5,13 @@
   <% pending = pending_today(@day, @tasks) %>
   <% due = due_soon(@day, @tasks, @now) %>
   <% current = current_task(@day, @tasks) %>
+  <% in_progress = active_tasks(@day, @tasks) %>
   <% break_active_tasks = now_ids(@day.active, @tasks, @timer.phase) %>
   <% needs_break_pick = @timer.phase == :active_break and break_active_tasks == [] %>
+  <% auto_ids = MapSet.new(@day.auto_injected || []) %>
 
-  <!-- Header / drag handle (Hammerspoon webview titlebar handles the actual drag) -->
-  <div class="flex items-center justify-between px-3 py-2 bg-black/30 backdrop-blur">
+  <!-- Header / drag handle — DRAG_ZONE_H in init.lua covers this strip -->
+  <div class="flex items-center justify-between px-3 py-2 bg-black/30 backdrop-blur shrink-0">
     <div class="flex items-center gap-2 min-w-0">
       <span class="text-xs uppercase tracking-wider text-white/60">{phase_label(@timer.phase)}</span>
       <span :if={current} class="text-sm truncate">{current.title}</span>
@@ -18,7 +20,7 @@
   </div>
 
   <!-- Timer + ±5 minute chips on hover -->
-  <div class="px-3 pt-3 pb-2 group">
+  <div class="px-3 pt-3 pb-2 shrink-0 group">
     <div class="relative flex items-center justify-center">
       <button
         :if={@timer.phase != :idle}
@@ -78,8 +80,35 @@
     </div>
   </div>
 
+  <!-- In Progress section -->
+  <div class="px-3 pb-2 shrink-0">
+    <%= if in_progress == [] do %>
+      <div class="text-center text-white/30 text-[11px] py-2 italic border border-dashed border-white/10 rounded">
+        Elige algo para trabajar ↓
+      </div>
+    <% else %>
+      <div class="text-[10px] uppercase tracking-wider text-white/50 mb-1.5">
+        En progreso ({length(in_progress)})
+      </div>
+      <div class="space-y-1">
+        <div
+          :for={t <- in_progress}
+          class={["px-2 py-1.5 rounded border text-xs flex items-center gap-1.5 ring-1 ring-white/25", zone_card_class(t.zone)]}
+        >
+          <span :if={MapSet.member?(auto_ids, t.id)} class="text-amber-300 text-[10px] shrink-0">🔁</span>
+          <span class="truncate flex-1 font-medium">{t.title}</span>
+          <button
+            phx-click="day:finish" phx-value-id={t.id}
+            class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-700/70 hover:bg-emerald-600/80 shrink-0"
+            title="Marcar como hecho"
+          >✓</button>
+        </div>
+      </div>
+    <% end %>
+  </div>
+
   <!-- Deadlines / suggestions banner -->
-  <div :if={due != []} class="mx-3 mb-2 px-2 py-1.5 rounded bg-amber-900/40 border border-amber-700/50 text-[11px]">
+  <div :if={due != []} class="mx-3 mb-2 px-2 py-1.5 rounded bg-amber-900/40 border border-amber-700/50 text-[11px] shrink-0">
     <div :for={{t, mins} <- Enum.take(due, 2)} class="flex items-center gap-1.5 truncate">
       <span class="text-amber-300">⏰</span>
       <span class={[
@@ -91,7 +120,7 @@
   </div>
 
   <!-- Active break: pick a task -->
-  <div :if={needs_break_pick} class="mx-3 mb-2">
+  <div :if={needs_break_pick} class="mx-3 mb-2 shrink-0">
     <div class="text-[10px] uppercase tracking-wider text-amber-300/80 mb-1">Elige tarea para este break</div>
     <% break_tags = break_picker_tags(@tasks, @timer.phase, @day.active ++ @day.done) %>
     <div :if={break_tags != []} class="flex flex-wrap gap-1 mb-1.5">
@@ -122,47 +151,83 @@
     </ul>
   </div>
 
-  <!-- Pending list (with expandable notes/links) -->
-  <div :if={not needs_break_pick} class="flex-1 overflow-y-auto px-3 pb-3">
-    <div class="text-[10px] uppercase tracking-wider text-white/50 mb-1">Pending ({length(pending)})</div>
-    <div :if={pending == []} class="text-xs text-white/40 italic py-2 text-center">Nada en today.</div>
-    <ul :if={pending != []} class="space-y-1">
-      <li
-        :for={t <- pending}
-        class={[
-          "px-2 py-1.5 rounded border text-xs",
-          zone_card_class(t.zone),
-          if(t.id in @day.active, do: "ring-1 ring-white/40", else: "")
-        ]}
-      >
-        <div class="flex items-center gap-1.5">
-          <span :if={t.id in (@day.auto_injected || [])} title="Auto-inyectada" class="text-[10px]">🔁</span>
-          <span class="truncate flex-1">{t.title}</span>
-          <button
-            phx-click="toggle:expand" phx-value-id={t.id}
-            class="text-[10px] w-5 h-5 rounded bg-white/10 hover:bg-white/25 shrink-0"
-            title="Ver notas / links"
-          >{if MapSet.member?(@expanded, t.id), do: "▾", else: "▸"}</button>
-          <button
-            :if={t.id not in @day.active}
-            phx-click="day:switch" phx-value-id={t.id}
-            class="text-[10px] px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/25 shrink-0"
-            title="Switch active"
-          >▶</button>
-        </div>
+  <!-- Pending list (scrollable) — suggested tasks float to top in amber -->
+  <div :if={not needs_break_pick} class="flex-1 overflow-y-auto px-3 pb-3 min-h-0">
+    <% {suggested, regular} = Enum.split_with(pending, fn t -> MapSet.member?(auto_ids, t.id) end) %>
 
-        <div :if={MapSet.member?(@expanded, t.id)} class="mt-1.5 pl-1 border-l-2 border-white/15 text-[11px] text-white/80 space-y-1">
-          <div :if={t.body && t.body != ""} class="whitespace-pre-wrap break-words leading-snug">{String.slice(t.body, 0, 400)}</div>
-          <div :if={(t.related || []) != []} class="flex flex-wrap gap-1">
-            <a
-              :for={r <- t.related}
-              :if={link_target(r)}
-              href={r} target="_blank" rel="noopener"
-              class="px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20 text-[10px] truncate max-w-[14ch]"
-            >🔗 {r |> URI.parse() |> Map.get(:host) || r}</a>
+    <!-- Suggested / recurring tasks -->
+    <div :if={suggested != []} class="mb-2">
+      <div class="text-[10px] uppercase tracking-wider text-amber-400/80 mb-1">
+        Sugeridas · hoy ({length(suggested)})
+      </div>
+      <ul class="space-y-1">
+        <li
+          :for={t <- suggested}
+          class={[
+            "px-2 py-1.5 rounded border text-xs bg-amber-900/30 border-amber-600/50",
+            if(t.id in @day.active, do: "ring-1 ring-amber-400/50", else: "")
+          ]}
+        >
+          <div class="flex items-center gap-1.5">
+            <span class="text-amber-300 text-[10px] shrink-0">🔁</span>
+            <span class="truncate flex-1">{t.title}</span>
+            <button
+              :if={t.id not in @day.active}
+              phx-click="day:switch" phx-value-id={t.id}
+              class="text-[10px] px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/25 shrink-0"
+              title="Poner en progreso"
+            >▶</button>
           </div>
-        </div>
-      </li>
-    </ul>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Regular pending tasks -->
+    <div :if={regular != []}>
+      <div class="text-[10px] uppercase tracking-wider text-white/50 mb-1">
+        Pendiente ({length(regular)})
+      </div>
+      <ul class="space-y-1">
+        <li
+          :for={t <- regular}
+          class={[
+            "px-2 py-1.5 rounded border text-xs",
+            zone_card_class(t.zone),
+            if(t.id in @day.active, do: "ring-1 ring-white/40", else: "")
+          ]}
+        >
+          <div class="flex items-center gap-1.5">
+            <span class="truncate flex-1">{t.title}</span>
+            <button
+              phx-click="toggle:expand" phx-value-id={t.id}
+              class="text-[10px] w-5 h-5 rounded bg-white/10 hover:bg-white/25 shrink-0"
+              title="Ver notas / links"
+            >{if MapSet.member?(@expanded, t.id), do: "▾", else: "▸"}</button>
+            <button
+              :if={t.id not in @day.active}
+              phx-click="day:switch" phx-value-id={t.id}
+              class="text-[10px] px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/25 shrink-0"
+              title="Switch active"
+            >▶</button>
+          </div>
+
+          <div :if={MapSet.member?(@expanded, t.id)} class="mt-1.5 pl-1 border-l-2 border-white/15 text-[11px] text-white/80 space-y-1">
+            <div :if={t.body && t.body != ""} class="whitespace-pre-wrap break-words leading-snug">{String.slice(t.body, 0, 400)}</div>
+            <div :if={(t.related || []) != []} class="flex flex-wrap gap-1">
+              <a
+                :for={r <- t.related}
+                :if={link_target(r)}
+                href={r} target="_blank" rel="noopener"
+                class="px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20 text-[10px] truncate max-w-[14ch]"
+              >🔗 {r |> URI.parse() |> Map.get(:host) || r}</a>
+            </div>
+          </div>
+        </li>
+      </ul>
+    </div>
+
+    <div :if={suggested == [] and regular == []} class="text-xs text-white/40 italic py-2 text-center">
+      Nada en today.
+    </div>
   </div>
 </div>
