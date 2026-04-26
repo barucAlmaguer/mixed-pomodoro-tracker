@@ -1,0 +1,146 @@
+<div class="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
+  <div class="max-w-6xl mx-auto px-4 py-8">
+    <!-- Header -->
+    <div class="mb-8">
+      <h1 class="text-2xl font-light tracking-tight">Recurrent Planner</h1>
+      <p class="text-white/50 text-sm mt-1">
+        Tus compromisos recurrentes organizados por pilares de vida
+      </p>
+    </div>
+    
+<!-- Pilares grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
+      <button
+        :for={pilar <- @pilares}
+        phx-click="select:pilar"
+        phx-value-id={pilar.id}
+        class={[
+          "p-4 rounded-xl border text-left transition-all hover:scale-[1.02]",
+          pilar_class(pilar.color),
+          if(@selected_pilar == pilar.id, do: "ring-2 ring-white/30", else: "")
+        ]}
+      >
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-xl">{pilar.icon}</span>
+          <span class="font-medium">{pilar.label}</span>
+        </div>
+        <% count = length(@templates_by_pilar[pilar.id] || []) %>
+        <div class="text-2xl font-light">{count}</div>
+        <div class="text-xs opacity-60">
+          {if count == 1, do: "tarea", else: "tareas"} recurrentes
+        </div>
+      </button>
+    </div>
+    
+<!-- Selected pilar detail or all -->
+    <% pilares_to_show =
+      if @selected_pilar, do: Enum.filter(@pilares, &(&1.id == @selected_pilar)), else: @pilares %>
+
+    <div class="space-y-6">
+      <div
+        :for={pilar <- pilares_to_show}
+        class={[
+          "rounded-2xl border bg-gradient-to-br p-6",
+          pilar_class(pilar.color),
+          pilar_bg(pilar.color)
+        ]}
+      >
+        <div class="flex items-center gap-3 mb-4">
+          <span class="text-2xl">{pilar.icon}</span>
+          <h2 class="text-lg font-medium">{pilar.label}</h2>
+          <% pilar_templates = @templates_by_pilar[pilar.id] || [] %>
+          <span class="ml-auto text-sm opacity-60">{length(pilar_templates)} tareas</span>
+        </div>
+
+        <%= if pilar_templates == [] do %>
+          <div class="text-center py-8 text-white/40 italic">
+            No hay tareas recurrentes en este pilar
+          </div>
+        <% else %>
+          <div class="space-y-3">
+            <div
+              :for={t <- pilar_templates}
+              class={[
+                "flex items-center gap-4 p-3 rounded-lg border bg-black/20",
+                if(t.paused, do: "opacity-50", else: ""),
+                "border-white/10"
+              ]}
+            >
+              <!-- Status indicator -->
+              <button
+                phx-click="toggle:template"
+                phx-value-id={t.id}
+                class={[
+                  "w-8 h-8 rounded-full flex items-center justify-center transition",
+                  if(t.paused,
+                    do: "bg-white/10 hover:bg-white/20",
+                    else: "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300"
+                  )
+                ]}
+                title={if(t.paused, do: "Reactivar", else: "Pausar")}
+              >
+                {if(t.paused, do: "⏸", else: "✓")}
+              </button>
+              
+<!-- Task info -->
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="font-medium truncate">{t.title}</span>
+                  <span
+                    :if={t.recurrence}
+                    class="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-white/60"
+                  >
+                    {recurrence_label(t.recurrence)}
+                  </span>
+                </div>
+                
+<!-- Habit stats -->
+                <div class="flex items-center gap-4 mt-1 text-xs text-white/60">
+                  <span>
+                    Última vez:
+                    <span class={
+                      if(last_done_ago(t, @tasks) in ["Hoy", "Ayer"],
+                        do: "text-emerald-400",
+                        else: "text-white/60"
+                      )
+                    }>
+                      {last_done_ago(t, @tasks)}
+                    </span>
+                  </span>
+                  <span>Streak: <span class="text-amber-400">{streak_count(t)}</span></span>
+                  <span class="font-mono tracking-wider">{weekly_status(t, @tasks)}</span>
+                </div>
+              </div>
+              
+<!-- Quick actions -->
+              <div class="flex items-center gap-1">
+                <%!-- TODO: Add edit route --%>
+                <button
+                  class="p-1.5 rounded hover:bg-white/10 text-white/50 hover:text-white"
+                  title="Editar (próximamente)"
+                  disabled
+                >
+                  <.icon name="hero-pencil" class="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+    
+<!-- Legend -->
+    <div class="mt-8 p-4 rounded-lg bg-white/5 border border-white/10 text-xs text-white/50">
+      <div class="flex items-center gap-6 flex-wrap">
+        <span class="flex items-center gap-1">
+          <span class="text-emerald-400">✓</span> Activa
+        </span>
+        <span class="flex items-center gap-1"><span>⏸</span> Pausada</span>
+        <span class="flex items-center gap-1">
+          <span class="font-mono">○</span> Pendiente esta semana
+        </span>
+        <span class="flex items-center gap-1"><span class="font-mono">●</span> Completada</span>
+      </div>
+    </div>
+  </div>
+</div>

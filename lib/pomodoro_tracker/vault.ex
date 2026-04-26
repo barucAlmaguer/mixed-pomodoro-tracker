@@ -14,6 +14,7 @@ defmodule PomodoroTracker.Vault do
   require Logger
 
   @type zone :: :work | :personal
+  @type pilar :: :salud | :sustento | :limites | :hogar | :pasatiempos | nil
   @type task :: %{
           id: String.t(),
           title: String.t(),
@@ -27,7 +28,15 @@ defmodule PomodoroTracker.Vault do
           duration_hint: String.t() | nil,
           kind: :template | :backlog,
           path: String.t(),
-          body: String.t()
+          body: String.t(),
+          # Recurrent planner fields
+          pilar: pilar,
+          paused: boolean(),
+          streak: integer(),
+          last_completed_at: String.t() | nil,
+          # Priority fields
+          due_at: String.t() | nil,
+          lead_time_minutes: integer() | nil
         }
 
   # ---------------------------------------------------------------------------
@@ -100,12 +109,34 @@ defmodule PomodoroTracker.Vault do
         kind: kind,
         path: path,
         body: body,
-        frontmatter: fm
+        frontmatter: fm,
+        # Recurrent planner fields
+        pilar: parse_pilar(fm["pilar"]),
+        paused: fm["paused"] || false,
+        streak: fm["streak"] || 0,
+        last_completed_at: fm["last_completed_at"]
       }
 
       {:ok, task}
     end
   end
+
+  defp parse_pilar(nil), do: nil
+
+  defp parse_pilar(s) when is_binary(s) do
+    case String.downcase(s) do
+      "salud" -> :salud
+      "sustento" -> :sustento
+      "limites" -> :limites
+      "limites de trabajo" -> :limites
+      "hogar" -> :hogar
+      "tareas del hogar" -> :hogar
+      "pasatiempos" -> :pasatiempos
+      _ -> nil
+    end
+  end
+
+  defp parse_pilar(atom) when is_atom(atom), do: atom
 
   # ---------------------------------------------------------------------------
   # Writing tasks
@@ -149,10 +180,35 @@ defmodule PomodoroTracker.Vault do
 
   defp write_task_file(path, attrs) do
     body = Map.get(attrs, :body, "")
-    fm = attrs |> Map.drop([:body]) |> stringify_keys()
+    fm = attrs |> Map.drop([:body, :frontmatter]) |> stringify_keys()
 
     File.mkdir_p!(Path.dirname(path))
     File.write!(path, render(fm, body))
+  end
+
+  @doc """
+  Updates an existing task file. Preserves fields not explicitly changed.
+  """
+  def save_task(%{path: path} = task) do
+    # Read current file to preserve anything not in the task map
+    {:ok, current_fm, _current_body} =
+      case File.read(path) do
+        {:ok, raw} -> parse_frontmatter(raw)
+        _ -> {:ok, %{}, ""}
+      end
+
+    # Merge current frontmatter with new fields
+    new_fm =
+      current_fm
+      |> Map.merge(stringify_keys(Map.drop(task, [:path, :body, :frontmatter, :kind, :zone])))
+      |> Map.merge(%{
+        "id" => task.id,
+        "title" => task.title
+      })
+
+    body = Map.get(task, :body, "")
+    File.write!(path, render(new_fm, body))
+    :ok
   end
 
   # ---------------------------------------------------------------------------

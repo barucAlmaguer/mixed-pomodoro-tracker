@@ -144,14 +144,35 @@ defmodule PomodoroTrackerWeb.FloatingLive do
     {:noreply, socket |> assign(:day, new_day) |> load_vault()}
   end
 
-  # Switch the active task. If a pomodoro is running, the timer keeps going
-  # and this task gets credited at the end. If idle, just sets active without
-  # starting anything (user can press Start when ready).
+  # Switch the active task(s). Supports up to 2 simultaneous tasks.
+  # If a pomodoro is running, the timer keeps going and all touched tasks get
+  # credited at the end. If idle, just sets active without starting.
+  # Toggle behavior: clicking an active task removes it; clicking inactive adds
+  # it (up to 2 max).
   def handle_event("day:switch", %{"id" => id}, socket) do
     day = socket.assigns.day
-    new_day = %{day | active: [id], order: ensure_in_order(day.order, id)}
+
+    new_active =
+      if id in day.active do
+        List.delete(day.active, id)
+      else
+        # Keep max 2 active tasks (FIFO if exceeding)
+        Enum.take(day.active ++ [id], 2)
+      end
+
+    new_day = %{day | active: new_active, order: ensure_in_order(day.order, id)}
     Vault.save_day(new_day)
-    Timer.switch_tasks([id])
+    Timer.switch_tasks(new_active)
+    {:noreply, socket |> assign(:day, new_day) |> load_vault()}
+  end
+
+  # Remove a task from active (used in In Progress section)
+  def handle_event("day:deactivate", %{"id" => id}, socket) do
+    day = socket.assigns.day
+    new_active = List.delete(day.active, id)
+    new_day = %{day | active: new_active}
+    Vault.save_day(new_day)
+    Timer.switch_tasks(new_active)
     {:noreply, socket |> assign(:day, new_day) |> load_vault()}
   end
 

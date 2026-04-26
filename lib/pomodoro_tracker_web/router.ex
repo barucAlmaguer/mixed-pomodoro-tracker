@@ -19,6 +19,7 @@ defmodule PomodoroTrackerWeb.Router do
 
     live "/", DayLive, :index
     live "/floating", FloatingLive, :index
+    live "/planner", RecurrentPlannerLive, :index
   end
 
   scope "/api", PomodoroTrackerWeb do
