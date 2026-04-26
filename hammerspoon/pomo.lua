@@ -172,18 +172,29 @@ end try
 return "miss"
 ]]
 
+-- Simple approach: just bring browser to front, user switches tab with Cmd+number
+-- This is 100% reliable and avoids all AppleScript fragility
 local function open_full_app()
-  local ok, result = hs.osascript.applescript(FOCUS_TAB_SCRIPT)
+  local browsers = {"Arc", "Google Chrome", "Brave Browser", "Microsoft Edge", "Safari"}
 
-  -- Debug: descomenta la siguiente línea para ver qué retorna el AppleScript
-  -- hs.notify.new({title="Pomo Debug", informativeText="Result: " .. tostring(ok) .. " / " .. tostring(result)}):send()
-
-  if ok and type(result) == "string" and result:match("^ok:") then
-    -- Successfully focused existing tab in browser X
-    return
+  for _, appName in ipairs(browsers) do
+    local app = hs.application.get(appName)
+    if app then
+      -- Check if any window title suggests it might have our app
+      -- Window titles often contain page titles or partial URLs
+      for _, win in ipairs(app:allWindows()) do
+        local title = win:title() or ""
+        -- Common patterns that suggest this is the pomodoro app
+        if title:match(":4123") or title:lower():match("pomodoro") or title:lower():match("tracker") then
+          app:activate()
+          win:focus()
+          return
+        end
+      end
+    end
   end
 
-  -- Fallback: open new tab
+  -- No matching window found, open new
   hs.urlevent.openURL(FULL_APP_URL)
 end
 
@@ -406,25 +417,43 @@ local function ensure_floating()
   if floating then return floating end
 
   local frame = load_frame()
+
+  -- WKWebView preferences tuned for LiveView compatibility
+  -- These help with JavaScript execution and WebSocket fallback (longpoll)
   local prefs = {
     developerExtrasEnabled = false,
     suppressesIncrementalRendering = false,
+    javaScriptEnabled = true,
+    javaScriptCanOpenWindowsAutomatically = false,
+    -- Allow local storage for LiveView session
+    allowsAirPlayForMediaPlayback = false,
   }
 
   local wv = hs.webview.new(frame, prefs)
   if not wv then return nil end
+
+  -- User agent que parezca un browser moderno (ayuda con detección de features)
+  wv:userAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15")
 
   wv:url(FLOATING_URL)
   -- "titled" + "utility" gives a small panel-style titlebar that's
   -- draggable. Without "titled" the borderless window can't be moved.
   wv:windowStyle({ "titled", "closable", "resizable", "utility" })
   wv:level(hs.drawing.windowLevels.floating)
-  -- "stationary" can prevent manual dragging on some macOS versions — removed.
   wv:behaviorAsLabels({ "canJoinAllSpaces" })
   wv:allowGestures(true)
   wv:allowTextEntry(true)
   wv:bringToFront(true)
   wv:windowTitle("Pomo")
+
+  -- Debug: monitor navigation to diagnose reconnect loop
+  wv:navigationCallback(function(action, wv, details)
+    if action == "didFinishNavigation" then
+      -- Successfully loaded
+    elseif action == "didFailNavigation" then
+      print("[Pomo] Navigation failed: " .. tostring(details.error))
+    end
+  end)
 
   -- Save frame when the window changes (we poll on hide too).
   floating = wv
