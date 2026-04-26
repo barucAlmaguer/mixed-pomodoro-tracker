@@ -26,8 +26,7 @@ defmodule PomodoroTrackerWeb.FloatingLive do
       |> assign(:expanded, MapSet.new())
       |> load_vault()
 
-    # Minimal HTML wrapper without manifest/service-worker for hs.webview compatibility
-    {:ok, socket, layout: {__MODULE__, :floating_root}}
+    {:ok, socket, layout: {PomodoroTrackerWeb.Layouts, :floating}}
   end
 
   @impl true
@@ -266,25 +265,4 @@ defmodule PomodoroTrackerWeb.FloatingLive do
 
   defp link_target(_), do: nil
 
-  # Minimal root layout for floating panel - no manifest, no service worker
-  # This prevents 404s and connection issues with hs.webview
-  def floating_root(assigns) do
-    ~H"""
-    <!DOCTYPE html>
-    <html lang="en">
-      <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="theme-color" content="#0f172a" />
-        <title>PomodoroTracker</title>
-        <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
-        <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}>
-        </script>
-      </head>
-      <body>
-        {@inner_content}
-      </body>
-    </html>
-    """
-  end
 end
