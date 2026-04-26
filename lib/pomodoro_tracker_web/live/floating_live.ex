@@ -17,14 +17,17 @@ defmodule PomodoroTrackerWeb.FloatingLive do
       :timer.send_interval(1000, self(), :tick_clock)
     end
 
-    {:ok,
-     socket
-     |> assign(:page_title, "Floating")
-     |> assign(:now, NaiveDateTime.from_erl!(:calendar.local_time()))
-     |> assign(:timer, Timer.state())
-     |> assign(:break_tag_filter, nil)
-     |> assign(:expanded, MapSet.new())
-     |> load_vault(), layout: false}
+    socket =
+      socket
+      |> assign(:page_title, "Floating")
+      |> assign(:now, NaiveDateTime.from_erl!(:calendar.local_time()))
+      |> assign(:timer, Timer.state())
+      |> assign(:break_tag_filter, nil)
+      |> assign(:expanded, MapSet.new())
+      |> load_vault()
+
+    # Minimal HTML wrapper without manifest/service-worker for hs.webview compatibility
+    {:ok, socket, layout: {__MODULE__, :floating_root}}
   end
 
   @impl true
@@ -262,4 +265,26 @@ defmodule PomodoroTrackerWeb.FloatingLive do
   end
 
   defp link_target(_), do: nil
+
+  # Minimal root layout for floating panel - no manifest, no service worker
+  # This prevents 404s and connection issues with hs.webview
+  def floating_root(assigns) do
+    ~H"""
+    <!DOCTYPE html>
+    <html lang="en">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="theme-color" content="#0f172a" />
+        <title>PomodoroTracker</title>
+        <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
+        <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}>
+        </script>
+      </head>
+      <body>
+        {@inner_content}
+      </body>
+    </html>
+    """
+  end
 end
