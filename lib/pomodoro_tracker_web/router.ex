@@ -2,6 +2,7 @@ defmodule PomodoroTrackerWeb.Router do
   use PomodoroTrackerWeb, :router
 
   pipeline :browser do
+    plug PomodoroTrackerWeb.Plugs.ManifestRedirect
     plug :accepts, ["html"]
     plug :fetch_session
     plug :fetch_live_flash
