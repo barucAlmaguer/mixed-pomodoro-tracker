@@ -20,6 +20,10 @@ defmodule PomodoroTrackerWeb do
   def static_paths,
     do: ~w(assets fonts images favicon.ico robots.txt manifest.webmanifest service-worker.js)
 
+  # Patterns for Plug.Static only_matching option (supports prefixes for fingerprinted files)
+  def static_path_patterns,
+    do: ~w(assets fonts images favicon.ico robots.txt manifest service-worker)
+
   def router do
     quote do
       use Phoenix.Router, helpers: false

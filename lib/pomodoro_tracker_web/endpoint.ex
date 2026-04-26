@@ -24,8 +24,8 @@ defmodule PomodoroTrackerWeb.Endpoint do
     at: "/",
     from: :pomodoro_tracker,
     gzip: not code_reloading?,
-    only: PomodoroTrackerWeb.static_paths(),
-    raise_on_missing_only: code_reloading?
+    only_matching: PomodoroTrackerWeb.static_path_patterns(),
+    raise_on_missing: code_reloading?
 
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.
