@@ -80,53 +80,93 @@ end
 
 -- Find an existing Chrome/Safari/Arc tab pointing at the full app and focus
 -- it instead of opening a new tab. Falls back to openURL if nothing found.
+-- Improved AppleScript that finds existing tab and brings browser to front
+-- Matches any host ending with :4123 (localhost, 127.0.0.1, Tailscale IPs, etc.)
+-- Returns: "ok:Chrome" | "ok:Arc" | etc, or "miss"
 local FOCUS_TAB_SCRIPT = [[
 on hostMatches(theURL)
-  set targets to {"localhost:4123", "127.0.0.1:4123"}
-  repeat with t in targets
-    if theURL contains t and (theURL does not contain "/floating") and (theURL does not contain "/api/") then return true
-  end repeat
+  -- Match :4123/ or :4123 (with or without trailing slash)
+  if theURL contains ":4123" and (theURL does not contain "/floating") and (theURL does not contain "/api/") then
+    return true
+  end if
   return false
 end hostMatches
 
-set browsers to {"Google Chrome", "Arc", "Brave Browser", "Microsoft Edge"}
-repeat with bname in browsers
+-- Chromium-based browsers (Chrome, Arc, Brave, Edge)
+set browsers to {{"Google Chrome", "Chrome"}, {"Arc", "Arc"}, {"Brave Browser", "Brave"}, {"Microsoft Edge", "Edge"}}
+repeat with browserInfo in browsers
+  set bname to item 1 of browserInfo
+  set bshort to item 2 of browserInfo
   try
-    if application bname is running then
-      tell application bname
-        repeat with w in windows
-          set i to 0
-          repeat with t in tabs of w
-            set i to i + 1
-            if my hostMatches(URL of t) then
-              set active tab index of w to i
-              set index of w to 1
-              activate
-              return "ok"
-            end if
+    tell application "System Events"
+      if exists (process bname) then
+        tell application bname
+          set foundTab to false
+          set foundWindow to missing value
+          set foundIndex to 0
+
+          -- Find the tab
+          repeat with w in windows
+            set tabIndex to 0
+            repeat with t in tabs of w
+              set tabIndex to tabIndex + 1
+              if my hostMatches(URL of t) then
+                set foundTab to true
+                set foundWindow to w
+                set foundIndex to tabIndex
+                exit repeat
+              end if
+            end repeat
+            if foundTab then exit repeat
           end repeat
-        end repeat
-      end tell
-    end if
+
+          -- If found, activate it
+          if foundTab then
+            set active tab index of foundWindow to foundIndex
+            set index of foundWindow to 1
+            activate
+            return "ok:" & bshort
+          end if
+        end tell
+      end if
+    end tell
+  on error errMsg
+    -- Continue to next browser
   end try
 end repeat
 
--- Safari has a different model
+-- Safari (different tab model)
 try
-  if application "Safari" is running then
-    tell application "Safari"
-      repeat with w in windows
-        repeat with t in tabs of w
-          if my hostMatches(URL of t) then
-            set current tab of w to t
-            set index of w to 1
-            activate
-            return "ok"
-          end if
+  tell application "System Events"
+    if exists (process "Safari") then
+      tell application "Safari"
+        set foundTab to false
+        set foundWindow to missing value
+        set foundTabObj to missing value
+
+        repeat with w in windows
+          repeat with t in tabs of w
+            if my hostMatches(URL of t) then
+              set foundTab to true
+              set foundWindow to w
+              set foundTabObj to t
+              exit repeat
+            end if
+          end repeat
+          if foundTab then exit repeat
         end repeat
+
+        if foundTab then
+          set current tab of foundWindow to foundTabObj
+          set index of foundWindow to 1
+          activate
+          return "ok:Safari"
+        end if
       end tell
-    end tell
-  end if
+    end if
+  end tell
+on error errMsg
+  -- Safari check failed
 end try
 
 return "miss"
@@ -134,7 +174,16 @@ return "miss"
 
 local function open_full_app()
   local ok, result = hs.osascript.applescript(FOCUS_TAB_SCRIPT)
-  if ok and result == "ok" then return end
+
+  -- Debug: descomenta la siguiente línea para ver qué retorna el AppleScript
+  -- hs.notify.new({title="Pomo Debug", informativeText="Result: " .. tostring(ok) .. " / " .. tostring(result)}):send()
+
+  if ok and type(result) == "string" and result:match("^ok:") then
+    -- Successfully focused existing tab in browser X
+    return
+  end
+
+  -- Fallback: open new tab
   hs.urlevent.openURL(FULL_APP_URL)
 end
 
