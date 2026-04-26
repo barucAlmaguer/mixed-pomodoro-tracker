@@ -36,6 +36,15 @@ defmodule PomodoroTracker.Timer do
       when kind in [:active_break, :passive_break],
       do: GenServer.call(__MODULE__, {:start_break, kind, override_minutes})
 
+  @doc """
+  Updates the active task_ids without touching the timer countdown. Use this
+  when the user picks a different task mid-pomodoro or mid-break — the timer
+  continues, and every task touched during the work pomodoro gets credited at
+  the end.
+  """
+  def switch_tasks(task_ids) when is_list(task_ids),
+    do: GenServer.call(__MODULE__, {:switch_tasks, task_ids})
+
   def pause, do: GenServer.call(__MODULE__, :pause)
   def resume, do: GenServer.call(__MODULE__, :resume)
   def reset, do: GenServer.call(__MODULE__, :reset)
@@ -64,6 +73,7 @@ defmodule PomodoroTracker.Timer do
        phase: :idle,
        zone: nil,
        task_ids: [],
+       visited_tasks: MapSet.new(),
        remaining_ms: 0,
        duration_ms: 0,
        running: false,
@@ -76,6 +86,19 @@ defmodule PomodoroTracker.Timer do
   @impl true
   def handle_call(:state, _from, state), do: {:reply, public(state), state}
 
+  # Switch active task(s) without touching the timer. While in :work, every
+  # task switched into is added to visited_tasks so finish() credits them all.
+  def handle_call({:switch_tasks, task_ids}, _from, state) do
+    visited =
+      case state.phase do
+        :work -> MapSet.union(state.visited_tasks, MapSet.new(task_ids))
+        _ -> state.visited_tasks
+      end
+
+    new = %{state | task_ids: task_ids, visited_tasks: visited}
+    {:reply, :ok, broadcast(new)}
+  end
+
   def handle_call({:start, :work, zone, task_ids}, _from, state) do
     cancel(state.tref)
     ms = cfg(:work_minutes) * 60_000
@@ -85,6 +108,7 @@ defmodule PomodoroTracker.Timer do
       | phase: :work,
         zone: zone,
         task_ids: task_ids,
+        visited_tasks: MapSet.new(task_ids),
         remaining_ms: ms,
         duration_ms: ms,
         running: true,
@@ -152,6 +176,7 @@ defmodule PomodoroTracker.Timer do
        | phase: :idle,
          zone: nil,
          task_ids: [],
+         visited_tasks: MapSet.new(),
          remaining_ms: 0,
          duration_ms: 0,
          running: false,
@@ -192,17 +217,27 @@ defmodule PomodoroTracker.Timer do
   defp cancel(ref), do: Process.cancel_timer(ref)
 
   defp finish(%{phase: :work} = state) do
+    credited = MapSet.to_list(state.visited_tasks)
+
     PomodoroTracker.Vault.log_session(%{
       phase: :work,
       zone: state.zone,
       minutes: div(state.duration_ms, 60_000),
-      tasks: state.task_ids
+      tasks: credited
     })
 
-    increment_day_pomodoros(state.task_ids)
+    increment_day_pomodoros(credited)
 
     rounds = state.rounds_completed + 1
-    %{state | rounds_completed: rounds, phase: :idle, running: false, tref: nil}
+
+    %{
+      state
+      | rounds_completed: rounds,
+        phase: :idle,
+        running: false,
+        tref: nil,
+        visited_tasks: MapSet.new()
+    }
   end
 
   defp finish(state) do

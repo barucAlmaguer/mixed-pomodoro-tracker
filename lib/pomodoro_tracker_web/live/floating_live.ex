@@ -22,6 +22,8 @@ defmodule PomodoroTrackerWeb.FloatingLive do
      |> assign(:page_title, "Floating")
      |> assign(:now, NaiveDateTime.from_erl!(:calendar.local_time()))
      |> assign(:timer, Timer.state())
+     |> assign(:break_tag_filter, nil)
+     |> assign(:expanded, MapSet.new())
      |> load_vault(), layout: false}
   end
 
@@ -75,6 +77,59 @@ defmodule PomodoroTrackerWeb.FloatingLive do
         {:noreply, socket}
       )
 
+  def handle_event("timer:adjust", %{"delta" => delta}, socket) do
+    Timer.adjust(String.to_integer(delta) * 1000)
+    {:noreply, socket}
+  end
+
+  def handle_event("timer:break", %{"kind" => kind}, socket) do
+    Timer.start_break(String.to_existing_atom(kind))
+    {:noreply, socket}
+  end
+
+  def handle_event("filter:break_tag", %{"tag" => tag}, socket) do
+    current = socket.assigns.break_tag_filter
+    {:noreply, assign(socket, :break_tag_filter, if(current == tag, do: nil, else: tag))}
+  end
+
+  def handle_event("toggle:expand", %{"id" => id}, socket) do
+    set = socket.assigns.expanded
+
+    new =
+      if MapSet.member?(set, id), do: MapSet.delete(set, id), else: MapSet.put(set, id)
+
+    {:noreply, assign(socket, :expanded, new)}
+  end
+
+  # Pick a break task: instantiate the template if needed, then add to active.
+  def handle_event("break:pick", %{"id" => id}, socket) do
+    tasks = socket.assigns.tasks
+
+    resolved =
+      case tasks[id] do
+        %{kind: :templates} = tpl ->
+          {:ok, new_id} = Vault.instantiate_template(tpl)
+          new_id
+
+        _ ->
+          id
+      end
+
+    day = socket.assigns.day
+
+    new_day =
+      if resolved in day.active do
+        day
+      else
+        order = if resolved in day.order, do: day.order, else: day.order ++ [resolved]
+        %{day | active: day.active ++ [resolved], order: order}
+      end
+
+    Vault.save_day(new_day)
+    Timer.switch_tasks(new_day.active)
+    {:noreply, socket |> assign(:day, new_day) |> load_vault()}
+  end
+
   def handle_event("day:finish", %{"id" => id}, socket) do
     day = socket.assigns.day
 
@@ -89,18 +144,14 @@ defmodule PomodoroTrackerWeb.FloatingLive do
     {:noreply, socket |> assign(:day, new_day) |> load_vault()}
   end
 
+  # Switch the active task. If a pomodoro is running, the timer keeps going
+  # and this task gets credited at the end. If idle, just sets active without
+  # starting anything (user can press Start when ready).
   def handle_event("day:switch", %{"id" => id}, socket) do
     day = socket.assigns.day
-    tasks = socket.assigns.tasks
-
     new_day = %{day | active: [id], order: ensure_in_order(day.order, id)}
     Vault.save_day(new_day)
-
-    case tasks[id] do
-      %{zone: zone} -> Timer.start_work(zone, [id])
-      _ -> :ok
-    end
-
+    Timer.switch_tasks([id])
     {:noreply, socket |> assign(:day, new_day) |> load_vault()}
   end
 
@@ -166,4 +217,18 @@ defmodule PomodoroTrackerWeb.FloatingLive do
   defdelegate phase_label(phase), to: DayLive
   defdelegate situation_bg(timer, now), to: DayLive
   defdelegate zone_card_class(zone), to: DayLive
+  defdelegate break_phase?(phase), to: DayLive
+  defdelegate now_ids(active, tasks, phase), to: DayLive
+  defdelegate break_picker_tags(tasks, phase, exclude), to: DayLive
+  defdelegate break_picker_tasks(tasks, phase, exclude, order, tag), to: DayLive
+  defdelegate next_break_minutes(timer), to: DayLive
+
+  defp link_target(s) when is_binary(s) do
+    cond do
+      String.starts_with?(s, "http://") or String.starts_with?(s, "https://") -> s
+      true -> nil
+    end
+  end
+
+  defp link_target(_), do: nil
 end
