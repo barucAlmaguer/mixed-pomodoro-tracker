@@ -26,6 +26,10 @@
       "sticky top-0 -mx-3 px-3 py-4 shadow-lg z-20",
       situation_bg(@timer, @now)
     ]}>
+      <div class="flex justify-center mb-3">
+        <PomodoroTrackerWeb.Layouts.product_nav current={:execute} />
+      </div>
+
       <div class="flex items-center justify-between mb-2">
         <div class="flex gap-2">
           <button
@@ -622,255 +626,24 @@
         </li>
       </ul>
     </section>
-    
-<!-- Backlog -->
-    <section class="mt-8">
-      <div class="flex items-center justify-between mb-2">
-        <h2 class="text-xs uppercase tracking-wider text-white/60">Backlog</h2>
-        <div class="flex gap-1 text-xs">
-          <button
-            phx-click="filter:zone"
-            phx-value-zone="auto"
-            class={[
-              "px-2 py-1 rounded",
-              if(@zone_filter == :auto, do: "bg-white/20", else: "bg-white/5")
-            ]}
-          >
-            auto
-          </button>
-          <button
-            phx-click="filter:zone"
-            phx-value-zone="work"
-            class={[
-              "px-2 py-1 rounded",
-              if(@zone_filter == :work, do: "bg-red-500/40", else: "bg-white/5")
-            ]}
-          >
-            work
-          </button>
-          <button
-            phx-click="filter:zone"
-            phx-value-zone="personal"
-            class={[
-              "px-2 py-1 rounded",
-              if(@zone_filter == :personal, do: "bg-blue-500/40", else: "bg-white/5")
-            ]}
-          >
-            personal
-          </button>
-        </div>
-      </div>
-      
-<!-- Add buttons ABOVE the list -->
-      <div class="flex gap-2 text-xs mb-3">
-        <button
-          phx-click="new:open"
-          phx-value-kind="backlog"
-          phx-value-zone={backlog_zone(@now, @zone_filter)}
-          class="px-3 py-1.5 rounded bg-white/10 hover:bg-white/20"
-        >
-          + Ad-hoc ({backlog_zone(@now, @zone_filter)})
-        </button>
-        <button
-          phx-click="new:open"
-          phx-value-kind="templates"
-          phx-value-zone={backlog_zone(@now, @zone_filter)}
-          class="px-3 py-1.5 rounded bg-white/10 hover:bg-white/20"
-        >
-          + Template ({backlog_zone(@now, @zone_filter)})
-        </button>
-      </div>
 
-      <% backlog_chip_tags =
-        backlog_tags(@tasks, backlog_zone(@now, @zone_filter), @day.order ++ @day.done) %>
-      <div :if={backlog_chip_tags != []} class="flex flex-wrap gap-1 mb-2">
-        <button
-          :for={tag <- backlog_chip_tags}
-          phx-click="filter:tag"
-          phx-value-tag={tag}
-          class={[
-            "text-[11px] px-2 py-0.5 rounded",
-            if(MapSet.member?(@tag_filter, tag),
-              do: "bg-amber-400 text-black",
-              else: "bg-white/10 hover:bg-white/20"
-            )
-          ]}
-        >
-          {tag}
-        </button>
-        <button
-          :if={MapSet.size(@tag_filter) > 0}
-          phx-click="filter:clear_tags"
-          class="text-[11px] px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-white/70"
-        >
-          clear
-        </button>
-      </div>
-
-      <ul class="space-y-1">
-        <li
-          :for={
-            t <-
-              filtered_backlog(
-                @tasks,
-                backlog_zone(@now, @zone_filter),
-                @tag_filter,
-                @day.order ++ @day.done
-              )
-          }
-          class={[
-            "flex items-center gap-2 px-2 py-2 rounded border",
-            zone_card_class(t.zone)
-          ]}
-        >
-          <button phx-click="day:add" phx-value-id={t.id} class="flex-1 text-left min-w-0">
-            <div class="text-sm truncate">{t.title}</div>
-            <div class="flex gap-2 text-[10px] opacity-60 mt-0.5">
-              <span>{t.kind}</span>
-              <span :if={t.priority}>· {t.priority}</span>
-              <span :for={tag <- Enum.take(t.tags || [], 3)} class="px-1 rounded bg-white/10">
-                {tag}
-              </span>
-            </div>
-          </button>
-          <div class="flex gap-0.5">
-            <button
-              phx-click="edit:open"
-              phx-value-id={t.id}
-              class="w-6 h-6 rounded bg-white/10 hover:bg-white/20 text-xs"
-              title="Edit"
-            >
-              ✎
-            </button>
-            <button
-              phx-click="day:add"
-              phx-value-id={t.id}
-              class="w-6 h-6 rounded bg-white/10 hover:bg-white/20 text-xs"
-              title="Add to today"
-            >
-              +
-            </button>
+    <section id="planner-cta" class="mt-8">
+      <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <h2 class="text-xs uppercase tracking-wider text-white/60">Planning Lives In Plan</h2>
+            <p class="mt-1 text-sm text-white/70">
+              Backlog, templates y archivadas ya viven fuera de la vista de ejecución.
+            </p>
           </div>
-        </li>
-      </ul>
-    </section>
-    
-<!-- Archive (lazy-loaded, shows older unfinished and finished tasks) -->
-    <section class="mt-8">
-      <div :if={not @archive_visible} class="flex justify-center">
-        <button
-          phx-click="archive:show"
-          class="text-xs px-3 py-1.5 rounded bg-white/5 hover:bg-white/15 text-white/60"
-        >
-          Ver archivadas ▾
-        </button>
-      </div>
-
-      <div :if={@archive_visible}>
-        <div class="flex items-center justify-between mb-2">
-          <h2 class="text-xs uppercase tracking-wider text-white/60">Archivadas</h2>
-          <button phx-click="archive:hide" class="text-xs text-white/50 hover:text-white">
-            ocultar ▴
-          </button>
+          <.link
+            id="open-planner-cta"
+            navigate={~p"/planner"}
+            class="shrink-0 rounded-full bg-white px-4 py-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-950"
+          >
+            Open plan
+          </.link>
         </div>
-
-        <div class="flex flex-wrap gap-1 mb-2 text-xs">
-          <button
-            phx-click="archive:state_filter"
-            phx-value-state="unfinished"
-            class={[
-              "px-2 py-0.5 rounded",
-              if(@archive_state_filter == :unfinished,
-                do: "bg-amber-400 text-black",
-                else: "bg-white/10 hover:bg-white/20"
-              )
-            ]}
-          >
-            unfinished
-          </button>
-          <button
-            phx-click="archive:state_filter"
-            phx-value-state="finished"
-            class={[
-              "px-2 py-0.5 rounded",
-              if(@archive_state_filter == :finished,
-                do: "bg-emerald-400 text-black",
-                else: "bg-white/10 hover:bg-white/20"
-              )
-            ]}
-          >
-            finished
-          </button>
-          <span class="mx-1 text-white/30">·</span>
-          <button
-            phx-click="archive:zone_filter"
-            phx-value-zone="all"
-            class={[
-              "px-2 py-0.5 rounded",
-              if(@archive_zone_filter == :all, do: "bg-white/20", else: "bg-white/5")
-            ]}
-          >
-            all
-          </button>
-          <button
-            phx-click="archive:zone_filter"
-            phx-value-zone="work"
-            class={[
-              "px-2 py-0.5 rounded",
-              if(@archive_zone_filter == :work, do: "bg-red-500/40", else: "bg-white/5")
-            ]}
-          >
-            work
-          </button>
-          <button
-            phx-click="archive:zone_filter"
-            phx-value-zone="personal"
-            class={[
-              "px-2 py-0.5 rounded",
-              if(@archive_zone_filter == :personal, do: "bg-blue-500/40", else: "bg-white/5")
-            ]}
-          >
-            personal
-          </button>
-        </div>
-
-        <% archive_items = archive_entries(@archive, @archive_state_filter, @archive_zone_filter) %>
-        <div :if={archive_items == []} class="text-sm text-white/40 italic py-4 text-center">
-          No hay tareas archivadas.
-        </div>
-        <ul :if={archive_items != []} class="space-y-1">
-          <li
-            :for={{date, t} <- archive_items}
-            class={[
-              "flex items-center gap-2 px-2 py-2 rounded border",
-              zone_card_class(t.zone),
-              if(@archive_state_filter == :finished, do: "opacity-70", else: "")
-            ]}
-          >
-            <button phx-click="edit:open" phx-value-id={t.id} class="flex-1 text-left min-w-0">
-              <div class={[
-                "text-sm truncate",
-                if(@archive_state_filter == :finished, do: "line-through", else: "")
-              ]}>
-                {t.title}
-              </div>
-              <div class="flex gap-2 text-[10px] opacity-60 mt-0.5">
-                <span>{Date.to_iso8601(date)}</span>
-                <span>· {t.zone}</span>
-                <span :if={t.priority}>· {t.priority}</span>
-              </div>
-            </button>
-            <button
-              :if={@archive_state_filter == :unfinished}
-              phx-click="day:add"
-              phx-value-id={t.id}
-              class="text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/20"
-              title="Add to today"
-            >
-              + today
-            </button>
-          </li>
-        </ul>
       </div>
     </section>
   </div>

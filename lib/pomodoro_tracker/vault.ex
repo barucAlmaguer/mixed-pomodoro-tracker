@@ -26,7 +26,7 @@ defmodule PomodoroTracker.Vault do
           related: [String.t()],
           recurrence: String.t() | nil,
           duration_hint: String.t() | nil,
-          kind: :template | :backlog,
+          kind: :templates | :backlog,
           path: String.t(),
           body: String.t(),
           # Recurrent planner fields
