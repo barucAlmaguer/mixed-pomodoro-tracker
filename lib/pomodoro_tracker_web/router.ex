@@ -2,7 +2,6 @@ defmodule PomodoroTrackerWeb.Router do
   use PomodoroTrackerWeb, :router
 
   pipeline :browser do
-    plug PomodoroTrackerWeb.Plugs.ManifestRedirect
     plug :accepts, ["html"]
     plug :fetch_session
     plug :fetch_live_flash
@@ -19,7 +18,6 @@ defmodule PomodoroTrackerWeb.Router do
     pipe_through :browser
 
     live "/", DayLive, :index
-    live "/floating", FloatingLive, :index
     live "/planner", RecurrentPlannerLive, :index
   end
 

@@ -1,8 +1,9 @@
 defmodule PomodoroTrackerWeb.StateController do
   @moduledoc """
-  Read-only JSON endpoint for the menubar / external clients (Hammerspoon,
-  scripts). Returns the live snapshot of timer + today + next deadline so
-  small clients don't need to mount a LiveView socket.
+  Read-only JSON snapshot of timer + today + next deadline.
+
+  Kept as a simple debugging/integration endpoint so small clients can inspect
+  app state without mounting a LiveView socket.
   """
 
   use PomodoroTrackerWeb, :controller

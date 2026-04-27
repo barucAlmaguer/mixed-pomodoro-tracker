@@ -2,12 +2,20 @@
 
 Focus on **today**. Plan → execute with Phoenix LiveView, pomodoro timer, and Obsidian-backed task files.
 
+Hammerspoon / menubar / floating-panel integration is currently disabled. The supported surface is the full Phoenix LiveView app only.
+
 - Work zone (red) and personal zone (blue) auto-switch by time of day
 - Mobile-first narrow UI — put it in a sidebar or open from your phone on LAN
 - Tasks live as `.md` files with YAML frontmatter inside your existing Obsidian vaults
-- Slack/GitHub filter badges in the top bar
-- 1 or 2 active tasks at a time (mix work + personal during active breaks)
+- Slack/GitHub filter badges in the top bar (tag filters, not live integrations)
+- 1 or 2 active tasks at a time
 - Pomodoro usage auto-logged per task for traceability
+
+## Product docs
+
+- Current behavior: [`docs/current-features.md`](docs/current-features.md)
+- Planned changes: [`docs/roadmap.md`](docs/roadmap.md)
+- Repo-specific agent context: [`AGENTS.md`](AGENTS.md)
 
 ## Layout inside each vault
 
@@ -83,5 +91,6 @@ Wire it to a cron / schedule (e.g. via `/schedule` in Claude Code) to sync in th
 - `PomodoroTracker.Vault.Watcher` — `file_system` watcher → PubSub on vault changes
 - `PomodoroTracker.Timer` — GenServer state machine (`:idle | :work | :active_break | :passive_break | :long_break`), broadcasts via PubSub
 - `PomodoroTrackerWeb.DayLive` — single LiveView, reacts to both `timer` and `vault` topics
+- `PomodoroTrackerWeb.RecurrentPlannerLive` — present, but currently not a stable supported surface
 
 No database. Zero server-side state beyond the Timer GenServer — all source-of-truth is in your vault, and any external editor (Obsidian, vim, another agent) triggers a live UI refresh.
