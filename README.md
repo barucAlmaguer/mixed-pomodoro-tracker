@@ -10,6 +10,8 @@ Hammerspoon / menubar / floating-panel integration is currently disabled. The su
 - Slack/GitHub filter badges in the top bar (tag filters, not live integrations)
 - 1 or 2 active tasks at a time
 - Pomodoro usage auto-logged per task for traceability
+- `/` is the execution surface and `/planner` is the planning surface
+- `/?date=YYYY-MM-DD` opens a readonly historical day review
 
 ## Product docs
 
@@ -68,10 +70,11 @@ The app creates `pomodoro-tracker/` subfolders inside each vault on first run if
 
 ## Daily flow
 
-1. **Morning (plan)** — open the app, pick tasks from the backlog (+ button) into Today. Reorder with ↑/↓.
-2. **Execute** — click a Today task to activate (up to 2). Hit **Start work** on the timer.
+1. **Morning (plan)** — open `/planner`, curate templates/backlog, and push tasks into Today.
+2. **Execute** — open `/`, click a Today task to activate (up to 2), and hit **Start work** on the timer.
 3. **Break** — when the work interval ends, choose **Active** (quick personal task during the break) or **Passive** (pure rest).
 4. **Off hours** — zone switches to personal automatically; work tasks hide unless you toggle the zone filter.
+5. **Review** — use `/?date=YYYY-MM-DD` or the header arrows from `/` to inspect previous days in readonly mode and carry unfinished tasks forward.
 
 Pomodoro counts accumulate on the task per day (`3🍅`, `5🍅`, …). A task doesn't have to finish in one pomodoro.
 
@@ -90,7 +93,7 @@ Wire it to a cron / schedule (e.g. via `/schedule` in Claude Code) to sync in th
 - `PomodoroTracker.Vault` — read/write MD + YAML frontmatter
 - `PomodoroTracker.Vault.Watcher` — `file_system` watcher → PubSub on vault changes
 - `PomodoroTracker.Timer` — GenServer state machine (`:idle | :work | :active_break | :passive_break | :long_break`), broadcasts via PubSub
-- `PomodoroTrackerWeb.DayLive` — single LiveView, reacts to both `timer` and `vault` topics
-- `PomodoroTrackerWeb.RecurrentPlannerLive` — present, but currently not a stable supported surface
+- `PomodoroTrackerWeb.DayLive` — execution surface, reacts to both `timer` and `vault` topics
+- `PomodoroTrackerWeb.RecurrentPlannerLive` — planning surface for templates, backlog, and archived tasks
 
 No database. Zero server-side state beyond the Timer GenServer — all source-of-truth is in your vault, and any external editor (Obsidian, vim, another agent) triggers a live UI refresh.

@@ -6,11 +6,11 @@ repository. Keep it short, factual, and current.
 ## Product snapshot
 
 - This is a Phoenix LiveView app for daily planning and pomodoro execution.
-- The supported primary surface is `/` (`DayLive`).
+- The supported primary surfaces are:
+  - `/` (`DayLive`) for execution
+  - `/planner` (`RecurrentPlannerLive`) for planning
 - `Hammerspoon`, menubar, and floating-panel integration are intentionally
   disabled for now.
-- `/planner` exists in the router, but should be treated as experimental until
-  its current data-model mismatch is fixed.
 - `/api/state` is a small read-only JSON snapshot for debugging or lightweight
   clients. It is not the main product surface.
 
@@ -27,12 +27,15 @@ repository. Keep it short, factual, and current.
 ## Current behavior that matters
 
 - The app models two zones: `work` and `personal`.
+- The product now has explicit top-level navigation between `Execute` and `Plan`.
+- `/` also supports readonly historical review via `?date=YYYY-MM-DD`.
 - The top timeline and background theme switch between those zones based on time
   of day, unless an active timer phase overrides the styling.
 - The top-left `SL` and `GH` badges are tag filters, not direct Slack or GitHub
   integrations. They filter backlog items tagged `mensaje-slack` and `review`.
 - `Today` is an ordered day plan with `pending`, `active`, `done`, and
   `pomodoros` counts.
+- `/planner` now owns the full backlog / templates / archive surfaces.
 - Users can keep up to 2 tasks active at once.
 - Breaks come in two explicit modes:
   - `active_break`: offers personal tasks without the `break` tag
@@ -64,12 +67,11 @@ repository. Keep it short, factual, and current.
 
 ## Known gaps as of 2026-04-27
 
-- `/planner` currently filters for `:template`, but the vault layer emits
-  `:templates`, so the page does not reflect real template data correctly.
 - The session log is append-only plain text and currently stores only one zone
   per work pomodoro.
-- There is test coverage for timer and cadence behavior, but not enough coverage
-  for the full `/` workflow or `/planner`.
+- There is test coverage for timer/cadence, planner entry points, and basic
+  historical day review, but not enough coverage for the full `/` workflow or
+  the deeper product semantics still planned on the roadmap.
 
 ## Working rules
 

@@ -437,195 +437,81 @@ Open design questions:
 
 ### 11. Add day navigation with readonly historical review
 
-Desired behavior:
+Current baseline:
 
-- Allow navigation to previous and next days from the main app.
-- The primary use case is reviewing previous days:
-  - how the day went
-  - what remained unfinished
-  - what pomodoros/breaks were logged
-- A secondary use case is recovering unfinished work from previous days into the
-  current day.
+- `/` now supports previous/next day navigation.
+- `today` stays fully interactive.
+- Non-today dates render in readonly mode.
+- Historical days hide the live timer controls.
+- Historical pending tasks support:
+  - bring task to today
+  - cancel task in that historical day
+- Bringing a task forward preserves the task's historical existence on the
+  original day.
 
-Core principle:
+Remaining refinement:
 
-- Nothing should get lost.
-- If a task was present on a previous day and was never finished, the user
-  should be able to navigate back to that day and see it exactly as it was left.
+- Decide whether future dates should remain reachable as empty readonly states
+  or be bounded differently.
+- Decide whether historical days should eventually show a static interval
+  summary instead of simply hiding the timer surface.
+- Decide whether carried tasks should be annotated in today's UI with their
+  source date.
+- Decide whether canceling a historical task should also clear related recovery
+  hints such as `tareas inconclusas`.
+- Add richer browser-level coverage for history navigation once the next
+  product slices settle.
 
-Behavior by date:
+### 12. Deepen the Execute vs Plan split
 
-- `today` remains the normal fully interactive planning/execution surface.
-- Any day other than today should render in a readonly historical mode.
-- In readonly mode, the app should avoid suggesting that the historical day is
-  still "live".
+Current baseline:
 
-Readonly historical mode rules:
+- `/` is now the execution surface.
+- `/planner` now owns backlog, templates, and archive.
+- A minimal `Execute/Plan` navigation already exists.
 
-- Do not allow adding tasks directly into that historical day.
-- Do not allow starting, pausing, resuming, or otherwise driving the timer from
-  a non-today date.
-- It is likely better not to show the live pomodoro timer at all on non-today
-  dates, or to replace it with a clearly historical summary.
-- The UI should preserve the real state of that day:
-  - ordered tasks
-  - which were active
-  - which were done
-  - pomodoro counts
-  - any logged intervals if the interval ledger exists by then
+Remaining product work:
 
-Allowed actions on past days:
+- keep `Execute` focused on:
+  - timer
+  - day summary
+  - active work
+  - today's ordered plan
+  - limited recovery actions
+- keep `Plan` focused on:
+  - templates
+  - backlog
+  - archive
+  - later: historical review, settings, habits
+- avoid reintroducing full planning/inventory surfaces back into `Execute`
 
-- bring task to current day
-- cancel task
+### 13. Extend navigation beyond Execute and Plan
 
-Meaning of those actions:
+Current baseline:
 
-- `bring task to current day`: add that task to today's plan without mutating its
-  historical existence on the original day.
-- `cancel task`: remove that still-open task from the historical day's pending
-  state without deleting the task file globally.
+- The app already supports fast switching between `Execute` and `Plan`.
 
-Important product constraint:
+Remaining behavior:
 
-- Historical review should not rewrite history by default.
-- Bringing a task forward should be modeled as carrying work into today, not as
-  pretending it was always part of today.
+- Extend navigation to future views such as:
+  - `Settings`
+  - `Habit Tracker`
+  - possibly historical review if it becomes its own surface
+- Decide final navigation treatment across desktop/mobile.
+- Decide whether `Settings` is a route, modal, panel, or planner subsection.
 
-UI direction:
+### 14. Grow `/planner` into the long-term planning hub
 
-- Add previous/next day navigation controls near the page header.
-- Historical dates should be visually distinguishable from today.
-- Non-today dates should show a clear readonly indicator.
-- If the timer area remains visible for historical dates, it should be rendered
-  as a static summary, not a control surface.
+Current baseline:
 
-Open design questions:
+- `/planner` is now a supported planning surface.
 
-- Should navigation allow:
-  - only dates that already have a day file
-  - any calendar date
-  - bounded navigation around today
-- What should a future date show if no day file exists yet:
-  - empty readonly state
-  - auto-created shell
-  - no navigation target
-- Should `cancel task` on a past day also remove it from the `tareas
-  inconclusas` surface automatically?
-- Decide whether a task brought forward should be annotated in today's UI as:
-  - carried from yesterday
-  - carried from a specific date
-  - unannotated
+Remaining work:
 
-Implementation direction:
-
-- Generalize day loading from "today only" to "selected date".
-- Keep historical day rendering separate from today's interactive behavior to
-  avoid accidental writes.
-- Reuse existing unfinished/archive logic where useful, but treat date
-  navigation as a first-class feature rather than a side effect of those lists.
-
-### 12. Split product surfaces into Execute vs Plan
-
-Desired direction:
-
-- Make `/` the default execution surface.
-- Make `/planner` the primary planning surface once it is stabilized.
-- Stop treating backlog/archive/planning concerns as secondary appendices at the
-  bottom of the execution screen.
-
-Execution surface (`/`) should focus on:
-
-- current timer state
-- day summary bar
-- global operating mode
-- daily work/personal totals
-- current active work
-- today's ordered plan
-- limited recovery actions from previous days
-
-Planning surface (`/planner`) should focus on:
-
-- backlog
-- templates / recurrent planning
-- archived tasks
-- cross-day review and recovery
-- global settings
-
-Design implication:
-
-- If a concept has a natural home in `Plan`, it should not also exist as a full
-  duplicate inside `Execute`.
-- `Execute` can still keep small escape hatches such as:
-  - add quick ad-hoc task
-  - bring forward unfinished task
-  - open planner
-
-### 13. Add explicit navigation between product views
-
-Desired behavior:
-
-- The app should support fast back-and-forth navigation between the major views:
-  - `Execute` (`/`)
-  - `Plan` (`/planner`)
-  - future views such as `Settings`
-- The default entry point should remain `/`.
-
-Why this matters:
-
-- Once planning concerns move out of the execution screen, the product needs a
-  first-class way to move between modes of use without friction.
-- Navigation should make the app feel like one coherent system, not a set of
-  hidden routes.
-
-UI direction:
-
-- Add a minimal, persistent navigation affordance that is visible from the main
-  supported views.
-- It should make current location obvious and switching fast.
-- It should be lightweight enough not to compete with the timer-focused UI.
-
-Candidate patterns:
-
-- compact top nav near the page header
-- segmented control for major modes
-- bottom nav if mobile usage proves dominant
-
-Initial minimum:
-
-- clear navigation between `/` and `/planner`
-- visible current-view state
-- obvious place to attach future `Settings`
-
-Open design questions:
-
-- Should navigation be:
-  - always visible
-  - contextually minimized during execution
-  - responsive with different desktop/mobile treatments
-- Should `Settings` be:
-  - its own route
-  - a panel/modal reachable from all major views
-  - embedded inside `Plan`
-
-Implementation direction:
-
-- Treat view navigation as product architecture, not just router plumbing.
-- Define the information architecture before polishing visual placement.
-
-### 14. Decide the fate of `/planner`
-
-Options:
-
-- Fix it and make it a first-class recurring-work view.
-- Keep it experimental but clearly marked as such.
-- Remove it from the router until it has a stable product role.
-
-Current minimum if we keep it:
-
-- Fix the `:template` vs `:templates` mismatch.
-- Define what actions belong there versus the main day view.
-- Add tests for the planner data model and rendering.
+- add global settings editing
+- add habit management/tracking entry points
+- decide how planner should link into or summarize historical review
+- improve planner-specific data modeling and tests as those surfaces expand
 
 ### 15. Strengthen tests around product behavior
 
@@ -637,11 +523,9 @@ Add coverage for:
 - off-hours hiding / showing of work tasks
 - hierarchical tag filtering behavior
 - habit-template grouping and aggregation rules
-- readonly rendering for non-today dates
-- bringing a task from a historical day into today
-- canceling a task from a historical day without deleting the task globally
-- navigation between execute and plan views
-- `/planner` behavior if that route remains
+- richer historical-day behavior beyond the new readonly baseline
+- navigation to future views beyond execute/plan
+- richer `/planner` behavior as it grows beyond templates/backlog/archive
 
 ## Next improvements after the core is stable
 

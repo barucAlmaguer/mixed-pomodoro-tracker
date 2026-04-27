@@ -36,9 +36,9 @@ defmodule PomodoroTrackerWeb.PlannerLiveTest do
 
     {:ok, view, _html} = live(conn, "/planner")
 
-    assert has_element?(view, "#product-nav")
-    assert has_element?(view, "#nav-execute")
-    assert has_element?(view, "#nav-plan")
+    assert has_element?(view, "#planner-nav")
+    assert has_element?(view, "#planner-nav-execute")
+    assert has_element?(view, "#planner-nav-plan")
     assert render(view) =~ "Stretch neck"
   end
 
@@ -54,7 +54,7 @@ defmodule PomodoroTrackerWeb.PlannerLiveTest do
     {:ok, view, _html} = live(conn, "/planner")
 
     view
-    |> element(~s([phx-click="day:add"][phx-value-id="fix-build"]))
+    |> element(~s(button[title="Add to today"][phx-value-id="fix-build"]))
     |> render_click()
 
     {:ok, day} = Vault.load_day()
@@ -65,7 +65,7 @@ defmodule PomodoroTrackerWeb.PlannerLiveTest do
     {:ok, view, _html} = live(conn, "/")
 
     assert has_element?(view, "#open-planner-cta")
-    refute render(view) =~ "Backlog"
+    assert render(view) =~ "Planning Lives In Plan"
   end
 
   defp make_tmp_vaults do

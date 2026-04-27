@@ -3,7 +3,7 @@
 
   <div class="max-w-6xl mx-auto px-4 py-8">
     <div class="flex justify-center mb-6">
-      <PomodoroTrackerWeb.Layouts.product_nav current={:plan} />
+      <PomodoroTrackerWeb.Layouts.product_nav id="planner-nav" current={:plan} />
     </div>
 
     <div class="mb-8 flex items-start justify-between gap-4 flex-wrap">
@@ -31,26 +31,26 @@
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
-      <button
-        :for={pilar <- @pilares}
-        phx-click="select:pilar"
-        phx-value-id={pilar.id}
-        class={[
-          "p-4 rounded-xl border text-left transition-all hover:scale-[1.02]",
-          pilar_class(pilar.color),
-          if(@selected_pilar == pilar.id, do: "ring-2 ring-white/30", else: "")
-        ]}
-      >
-        <div class="flex items-center gap-2 mb-2">
-          <span class="text-xl">{pilar.icon}</span>
-          <span class="font-medium">{pilar.label}</span>
-        </div>
-        <% count = length(@templates_by_pilar[pilar.id] || []) %>
-        <div class="text-2xl font-light">{count}</div>
-        <div class="text-xs opacity-60">
-          {if count == 1, do: "template", else: "templates"}
-        </div>
-      </button>
+        <button
+          :for={pilar <- @pilares}
+          phx-click="select:pilar"
+          phx-value-id={pilar.id}
+          class={[
+            "p-4 rounded-xl border text-left transition-all hover:scale-[1.02]",
+            pilar_class(pilar.color),
+            if(@selected_pilar == pilar.id, do: "ring-2 ring-white/30", else: "")
+          ]}
+        >
+          <div class="flex items-center gap-2 mb-2">
+            <span class="text-xl">{pilar.icon}</span>
+            <span class="font-medium">{pilar.label}</span>
+          </div>
+          <% count = length(@templates_by_pilar[pilar.id] || []) %>
+          <div class="text-2xl font-light">{count}</div>
+          <div class="text-xs opacity-60">
+            {if count == 1, do: "template", else: "templates"}
+          </div>
+        </button>
       </div>
 
       <% pilares_to_show =
@@ -129,7 +129,10 @@
                     </span>
                     <span>Streak: <span class="text-amber-400">{streak_count(t)}</span></span>
                     <span class="font-mono tracking-wider">{weekly_status(t, @tasks)}</span>
-                    <span :for={tag <- Enum.take(t.tags || [], 3)} class="px-1 rounded bg-white/10">
+                    <span
+                      :for={tag <- Enum.take(t.tags || [], 3)}
+                      class="px-1 rounded bg-white/10"
+                    >
                       {tag}
                     </span>
                   </div>

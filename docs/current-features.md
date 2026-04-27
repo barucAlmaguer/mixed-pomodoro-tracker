@@ -7,14 +7,14 @@ supposed to do.
 ## Supported surfaces
 
 - `/` is the main supported app surface.
+- `/planner` is the supported planning surface.
 - `/api/state` exposes a read-only JSON snapshot of timer + today + next due
   task.
-- `/planner` exists, but should currently be treated as incomplete.
 - Hammerspoon / menubar / floating panel are intentionally disabled.
-- The main LiveView is centered on `today`; there is no first-class navigation
-  across arbitrary past/future days yet.
-- There is no strong product-level navigation model yet between execution,
-  planning, settings, or other future views.
+- `/` supports historical day navigation through `?date=YYYY-MM-DD`.
+- There is now explicit product-level navigation between `Execute` and `Plan`.
+- There is still no first-class navigation model yet for historical review,
+  settings, habit tracking, or other future views.
 
 ## Core model
 
@@ -42,6 +42,24 @@ supposed to do.
 - The top time-context bar is currently hard-coded to represent `07:00-20:00`.
 
 ## Main screen (`/`)
+
+### Day navigation and readonly history
+
+- The top header includes previous / next day navigation.
+- `today` remains the fully interactive execution surface.
+- Any non-today date renders in readonly historical mode.
+- Historical mode:
+  - hides the live timer controls
+  - preserves the real task order / done state / pomodoro counts from that day
+  - disables off-hours hiding heuristics so work tasks remain visible as they
+    were
+  - shows a visible readonly banner
+- Historical pending tasks expose only:
+  - `+ today` to carry the task into the current day without removing it from
+    history
+  - `cancel` to remove it from that historical day without deleting the task
+    globally
+- Empty historical days render `No hubo tareas en este día.`
 
 ### Time context and theming
 
@@ -164,10 +182,39 @@ supposed to do.
   - dismiss from the unfinished section without deleting the task itself
 
 This is currently the closest thing to "recover work from previous days", but it
-is not a true per-day historical view.
+is now only a secondary helper because direct per-day historical review exists.
+
+### Planning handoff
+
+- The execution screen no longer renders the full backlog or archive sections.
+- Instead it shows a planner handoff card linking to `/planner`.
+- This keeps the main screen focused on execution rather than inventory
+  management.
+- When `Today` is empty on the live execution day, the empty state now points
+  the user to `Plan`.
+
+## Planning screen (`/planner`)
+
+### Product navigation
+
+- A minimal persistent nav now exists between:
+  - `Execute`
+  - `Plan`
+- The current surface is visually highlighted.
+
+### Templates
+
+- Templates render correctly from real `:templates` data.
+- Templates are grouped by pilar.
+- A `Sin pilar` group exists so templates without a pilar do not disappear.
+- Actions:
+  - pause/reactivate template
+  - edit
+  - add to today
 
 ### `Backlog`
 
+- Backlog now lives in `/planner`.
 - Zone filter modes:
   - `auto`
   - `work`
@@ -185,13 +232,15 @@ is not a true per-day historical view.
 
 ### Archive
 
-- Archive is lazy-loaded only when the user opens it.
+- Archive now lives in `/planner`.
+- It remains lazy-loaded until the user opens it.
 - It supports filtering by:
   - `unfinished` vs `finished`
   - `all`, `work`, `personal`
 - Old unfinished items can be re-added to today from the archive.
 
-This is a task archive, not a date-by-date day review experience.
+This is still a task archive, not the primary date-by-date day review
+experience.
 
 ## Recurrent tasks
 
@@ -227,8 +276,6 @@ This is a task archive, not a date-by-date day review experience.
 
 ## Known caveats
 
-- `/planner` is not reliable right now because it filters `:template` while the
-  vault layer produces `:templates`.
 - The timer supports switching tracked tasks mid-run, but the main LiveView does
   not fully use that capability yet.
 - Work pomodoros currently store only one zone classification.

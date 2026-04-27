@@ -156,26 +156,36 @@ defmodule PomodoroTrackerWeb.Layouts do
   Minimal product navigation between the major app surfaces.
   """
   attr :current, :atom, required: true
+  attr :id, :string, default: "product-nav"
 
   def product_nav(assigns) do
     ~H"""
-    <nav id="product-nav" class="inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/20 p-1">
+    <nav
+      id={@id}
+      class="inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/20 p-1"
+    >
       <.link
-        id="nav-execute"
+        id={"#{@id}-execute"}
         navigate={~p"/"}
         class={[
           "px-3 py-1.5 rounded-full text-xs uppercase tracking-[0.2em] transition",
-          if(@current == :execute, do: "bg-white text-slate-950", else: "text-white/70 hover:text-white hover:bg-white/10")
+          if(@current == :execute,
+            do: "bg-white text-slate-950",
+            else: "text-white/70 hover:text-white hover:bg-white/10"
+          )
         ]}
       >
         Execute
       </.link>
       <.link
-        id="nav-plan"
+        id={"#{@id}-plan"}
         navigate={~p"/planner"}
         class={[
           "px-3 py-1.5 rounded-full text-xs uppercase tracking-[0.2em] transition",
-          if(@current == :plan, do: "bg-white text-slate-950", else: "text-white/70 hover:text-white hover:bg-white/10")
+          if(@current == :plan,
+            do: "bg-white text-slate-950",
+            else: "text-white/70 hover:text-white hover:bg-white/10"
+          )
         ]}
       >
         Plan

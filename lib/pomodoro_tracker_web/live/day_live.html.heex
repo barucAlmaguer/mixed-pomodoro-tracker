@@ -1,9 +1,12 @@
 <div class={[
   "min-h-screen text-white font-sans transition-colors",
-  situation_bg(@timer, @now)
+  if(@readonly_day?, do: "bg-slate-950", else: situation_bg(@timer, @now))
 ]}>
   <% tl = day_timeline(@now) %>
-  <div class="fixed top-0 left-0 right-0 h-[3px] z-50 pointer-events-none">
+  <div
+    :if={not @readonly_day?}
+    class="fixed top-0 left-0 right-0 h-[3px] z-50 pointer-events-none"
+  >
     <div class="relative h-full bg-black/30">
       <div
         :for={z <- tl.zones}
@@ -21,13 +24,64 @@
   <PomodoroTrackerWeb.Layouts.flash_group flash={@flash} />
 
   <div class="mx-auto max-w-md px-3 pb-24">
-    <!-- Sticky pomodoro -->
-    <div class={[
-      "sticky top-0 -mx-3 px-3 py-4 shadow-lg z-20",
-      situation_bg(@timer, @now)
-    ]}>
+    <section class="pt-6">
+      <div class="flex items-center justify-between gap-3">
+        <.link
+          patch={day_route(Date.add(@selected_date, -1))}
+          class="w-10 h-10 rounded-full border border-white/10 bg-white/5 flex items-center justify-center text-lg hover:bg-white/10"
+        >
+          ←
+        </.link>
+
+        <div class="flex flex-col items-center gap-3">
+          <PomodoroTrackerWeb.Layouts.product_nav id="day-header-nav" current={:execute} />
+          <div class="text-center">
+            <div class="text-[11px] uppercase tracking-[0.25em] text-white/45">
+              {if @readonly_day?, do: "Historical day", else: "Execution day"}
+            </div>
+            <div class="text-lg font-light">{day_label(@selected_date)}</div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <.link
+            :if={@readonly_day?}
+            patch={~p"/"}
+            class="px-3 py-2 rounded-full border border-white/10 bg-white/5 text-[11px] uppercase tracking-[0.18em] text-white/75 hover:bg-white/10"
+          >
+            Today
+          </.link>
+          <.link
+            patch={day_route(Date.add(@selected_date, 1))}
+            class="w-10 h-10 rounded-full border border-white/10 bg-white/5 flex items-center justify-center text-lg hover:bg-white/10"
+          >
+            →
+          </.link>
+        </div>
+      </div>
+    </section>
+
+    <section
+      :if={@readonly_day?}
+      id="historical-day-header"
+      class="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4"
+    >
+      <h2 class="text-xs uppercase tracking-[0.25em] text-white/55">Readonly historical day</h2>
+      <p class="mt-1 text-sm text-white/70">
+        Esta fecha ya no se ejecuta. Desde aquí solo puedes traer tareas a hoy o cancelarlas.
+      </p>
+    </section>
+    
+<!-- Sticky pomodoro -->
+    <div
+      :if={not @readonly_day?}
+      class={[
+        "sticky top-0 -mx-3 px-3 py-4 shadow-lg z-20 mt-4",
+        situation_bg(@timer, @now)
+      ]}
+    >
       <div class="flex justify-center mb-3">
-        <PomodoroTrackerWeb.Layouts.product_nav current={:execute} />
+        <PomodoroTrackerWeb.Layouts.product_nav id="day-sticky-nav" current={:execute} />
       </div>
 
       <div class="flex items-center justify-between mb-2">
@@ -186,7 +240,10 @@
     
 <!-- BREAK MODE: pick a break task (hidden once one is picked) -->
     <section
-      :if={break_phase?(@timer.phase) and now_ids(@day.active, @tasks, @timer.phase) == []}
+      :if={
+        not @readonly_day? and break_phase?(@timer.phase) and
+          now_ids(@day.active, @tasks, @timer.phase) == []
+      }
       class="mt-6"
     >
       <h2 class="text-xs uppercase tracking-wider text-white/70 mb-2">
@@ -266,7 +323,10 @@
     
 <!-- "Up next" — mini pills for tasks waiting across a break. Only during break. -->
     <section
-      :if={break_phase?(@timer.phase) and upnext_ids(@day.active, @tasks) != []}
+      :if={
+        not @readonly_day? and break_phase?(@timer.phase) and
+          upnext_ids(@day.active, @tasks) != []
+      }
       class="mt-6"
     >
       <div class="space-y-1">
@@ -295,7 +355,10 @@
     </section>
     
 <!-- Doing now — full card. During work: all active tasks. During break: only "now_ids" (break-zone tasks). -->
-    <section :if={now_ids(@day.active, @tasks, @timer.phase) != []} class="mt-6">
+    <section
+      :if={not @readonly_day? and now_ids(@day.active, @tasks, @timer.phase) != []}
+      class="mt-6"
+    >
       <h2 class="text-xs uppercase tracking-wider text-white/60 mb-2">
         {if break_phase?(@timer.phase), do: "Doing this break", else: "In progress"}
       </h2>
@@ -362,7 +425,10 @@
     </section>
     
 <!-- Empty box when idle and nothing active: "elige algo para trabajar" -->
-    <section :if={not break_phase?(@timer.phase) and @day.active == []} class="mt-6">
+    <section
+      :if={not @readonly_day? and not break_phase?(@timer.phase) and @day.active == []}
+      class="mt-6"
+    >
       <div class="text-sm text-white/60 italic py-6 text-center border border-dashed border-white/25 rounded">
         {if @day.order == [],
           do: "Elige algo para trabajar — primero agrega tareas al día.",
@@ -371,9 +437,9 @@
     </section>
     
 <!-- Off-hours banner: hiding work tasks from Today (auto) -->
-    <% hide_work = auto_hide_work?(@now, @show_off_hour_work) %>
+    <% hide_work = if @readonly_day?, do: false, else: auto_hide_work?(@now, @show_off_hour_work) %>
     <div
-      :if={not work_hours?(@now) and has_work_in_pending?(@day, @tasks)}
+      :if={not @readonly_day? and not work_hours?(@now) and has_work_in_pending?(@day, @tasks)}
       class="mt-4 flex items-center justify-between gap-2 px-3 py-2 rounded bg-white/5 border border-white/10 text-xs"
     >
       <span class="text-white/70">
@@ -393,7 +459,7 @@
     <% zc = zone_counts(@day, @tasks) %>
     <% pending = today_pending_ids(@day, @tasks, hide_work) %>
     <% done_ids = today_done_ids(@day) %>
-    <% due = due_soon_for_today(@day, @tasks, @now) %>
+    <% due = if @readonly_day?, do: [], else: due_soon_for_today(@day, @tasks, @now) %>
     
 <!-- Deadline banner — appears when any task in TODAY is due in <2h -->
     <div
@@ -448,7 +514,9 @@
           :if={pending == [] and done_ids == []}
           class="text-sm text-white/50 italic py-4 text-center border border-dashed border-white/20 rounded"
         >
-          Pick tasks from the backlog below.
+          {if @readonly_day?,
+            do: "No hubo tareas en este día.",
+            else: "No hay tareas hoy. Usa Plan para traer o crear tareas."}
         </div>
 
         <ul :if={pending != []} class="space-y-1">
@@ -457,7 +525,7 @@
             :if={t = @tasks[id]}
             class="flex items-stretch gap-1"
           >
-            <div class="flex flex-col justify-between py-0.5">
+            <div :if={not @readonly_day?} class="flex flex-col justify-between py-0.5">
               <button
                 phx-click="day:move"
                 phx-value-id={t.id}
@@ -501,11 +569,7 @@
               if(t.id in @day.active, do: "ring-1 ring-white/40", else: "")
             ]}>
               <div class="text-xs opacity-40 w-4 text-right tabular-nums">{idx + 1}</div>
-              <button
-                phx-click="day:toggle_active"
-                phx-value-id={t.id}
-                class="flex-1 text-left min-w-0"
-              >
+              <div class="flex-1 text-left min-w-0">
                 <div class="text-sm truncate flex items-center gap-1">
                   <span
                     :if={t.id in (@day.auto_injected || [])}
@@ -521,8 +585,17 @@
                   <span :if={t.priority}>· {t.priority}</span>
                   <span :if={@day.pomodoros[t.id]}>· {@day.pomodoros[t.id]}🍅</span>
                 </div>
+              </div>
+              <button
+                :if={not @readonly_day?}
+                phx-click="day:toggle_active"
+                phx-value-id={t.id}
+                class="text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/20 shrink-0"
+              >
+                {if t.id in @day.active, do: "Pause", else: "Start"}
               </button>
               <button
+                :if={not @readonly_day?}
                 phx-click="edit:open"
                 phx-value-id={t.id}
                 class="w-6 h-6 rounded bg-white/5 hover:bg-white/15 text-xs shrink-0"
@@ -531,6 +604,7 @@
                 ✎
               </button>
               <button
+                :if={not @readonly_day?}
                 phx-click="day:remove"
                 phx-value-id={t.id}
                 class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-white/20 hover:bg-red-500 text-xs leading-none opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
@@ -538,6 +612,25 @@
               >
                 ×
               </button>
+              <div :if={@readonly_day?} class="flex gap-1 shrink-0">
+                <button
+                  phx-click="day:bring_to_today"
+                  phx-value-id={t.id}
+                  class="text-[10px] px-2 py-1 rounded bg-white/10 hover:bg-white/20"
+                  title="Bring to today"
+                >
+                  + today
+                </button>
+                <button
+                  phx-click="day:cancel_historical"
+                  phx-value-id={t.id}
+                  data-confirm="Cancelar esta tarea en el día histórico?"
+                  class="text-[10px] px-2 py-1 rounded bg-white/10 hover:bg-red-500/70"
+                  title="Cancel historical task"
+                >
+                  cancel
+                </button>
+              </div>
             </div>
           </li>
         </ul>
@@ -557,6 +650,7 @@
               </div>
             </div>
             <button
+              :if={not @readonly_day?}
               phx-click="day:unfinish"
               phx-value-id={t.id}
               class="text-[10px] px-2 py-0.5 rounded bg-white/10 hover:bg-white/20"
@@ -570,7 +664,7 @@
     
 <!-- Unfinished from the last 7 days -->
     <% unfinished = unfinished_recent(@tasks, @day) %>
-    <section :if={unfinished != []} class="mt-8">
+    <section :if={not @readonly_day? and unfinished != []} class="mt-8">
       <button phx-click="toggle:unfinished" class="w-full flex items-center justify-between mb-2">
         <h2 class="text-xs uppercase tracking-wider text-amber-300/80">
           Tareas inconclusas ({length(unfinished)})

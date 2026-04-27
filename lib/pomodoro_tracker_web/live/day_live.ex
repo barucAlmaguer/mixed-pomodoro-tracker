@@ -14,6 +14,8 @@ defmodule PomodoroTrackerWeb.DayLive do
     {:ok,
      socket
      |> assign(:page_title, "Today")
+     |> assign(:selected_date, Date.utc_today())
+     |> assign(:readonly_day?, false)
      |> assign(:now, NaiveDateTime.from_erl!(:calendar.local_time()))
      |> assign(:timer, Timer.state())
      |> assign(:zone_filter, :auto)
@@ -28,6 +30,18 @@ defmodule PomodoroTrackerWeb.DayLive do
      |> assign(:archive_state_filter, :unfinished)
      |> assign(:archive_zone_filter, :all)
      |> assign(:show_off_hour_work, false)
+     |> load_vault()}
+  end
+
+  @impl true
+  def handle_params(params, _uri, socket) do
+    date = parse_selected_date(params["date"])
+
+    {:noreply,
+     socket
+     |> assign(:selected_date, date)
+     |> assign(:readonly_day?, date != Date.utc_today())
+     |> assign(:page_title, page_title_for(date))
      |> load_vault()}
   end
 
@@ -196,25 +210,49 @@ defmodule PomodoroTrackerWeb.DayLive do
   # ---------------------------------------------------------------------------
 
   def handle_event("day:add", %{"id" => id}, socket) do
-    case socket.assigns.tasks[id] do
-      %{kind: :templates} = tpl ->
-        {:ok, new_id} = Vault.instantiate_template(tpl)
-        day = socket.assigns.day
+    if socket.assigns.readonly_day? do
+      {:noreply, socket}
+    else
+      case socket.assigns.tasks[id] do
+        %{kind: :templates} = tpl ->
+          {:ok, new_id} = Vault.instantiate_template(tpl)
+          day = socket.assigns.day
 
-        new_day =
-          if new_id in day.order or new_id in day.done,
-            do: day,
-            else: %{day | order: day.order ++ [new_id]}
+          new_day =
+            if new_id in day.order or new_id in day.done,
+              do: day,
+              else: %{day | order: day.order ++ [new_id]}
 
-        Vault.save_day(new_day)
-        {:noreply, socket |> assign(:day, new_day) |> load_vault()}
+          Vault.save_day(new_day)
+          {:noreply, socket |> assign(:day, new_day) |> load_vault()}
 
-      _ ->
-        update_day(socket, fn day ->
-          if id in day.order or id in day.done,
-            do: day,
-            else: %{day | order: day.order ++ [id]}
-        end)
+        _ ->
+          update_day(socket, fn day ->
+            if id in day.order or id in day.done,
+              do: day,
+              else: %{day | order: day.order ++ [id]}
+          end)
+      end
+    end
+  end
+
+  def handle_event("day:bring_to_today", %{"id" => id}, socket) do
+    case append_to_day(Date.utc_today(), id, socket.assigns.tasks) do
+      {:ok, :added, _resolved} ->
+        {:noreply, put_flash(socket, :info, "Added to today")}
+
+      {:ok, :exists, _resolved} ->
+        {:noreply, put_flash(socket, :info, "Already in today")}
+    end
+  end
+
+  def handle_event("day:cancel_historical", %{"id" => id}, socket) do
+    if socket.assigns.readonly_day? do
+      update_day(socket, fn day ->
+        %{day | order: List.delete(day.order, id), active: List.delete(day.active, id)}
+      end)
+    else
+      {:noreply, socket}
     end
   end
 
@@ -464,7 +502,8 @@ defmodule PomodoroTrackerWeb.DayLive do
 
   defp load_vault(socket) do
     tasks = Vault.list_all_tasks() |> Map.new(&{&1.id, &1})
-    {:ok, day} = Vault.load_day()
+    date = socket.assigns.selected_date
+    {:ok, day} = Vault.load_day(date)
 
     {order, a?} = migrate_template_ids(day.order, tasks)
     {active, b?} = migrate_template_ids(day.active, tasks)
@@ -482,12 +521,53 @@ defmodule PomodoroTrackerWeb.DayLive do
     day = %{day | order: order, active: active, done: done}
     if a? or b? or c?, do: Vault.save_day(day)
 
-    day = Cadence.ensure_run!(day, tasks)
+    day =
+      if date == Date.utc_today() do
+        Cadence.ensure_run!(day, tasks, date)
+      else
+        day
+      end
+
     tasks = Vault.list_all_tasks() |> Map.new(&{&1.id, &1})
 
     socket
     |> assign(:tasks, tasks)
     |> assign(:day, day)
+  end
+
+  defp append_to_day(date, id, tasks) do
+    resolved =
+      case tasks[id] do
+        %{kind: :templates} = tpl ->
+          {:ok, new_id} = Vault.instantiate_template(tpl, date)
+          new_id
+
+        _ ->
+          id
+      end
+
+    {:ok, day} = Vault.load_day(date)
+
+    if resolved in day.order or resolved in day.done do
+      {:ok, :exists, resolved}
+    else
+      Vault.save_day(%{day | order: day.order ++ [resolved]})
+      {:ok, :added, resolved}
+    end
+  end
+
+  defp parse_selected_date(nil), do: Date.utc_today()
+  defp parse_selected_date(""), do: Date.utc_today()
+
+  defp parse_selected_date(date) when is_binary(date) do
+    case Date.from_iso8601(date) do
+      {:ok, parsed} -> parsed
+      _ -> Date.utc_today()
+    end
+  end
+
+  defp page_title_for(date) do
+    if date == Date.utc_today(), do: "Today", else: Date.to_iso8601(date)
   end
 
   defp migrate_template_ids(ids, tasks) do
@@ -647,6 +727,12 @@ defmodule PomodoroTrackerWeb.DayLive do
   def phase_label(:idle), do: "Ready"
 
   def next_break_minutes(timer), do: Timer.default_break_minutes(timer.rounds_completed)
+
+  def day_route(%Date{} = date), do: ~p"/?date=#{Date.to_iso8601(date)}"
+
+  def day_label(%Date{} = date) do
+    if date == Date.utc_today(), do: "Today", else: Date.to_iso8601(date)
+  end
 
   @doc """
   Dots lit in the 4-pomodoro cycle indicator.
