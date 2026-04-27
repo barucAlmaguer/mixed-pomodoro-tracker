@@ -64,11 +64,21 @@ supposed to do.
 ### Time context and theming
 
 - A top timeline shows the day from `07:00` to `20:00`.
+- A second minimal bar below it summarizes timer intervals for the selected
+  day.
 - On weekdays it is split as:
   - personal `07:00-09:00`
   - work `09:00-18:00`
   - personal `18:00-20:00`
 - On weekends the whole strip is personal.
+- The summary bar uses:
+  - red for `work`
+  - blue for `personal`
+  - split red/blue for mixed `work|personal`
+  - blue for `active_break` only when a personal task was really selected
+  - light gray for `passive_break`
+  - dark gray for idle gaps
+- Segment widths reflect real interval duration, not fixed pomodoro blocks.
 - The page background follows the current situation:
   - work pomodoro in work zone: red
   - work pomodoro in personal zone: blue
@@ -101,15 +111,34 @@ supposed to do.
 - The timer is server-side, so it survives page reloads and syncs across
   clients while the app process keeps running.
 - The four dots under the timer represent the current pomodoro cycle.
+- `Start work` no longer requires an active task. A work interval can begin
+  empty and gain task/zone attribution later.
+- Near the timer, the UI shows live day totals for:
+  - `work`
+  - `personal`
+- The `work` total turns warning-yellow once it crosses the current hard-coded
+  threshold of `4h`.
 
 ### Task attribution during work pomodoros
 
-- A work pomodoro can start with one or more active tasks.
-- Internally the timer can credit multiple tasks touched during one work run.
-- In practice, the UI does not yet fully sync active-task changes back into the
-  timer state, so attribution is only partially correct today.
-- The timer stores a single `zone` for each work pomodoro. Mixed work/personal
-  attribution is not modeled correctly yet.
+- A work pomodoro can start:
+  - with active tasks
+  - with planned but inactive tasks
+  - with no task selected at all
+- Active-task changes during a running interval do not pause or reset the timer.
+- The timer accumulates every task touched during the run.
+- The timer also accumulates every zone touched during the run, so completed
+  work intervals can classify as:
+  - `work`
+  - `personal`
+  - mixed `work|personal`
+- Active breaks also track whether a real personal task was selected during the
+  interval.
+- Session logs now persist:
+  - started/ended timestamps
+  - phase
+  - tasks touched
+  - zones touched
 
 ### "Trabajo actual" / current focus
 
@@ -140,7 +169,7 @@ supposed to do.
 ### Empty states
 
 - Idle with no active tasks and empty `Today`:
-  - `Elige algo para trabajar — primero agrega tareas al día.`
+  - `No hay tareas hoy. Usa Plan para traer o crear tareas.`
 - Idle with no active tasks but tasks already in `Today`:
   - `Elige algo para trabajar ↓`
 - Active break with no break task selected:

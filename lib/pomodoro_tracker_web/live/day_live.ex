@@ -76,24 +76,13 @@ defmodule PomodoroTrackerWeb.DayLive do
     day = socket.assigns.day
     tasks = socket.assigns.tasks
 
-    task_ids =
-      case day.active do
-        [] -> Enum.take(day.order, 1)
-        active -> active
-      end
+    task_ids = day.active
+    zones = active_zones(task_ids, tasks)
 
-    zone =
-      case task_ids do
-        [first | _] -> tasks[first].zone
-        _ -> if work_hours?(socket.assigns.now), do: :work, else: :personal
-      end
+    zone = display_zone(zones, default_zone(socket.assigns.now))
 
-    if task_ids == [] do
-      {:noreply, put_flash(socket, :error, "Add a task to today first")}
-    else
-      Timer.start_work(zone, task_ids)
-      {:noreply, socket}
-    end
+    Timer.start_work(zone, task_ids, zones)
+    {:noreply, socket}
   end
 
   def handle_event("timer:break", %{"kind" => kind} = params, socket) do
@@ -504,6 +493,7 @@ defmodule PomodoroTrackerWeb.DayLive do
     tasks = Vault.list_all_tasks() |> Map.new(&{&1.id, &1})
     date = socket.assigns.selected_date
     {:ok, day} = Vault.load_day(date)
+    sessions = Vault.list_sessions(date)
 
     {order, a?} = migrate_template_ids(day.order, tasks)
     {active, b?} = migrate_template_ids(day.active, tasks)
@@ -533,6 +523,7 @@ defmodule PomodoroTrackerWeb.DayLive do
     socket
     |> assign(:tasks, tasks)
     |> assign(:day, day)
+    |> assign(:sessions, sessions)
   end
 
   defp append_to_day(date, id, tasks) do
@@ -586,8 +577,35 @@ defmodule PomodoroTrackerWeb.DayLive do
   defp update_day(socket, fun) do
     new_day = fun.(socket.assigns.day)
     Vault.save_day(new_day)
+    sync_timer_tracking(socket, new_day)
     {:noreply, assign(socket, :day, new_day)}
   end
+
+  defp sync_timer_tracking(socket, day) do
+    timer_state = Timer.state()
+
+    if socket.assigns.selected_date == Date.utc_today() and timer_state.phase != :idle do
+      tasks =
+        socket.assigns.tasks
+        |> ensure_tasks_loaded(day.active)
+
+      task_ids = tracked_task_ids(day.active, tasks, timer_state.phase)
+      zones = active_zones(task_ids, tasks)
+      Timer.switch_tasks(task_ids, zones)
+    else
+      :ok
+    end
+  end
+
+  defp ensure_tasks_loaded(tasks, ids) do
+    if Enum.all?(ids, &Map.has_key?(tasks, &1)) do
+      tasks
+    else
+      Vault.list_all_tasks() |> Map.new(&{&1.id, &1})
+    end
+  end
+
+  defp tracked_task_ids(active_ids, tasks, phase), do: now_ids(active_ids, tasks, phase)
 
   defp move(list, id, "up") do
     idx = Enum.find_index(list, &(&1 == id))
@@ -686,6 +704,250 @@ defmodule PomodoroTrackerWeb.DayLive do
   defp clamp(x, _lo, hi) when x > hi, do: hi
   defp clamp(x, _lo, _hi), do: x
 
+  def day_focus_summary(selected_date, sessions, timer, now, tasks) do
+    range_start = NaiveDateTime.new!(selected_date, ~T[07:00:00])
+    range_end = NaiveDateTime.new!(selected_date, ~T[20:00:00])
+
+    entries =
+      sessions
+      |> Enum.map(&normalize_session_entry(&1, tasks, now))
+      |> maybe_append_live_interval(selected_date, timer, now, tasks)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.sort_by(&session_sort_key/1)
+
+    {segments, cursor, work_seconds, personal_seconds} =
+      Enum.reduce(entries, {[], range_start, 0, 0}, fn entry,
+                                                       {segments, cursor, work_seconds,
+                                                        personal_seconds} ->
+        clipped = clip_entry(entry, range_start, range_end)
+
+        if clipped == nil do
+          {segments, cursor, work_seconds, personal_seconds}
+        else
+          gap_segments =
+            if NaiveDateTime.compare(clipped.started_at, cursor) == :gt do
+              [idle_segment(cursor, clipped.started_at, range_start) | segments]
+            else
+              segments
+            end
+
+          segment_start = later_of(clipped.started_at, cursor)
+          segment_seconds = NaiveDateTime.diff(clipped.ended_at, segment_start, :second)
+
+          interval_segments =
+            if segment_seconds > 0 do
+              [focus_segment(%{clipped | started_at: segment_start}, range_start) | gap_segments]
+            else
+              gap_segments
+            end
+
+          {work_gain, personal_gain} = interval_totals(%{clipped | started_at: segment_start})
+
+          {interval_segments, later_of(cursor, clipped.ended_at), work_seconds + work_gain,
+           personal_seconds + personal_gain}
+        end
+      end)
+
+    trailing_segments =
+      if NaiveDateTime.compare(cursor, range_end) == :lt do
+        [idle_segment(cursor, range_end, range_start) | segments]
+      else
+        segments
+      end
+
+    %{
+      segments: Enum.reverse(trailing_segments),
+      work_seconds: work_seconds,
+      personal_seconds: personal_seconds
+    }
+  end
+
+  def focus_total_label(seconds) do
+    minutes = max(div(seconds, 60), 0)
+    "#{div(minutes, 60)}h #{rem(minutes, 60)}m"
+  end
+
+  def work_total_alert?(seconds), do: seconds >= 4 * 60 * 60
+
+  defp normalize_session_entry(session, tasks, now) do
+    fallback_dt = session.started_at || session.ended_at || now
+
+    %{
+      phase: session.phase,
+      tasks: session.tasks || [],
+      started_at: session.started_at || derive_started_at(session.ended_at, session.minutes),
+      ended_at: session.ended_at || session.at || fallback_dt,
+      zones: session_zones(session, tasks, fallback_dt)
+    }
+  end
+
+  defp maybe_append_live_interval(entries, selected_date, timer, now, tasks) do
+    if selected_date == Date.utc_today() and timer.phase != :idle and timer.started_at do
+      live_entry = %{
+        phase: timer.phase,
+        tasks: timer.task_ids || [],
+        started_at: timer.started_at,
+        ended_at: now,
+        zones:
+          session_zones(
+            %{phase: timer.phase, tasks: timer.task_ids || [], zones: timer.zones || []},
+            tasks,
+            now
+          )
+      }
+
+      entries ++ [live_entry]
+    else
+      entries
+    end
+  end
+
+  defp session_sort_key(entry) do
+    dt = entry.started_at || entry.ended_at || NaiveDateTime.local_now()
+    {NaiveDateTime.to_date(dt), NaiveDateTime.to_time(dt)}
+  end
+
+  defp session_zones(session, tasks, fallback_dt) do
+    explicit = Enum.uniq(session.zones || [])
+
+    cond do
+      explicit != [] ->
+        explicit
+
+      session.phase == :active_break and (session.tasks || []) != [] ->
+        [:personal]
+
+      true ->
+        derived =
+          session.tasks
+          |> Enum.flat_map(fn id ->
+            case tasks[id] do
+              %{zone: zone} when zone in [:work, :personal] -> [zone]
+              _ -> []
+            end
+          end)
+          |> Enum.uniq()
+
+        cond do
+          derived != [] -> derived
+          session.phase == :work -> [default_zone(fallback_dt)]
+          true -> []
+        end
+    end
+  end
+
+  defp clip_entry(entry, range_start, range_end) do
+    started_at = entry.started_at || entry.ended_at
+    ended_at = entry.ended_at || started_at
+
+    cond do
+      is_nil(started_at) or is_nil(ended_at) ->
+        nil
+
+      NaiveDateTime.compare(ended_at, range_start) != :gt ->
+        nil
+
+      NaiveDateTime.compare(started_at, range_end) != :lt ->
+        nil
+
+      true ->
+        %{
+          entry
+          | started_at: later_of(started_at, range_start),
+            ended_at: earlier_of(ended_at, range_end)
+        }
+    end
+  end
+
+  defp idle_segment(started_at, ended_at, range_start) do
+    segment_visual(started_at, ended_at, range_start, "bg-black/45", nil, "Idle")
+  end
+
+  defp focus_segment(entry, range_start) do
+    {klass, style, label} =
+      case {entry.phase, Enum.sort(entry.zones)} do
+        {:work, [:personal, :work]} ->
+          {"",
+           "background: linear-gradient(90deg, rgba(248,113,113,0.9) 0 50%, rgba(96,165,250,0.9) 50% 100%);",
+           "Mixed work/personal"}
+
+        {:work, [:work]} ->
+          {"bg-red-400/90", nil, "Work"}
+
+        {:work, [:personal]} ->
+          {"bg-blue-400/90", nil, "Personal"}
+
+        {:active_break, [:personal]} ->
+          {"bg-blue-300/85", nil, "Active break"}
+
+        {:passive_break, _} ->
+          {"bg-white/30", nil, "Passive break"}
+
+        _ ->
+          {"bg-black/45", nil, "Unclassified"}
+      end
+
+    segment_visual(entry.started_at, entry.ended_at, range_start, klass, style, label)
+  end
+
+  defp segment_visual(started_at, ended_at, range_start, klass, style, label) do
+    start_pct = day_pct(started_at, range_start)
+    end_pct = day_pct(ended_at, range_start)
+
+    %{
+      class: klass,
+      style:
+        ["left: #{start_pct}%; width: #{max(end_pct - start_pct, 0)}%;", style]
+        |> Enum.reject(&is_nil/1)
+        |> Enum.join(" "),
+      label: label
+    }
+  end
+
+  defp day_pct(%NaiveDateTime{} = dt, %NaiveDateTime{} = range_start) do
+    day_seconds = dt.hour * 3600 + dt.minute * 60 + dt.second
+    start_seconds = range_start.hour * 3600 + range_start.minute * 60 + range_start.second
+    clamp((day_seconds - start_seconds) / (@timeline_span_min * 60) * 100, 0, 100)
+  end
+
+  defp interval_totals(entry) do
+    seconds = max(NaiveDateTime.diff(entry.ended_at, entry.started_at, :second), 0)
+
+    case entry.phase do
+      :work ->
+        {
+          if(:work in entry.zones, do: seconds, else: 0),
+          if(:personal in entry.zones, do: seconds, else: 0)
+        }
+
+      :active_break ->
+        {0, if(:personal in entry.zones and entry.tasks != [], do: seconds, else: 0)}
+
+      _ ->
+        {0, 0}
+    end
+  end
+
+  defp derive_started_at(nil, _minutes), do: nil
+
+  defp derive_started_at(%NaiveDateTime{} = ended_at, minutes) when is_integer(minutes) do
+    NaiveDateTime.add(ended_at, -minutes * 60, :second)
+  end
+
+  defp later_of(left, right) do
+    case NaiveDateTime.compare(left, right) do
+      :lt -> right
+      _ -> left
+    end
+  end
+
+  defp earlier_of(left, right) do
+    case NaiveDateTime.compare(left, right) do
+      :gt -> right
+      _ -> left
+    end
+  end
+
   @doc """
   Background follows current situation (timer first, then time of day).
   Break → always blue. Work interval → zone of current task. Idle → by clock.
@@ -704,6 +966,29 @@ defmodule PomodoroTrackerWeb.DayLive do
     case zone_filter do
       :auto -> if work_hours?(now), do: :work, else: :personal
       other -> other
+    end
+  end
+
+  def default_zone(%NaiveDateTime{} = now) do
+    if work_hours?(now), do: :work, else: :personal
+  end
+
+  def active_zones(task_ids, tasks) do
+    task_ids
+    |> Enum.flat_map(fn id ->
+      case tasks[id] do
+        %{zone: zone} when zone in [:work, :personal] -> [zone]
+        _ -> []
+      end
+    end)
+    |> Enum.uniq()
+  end
+
+  def display_zone(zones, fallback) do
+    cond do
+      :work in zones -> :work
+      :personal in zones -> :personal
+      true -> fallback
     end
   end
 

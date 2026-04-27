@@ -10,9 +10,9 @@ defmodule PomodoroTracker.Timer do
     :passive_break - short break with no task
     :long_break    - after N work intervals
 
-  The zone of the current work interval (work vs personal) is tracked so the
-  UI can theme red/blue. Break type (active vs passive) is chosen by the user
-  when the break starts.
+  The timer keeps track of every task and zone touched during the current
+  interval so finished sessions can later be classified as `work`,
+  `personal`, or mixed.
   """
 
   use GenServer
@@ -30,7 +30,15 @@ defmodule PomodoroTracker.Timer do
   def state, do: GenServer.call(__MODULE__, :state)
 
   def start_work(zone, task_ids) when zone in [:work, :personal] and is_list(task_ids),
-    do: GenServer.call(__MODULE__, {:start, :work, zone, task_ids})
+    do: start_work(zone, task_ids, [zone])
+
+  def start_work(zone, task_ids, zones)
+      when zone in [:work, :personal] and is_list(task_ids) and is_list(zones),
+      do:
+        GenServer.call(
+          __MODULE__,
+          {:start, :work, zone, task_ids, normalize_zones([zone | zones])}
+        )
 
   def start_break(kind, override_minutes \\ nil)
       when kind in [:active_break, :passive_break],
@@ -42,8 +50,10 @@ defmodule PomodoroTracker.Timer do
   continues, and every task touched during the work pomodoro gets credited at
   the end.
   """
-  def switch_tasks(task_ids) when is_list(task_ids),
-    do: GenServer.call(__MODULE__, {:switch_tasks, task_ids})
+  def switch_tasks(task_ids) when is_list(task_ids), do: switch_tasks(task_ids, [])
+
+  def switch_tasks(task_ids, zones) when is_list(task_ids) and is_list(zones),
+    do: GenServer.call(__MODULE__, {:switch_tasks, task_ids, normalize_zones(zones)})
 
   def pause, do: GenServer.call(__MODULE__, :pause)
   def resume, do: GenServer.call(__MODULE__, :resume)
@@ -74,6 +84,7 @@ defmodule PomodoroTracker.Timer do
        zone: nil,
        task_ids: [],
        visited_tasks: MapSet.new(),
+       visited_zones: MapSet.new(),
        remaining_ms: 0,
        duration_ms: 0,
        running: false,
@@ -88,27 +99,51 @@ defmodule PomodoroTracker.Timer do
 
   # Switch active task(s) without touching the timer. While in :work, every
   # task switched into is added to visited_tasks so finish() credits them all.
-  def handle_call({:switch_tasks, task_ids}, _from, state) do
-    visited =
+  def handle_call({:switch_tasks, task_ids, zones}, _from, state) do
+    visited_tasks =
       case state.phase do
-        :work -> MapSet.union(state.visited_tasks, MapSet.new(task_ids))
-        _ -> state.visited_tasks
+        phase when phase in [:work, :active_break] ->
+          MapSet.union(state.visited_tasks, MapSet.new(task_ids))
+
+        _ ->
+          state.visited_tasks
       end
 
-    new = %{state | task_ids: task_ids, visited_tasks: visited}
+    visited_zones =
+      case state.phase do
+        :work ->
+          MapSet.union(state.visited_zones, MapSet.new(zones))
+
+        :active_break ->
+          personal_only = Enum.filter(zones, &(&1 == :personal))
+          MapSet.union(state.visited_zones, MapSet.new(personal_only))
+
+        _ ->
+          state.visited_zones
+      end
+
+    new = %{
+      state
+      | task_ids: task_ids,
+        visited_tasks: visited_tasks,
+        visited_zones: visited_zones,
+        zone: display_zone(zones, state.zone)
+    }
+
     {:reply, :ok, broadcast(new)}
   end
 
-  def handle_call({:start, :work, zone, task_ids}, _from, state) do
+  def handle_call({:start, :work, zone, task_ids, zones}, _from, state) do
     cancel(state.tref)
     ms = cfg(:work_minutes) * 60_000
 
     new = %{
       state
       | phase: :work,
-        zone: zone,
+        zone: display_zone(zones, zone),
         task_ids: task_ids,
         visited_tasks: MapSet.new(task_ids),
+        visited_zones: MapSet.new(zones),
         remaining_ms: ms,
         duration_ms: ms,
         running: true,
@@ -127,7 +162,10 @@ defmodule PomodoroTracker.Timer do
     new = %{
       state
       | phase: kind,
+        zone: nil,
         task_ids: [],
+        visited_tasks: MapSet.new(),
+        visited_zones: MapSet.new(),
         remaining_ms: ms,
         duration_ms: ms,
         running: true,
@@ -177,6 +215,7 @@ defmodule PomodoroTracker.Timer do
          zone: nil,
          task_ids: [],
          visited_tasks: MapSet.new(),
+         visited_zones: MapSet.new(),
          remaining_ms: 0,
          duration_ms: 0,
          running: false,
@@ -218,11 +257,14 @@ defmodule PomodoroTracker.Timer do
 
   defp finish(%{phase: :work} = state) do
     credited = MapSet.to_list(state.visited_tasks)
+    ended_at = now()
 
     PomodoroTracker.Vault.log_session(%{
       phase: :work,
-      zone: state.zone,
       minutes: div(state.duration_ms, 60_000),
+      started_at: state.started_at,
+      ended_at: ended_at,
+      zones: MapSet.to_list(state.visited_zones),
       tasks: credited
     })
 
@@ -234,20 +276,52 @@ defmodule PomodoroTracker.Timer do
       state
       | rounds_completed: rounds,
         phase: :idle,
+        zone: nil,
+        task_ids: [],
         running: false,
         tref: nil,
-        visited_tasks: MapSet.new()
+        visited_tasks: MapSet.new(),
+        visited_zones: MapSet.new(),
+        remaining_ms: 0,
+        duration_ms: 0,
+        started_at: nil
     }
   end
 
   defp finish(state) do
+    ended_at = now()
+
+    {tasks, zones} =
+      case state.phase do
+        :active_break ->
+          {MapSet.to_list(state.visited_tasks), MapSet.to_list(state.visited_zones)}
+
+        _ ->
+          {[], []}
+      end
+
     PomodoroTracker.Vault.log_session(%{
       phase: state.phase,
       minutes: div(state.duration_ms, 60_000),
-      tasks: []
+      started_at: state.started_at,
+      ended_at: ended_at,
+      zones: zones,
+      tasks: tasks
     })
 
-    %{state | phase: :idle, running: false, tref: nil}
+    %{
+      state
+      | phase: :idle,
+        zone: nil,
+        task_ids: [],
+        running: false,
+        tref: nil,
+        visited_tasks: MapSet.new(),
+        visited_zones: MapSet.new(),
+        remaining_ms: 0,
+        duration_ms: 0,
+        started_at: nil
+    }
   end
 
   defp advance(%{phase: :work} = state), do: finish(state)
@@ -273,15 +347,37 @@ defmodule PomodoroTracker.Timer do
     Map.take(state, [
       :phase,
       :zone,
+      :started_at,
       :task_ids,
       :remaining_ms,
       :duration_ms,
       :running,
       :rounds_completed
     ])
+    |> Map.put(:zones, MapSet.to_list(state.visited_zones))
   end
 
-  defp now, do: System.monotonic_time(:millisecond)
+  defp display_zone(zones, fallback) do
+    cond do
+      :work in zones -> :work
+      :personal in zones -> :personal
+      true -> fallback
+    end
+  end
+
+  defp normalize_zones(zones) do
+    zones
+    |> Enum.flat_map(fn
+      :work -> [:work]
+      :personal -> [:personal]
+      "work" -> [:work]
+      "personal" -> [:personal]
+      _ -> []
+    end)
+    |> Enum.uniq()
+  end
+
+  defp now, do: NaiveDateTime.local_now() |> NaiveDateTime.truncate(:second)
 
   defp cfg(key), do: Keyword.fetch!(Application.fetch_env!(:pomodoro_tracker, :pomodoro), key)
 end

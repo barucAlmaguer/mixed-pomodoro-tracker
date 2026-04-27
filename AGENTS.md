@@ -31,6 +31,7 @@ repository. Keep it short, factual, and current.
 - `/` also supports readonly historical review via `?date=YYYY-MM-DD`.
 - The top timeline and background theme switch between those zones based on time
   of day, unless an active timer phase overrides the styling.
+- A second minimal timeline bar summarizes today's logged/running intervals.
 - The top-left `SL` and `GH` badges are tag filters, not direct Slack or GitHub
   integrations. They filter backlog items tagged `mensaje-slack` and `review`.
 - `Today` is an ordered day plan with `pending`, `active`, `done`, and
@@ -46,13 +47,14 @@ repository. Keep it short, factual, and current.
 
 - The timer is server-side in `PomodoroTracker.Timer` and syncs through PubSub.
 - A work pomodoro is one run of the `:work` phase.
-- The timer already supports the concept of switching tracked tasks mid-run via
-  `Timer.switch_tasks/1` and keeps `visited_tasks` so one pomodoro can credit
-  multiple tasks.
-- Today, the main LiveView does not fully wire active-task changes to
-  `Timer.switch_tasks/1`, so attribution can drift from what the UI shows.
-- Today, a work pomodoro stores a single `zone` on the timer/session log, even
-  though the UI can represent mixed active tasks.
+- A work pomodoro can start without any active task and accumulate task/zone
+  attribution later.
+- The timer tracks `visited_tasks` and `visited_zones`, and `DayLive` now wires
+  active-task changes into `Timer.switch_tasks/2`.
+- Work intervals can now classify as `work`, `personal`, or mixed
+  `work|personal`.
+- `active_break` intervals only classify as personal when a real personal task
+  was selected during that break.
 
 ## Product direction
 
@@ -67,11 +69,12 @@ repository. Keep it short, factual, and current.
 
 ## Known gaps as of 2026-04-27
 
-- The session log is append-only plain text and currently stores only one zone
-  per work pomodoro.
+- The session log is still append-only plain text, but it now stores interval
+  level timestamps, touched tasks, and touched zones.
 - There is test coverage for timer/cadence, planner entry points, and basic
-  historical day review, but not enough coverage for the full `/` workflow or
-  the deeper product semantics still planned on the roadmap.
+  historical day review plus pomodoro-attribution flows, but not enough
+  coverage for the full `/` workflow or the deeper product semantics still
+  planned on the roadmap.
 
 ## Working rules
 

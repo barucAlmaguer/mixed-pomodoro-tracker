@@ -15,6 +15,15 @@ defmodule PomodoroTracker.Vault do
 
   @type zone :: :work | :personal
   @type pilar :: :salud | :sustento | :limites | :hogar | :pasatiempos | nil
+  @type session :: %{
+          phase: :work | :active_break | :passive_break | :long_break,
+          minutes: integer(),
+          tasks: [String.t()],
+          zones: [zone],
+          at: NaiveDateTime.t() | nil,
+          started_at: NaiveDateTime.t() | nil,
+          ended_at: NaiveDateTime.t() | nil
+        }
   @type task :: %{
           id: String.t(),
           title: String.t(),
@@ -390,12 +399,51 @@ defmodule PomodoroTracker.Vault do
     end
 
     line =
-      "- #{entry[:at] || DateTime.utc_now() |> DateTime.to_iso8601()} " <>
-        "#{entry[:phase]} " <>
-        "#{entry[:minutes]}min " <>
-        "tasks=#{Enum.join(entry[:tasks] || [], ",")}\n"
+      [
+        "-",
+        "at=#{format_session_time(entry[:at] || entry[:ended_at] || NaiveDateTime.local_now())}",
+        "phase=#{entry[:phase]}",
+        "minutes=#{entry[:minutes]}",
+        "started_at=#{format_session_time(entry[:started_at])}",
+        "ended_at=#{format_session_time(entry[:ended_at])}",
+        "zones=#{Enum.join(entry[:zones] || [], ",")}",
+        "tasks=#{Enum.join(entry[:tasks] || [], ",")}"
+      ]
+      |> Enum.join(" ")
+      |> Kernel.<>("\n")
 
     File.write!(path, line, [:append])
+  end
+
+  @doc "List parsed session log entries for a given date."
+  @spec list_sessions(Date.t()) :: [session]
+  def list_sessions(date \\ Date.utc_today()) do
+    path = Path.join(dir(:personal, :sessions), "#{Date.to_iso8601(date)}.md")
+
+    case File.read(path) do
+      {:ok, raw} ->
+        raw
+        |> String.split("\n", trim: true)
+        |> Enum.filter(&String.starts_with?(&1, "- "))
+        |> Enum.flat_map(fn line ->
+          case parse_session_line(line) do
+            nil -> []
+            session -> [session]
+          end
+        end)
+        |> Enum.sort_by(
+          fn session ->
+            session.started_at || session.ended_at || ~N[0000-01-01 00:00:00]
+          end,
+          fn left, right -> NaiveDateTime.compare(left, right) != :gt end
+        )
+
+      {:error, :enoent} ->
+        []
+
+      {:error, _reason} ->
+        []
+    end
   end
 
   # ---------------------------------------------------------------------------
@@ -469,6 +517,137 @@ defmodule PomodoroTracker.Vault do
   end
 
   defp scalar(v), do: inspect(v)
+
+  defp format_session_time(nil), do: ""
+  defp format_session_time(%NaiveDateTime{} = ndt), do: NaiveDateTime.to_iso8601(ndt)
+
+  defp parse_session_line("- " <> rest) do
+    if String.contains?(rest, "phase=") do
+      parse_kv_session(rest)
+    else
+      parse_legacy_session(rest)
+    end
+  end
+
+  defp parse_session_line(_), do: nil
+
+  defp parse_kv_session(rest) do
+    fields =
+      rest
+      |> String.split(~r/\s+/, trim: true)
+      |> Enum.reduce(%{}, fn token, acc ->
+        case String.split(token, "=", parts: 2) do
+          [key, value] -> Map.put(acc, key, value)
+          _ -> acc
+        end
+      end)
+
+    phase = parse_session_phase(fields["phase"])
+    minutes = parse_session_minutes(fields["minutes"])
+    ended_at = parse_session_time(fields["ended_at"] || fields["at"])
+    started_at = parse_session_time(fields["started_at"]) || derive_started_at(ended_at, minutes)
+
+    %{
+      at: parse_session_time(fields["at"]) || ended_at,
+      phase: phase,
+      minutes: minutes,
+      tasks: parse_csv(fields["tasks"]),
+      zones: parse_zones(fields["zones"]),
+      started_at: started_at,
+      ended_at: ended_at
+    }
+  end
+
+  defp parse_legacy_session(rest) do
+    case Regex.run(
+           ~r/^(?<at>\S+)\s+(?<phase>[a-z_]+)\s+(?<minutes>\d+)min(?:\s+tasks=(?<tasks>.*))?$/,
+           rest,
+           capture: :all_names
+         ) do
+      [at, phase, minutes, tasks] ->
+        ended_at = parse_session_time(at)
+        minutes_int = parse_session_minutes(minutes)
+
+        %{
+          at: ended_at,
+          phase: parse_session_phase(phase),
+          minutes: minutes_int,
+          tasks: parse_csv(tasks),
+          zones: [],
+          started_at: derive_started_at(ended_at, minutes_int),
+          ended_at: ended_at
+        }
+
+      _ ->
+        nil
+    end
+  end
+
+  defp parse_session_phase(nil), do: :work
+
+  defp parse_session_phase(phase) when is_binary(phase) do
+    case phase do
+      "work" -> :work
+      "active_break" -> :active_break
+      "passive_break" -> :passive_break
+      "long_break" -> :long_break
+      _ -> :work
+    end
+  end
+
+  defp parse_session_minutes(nil), do: 0
+  defp parse_session_minutes(""), do: 0
+
+  defp parse_session_minutes(minutes) when is_binary(minutes) do
+    case Integer.parse(minutes) do
+      {value, _} -> value
+      _ -> 0
+    end
+  end
+
+  defp parse_session_time(nil), do: nil
+  defp parse_session_time(""), do: nil
+
+  defp parse_session_time(value) when is_binary(value) do
+    cond do
+      match?({:ok, _}, NaiveDateTime.from_iso8601(value)) ->
+        {:ok, ndt} = NaiveDateTime.from_iso8601(value)
+        ndt
+
+      match?({:ok, _, _}, DateTime.from_iso8601(value)) ->
+        {:ok, dt, _offset} = DateTime.from_iso8601(value)
+        DateTime.to_naive(dt)
+
+      true ->
+        nil
+    end
+  end
+
+  defp derive_started_at(nil, _minutes), do: nil
+
+  defp derive_started_at(%NaiveDateTime{} = ended_at, minutes) when is_integer(minutes) do
+    NaiveDateTime.add(ended_at, -minutes * 60, :second)
+  end
+
+  defp parse_csv(nil), do: []
+  defp parse_csv(""), do: []
+
+  defp parse_csv(value) when is_binary(value) do
+    value
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp parse_zones(value) do
+    value
+    |> parse_csv()
+    |> Enum.flat_map(fn
+      "work" -> [:work]
+      "personal" -> [:personal]
+      _ -> []
+    end)
+  end
 
   defp stringify_keys(map) do
     Map.new(map, fn {k, v} -> {to_string(k), stringify_value(v)} end)

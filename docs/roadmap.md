@@ -25,80 +25,54 @@ to a stable Phoenix LiveView core.
 
 ### 2. Make pomodoro attribution correct
 
-Desired behavior:
+Current baseline:
 
-- A work pomodoro is one uninterrupted run of the work timer.
-- Changing the active task during that run must not pause or reset the timer.
-- That same pomodoro should remain linked to every task touched during the run.
-
-Implementation direction:
-
-- Wire `DayLive` active-task changes into `Timer.switch_tasks/1`.
-- Persist the full set of touched task ids for each completed work pomodoro.
-- Replace the single-zone model with explicit zone classification:
+- A work pomodoro is still one uninterrupted run of the work timer.
+- Changing the active task during that run no longer pauses or resets it.
+- A work pomodoro can start with no active task and accumulate attribution
+  later.
+- `DayLive` now wires task changes into `Timer.switch_tasks/2`.
+- Completed work intervals now persist:
+  - all touched task ids
+  - all touched zones
+- Work intervals can classify as:
   - `work`
   - `personal`
   - `work|personal`
 
-Reporting rule under discussion:
+Remaining refinement:
 
-- A pomodoro that touched at least one work task should count as work for
-  practical summaries.
-- It may also carry a mixed classification when both zones were involved.
-- The product should preserve enough raw data to support either:
+- Decide long-term reporting semantics for mixed intervals:
   - inclusive counts by zone
-  - separate mixed counts
+  - a distinct mixed bucket
+  - both
+- Decide whether the displayed in-progress work theme should eventually gain a
+  dedicated mixed visual instead of collapsing to work-first red.
 
 ### 3. Add a minimal day summary bar under the timer
 
-Desired behavior:
+Current baseline:
 
-- Add a second horizontal bar directly below the current top timer bar.
-- It should summarize the day's timeline as a sequence of contiguous time
-  fragments, in chronological order.
-- The component should remain extremely minimal, visually in the same family as
-  the existing top time-context bar.
+- A second horizontal bar now renders directly below the top time-context bar.
+- It summarizes the selected day as chronological contiguous fragments.
+- Width reflects real interval duration.
+- It renders:
+  - red for `work`
+  - blue for `personal`
+  - split red/blue for mixed `work|personal`
+  - blue for `active_break` only when a personal task really happened
+  - light gray for `passive_break`
+  - dark gray for idle gaps
+- It includes the currently running interval on `today`.
 
-Color rules:
+Remaining refinement:
 
-- `work` pomodoro: red
-- `personal` pomodoro: blue
-- mixed `work|personal` pomodoro: split red/blue in the same fragment
-- `active_break` with actual personal-task execution during that interval: blue
-- passive break: light gray
-- time with no running pomodoro/break: dark gray
-
-Width rules:
-
-- Fragment width must be proportional to actual elapsed duration.
-- Pomodoros and breaks are variable-length, so equal-width blocks are not
-  acceptable.
-- The bar must visually preserve the real duration differences between intervals.
-
-Data/model implications:
-
-- The app needs a first-class timeline of completed and in-progress timer
-  intervals for the current day, not just aggregate pomodoro counts.
-- The model must distinguish:
-  - work vs personal vs mixed work pomodoros
-  - active breaks that actually had a personal task attached
-  - passive breaks
-  - idle gaps between intervals
-- The representation should be able to render both completed intervals and the
-  currently running interval.
-
-Open implementation questions:
-
-- Define the exact day span represented by the bar:
-  - full calendar day
-  - work/personal visible window
-  - from first event of the day until now
-- Define how mixed `work|personal` fragments should look in a tiny bar:
-  - 50/50 split
-  - proportional split if enough information exists
-  - striped dual-color fragment
-- Define whether active breaks without a selected personal task should render as
-  passive/light-gray or as a separate neutral state.
+- Decide whether the represented day span should remain fixed at `07:00-20:00`
+  or move under settings control.
+- Decide whether active breaks without selected tasks should keep rendering as a
+  neutral/dark segment or use another treatment.
+- Decide whether mixed fragments should stay hard 50/50 or eventually become
+  proportional if richer data exists later.
 
 ### 4. Add a global operating mode switch
 
@@ -154,54 +128,27 @@ Open implementation questions:
 
 ### 5. Track daily work vs personal time totals
 
-Desired behavior:
+Current baseline:
 
-- Show minimal daily totals near the timer area, for example:
-  - `work: 2h 20m`
-  - `personal: 0h 25m`
-- These totals should represent real elapsed time accumulated from today's timer
-  intervals, not rough pomodoro counts.
+- The execution header now shows minimal `work` and `personal` totals.
+- Totals are derived from the same interval ledger used by the summary bar.
+- `work` totals include any interval whose classification includes `work`.
+- `personal` totals include any interval whose classification includes
+  `personal`.
+- `active_break` contributes to `personal` only when a real personal task was
+  selected.
+- `passive_break` contributes to neither total.
+- The current hard-coded warning threshold is `4h`, and `work` turns warning
+  yellow after that.
 
-Accounting rules:
+Remaining refinement:
 
-- `work` total: sum the durations of today's intervals whose classification
-  includes `work`.
-- `personal` total: sum the durations of today's intervals whose classification
-  includes `personal`.
-- `active_break` should contribute to `personal` only when a real personal task
-  was actually associated with that break interval.
-- `passive_break` should not count toward either total.
-
-Important semantic consequence:
-
-- If mixed `work|personal` intervals remain inclusive, one interval may
-  contribute its full duration to both totals.
-- This means `work + personal` may exceed total elapsed wall-clock time.
-- If that is the intended model, it should be explicit in both code and UI copy.
-
-Alert behavior:
-
-- Show the `work` total in an alert state when it exceeds a configured daily
-  threshold.
-- Default threshold: `4h` of work time per day.
-- The alert should use a visually distinct neutral/warning treatment, not simply
-  the existing red/blue zone colors.
-
-Settings implications:
-
-- Add a global setting for daily work-time threshold.
-- This threshold should be separate from work-hours configuration.
-- Future settings may also need to define whether mixed intervals count:
-  - fully toward work
-  - proportionally
-  - as a separate mixed bucket only
-
-Implementation direction:
-
-- Reuse the interval model introduced for the day summary bar.
-- Derive daily totals from the same interval ledger instead of keeping a second
-  ad-hoc counter.
-- Ensure the currently running interval can contribute live-updating totals.
+- Move the `4h` threshold into real global settings instead of keeping it
+  hard-coded.
+- Decide whether the UI needs copy that explicitly explains inclusive mixed
+  intervals.
+- Decide whether future reporting should expose a separate mixed bucket in
+  addition to the current inclusive totals.
 
 ### 6. Move product settings into a first-class global settings model
 

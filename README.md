@@ -12,6 +12,8 @@ Hammerspoon / menubar / floating-panel integration is currently disabled. The su
 - Pomodoro usage auto-logged per task for traceability
 - `/` is the execution surface and `/planner` is the planning surface
 - `/?date=YYYY-MM-DD` opens a readonly historical day review
+- The top chrome now includes a minimal interval-summary bar plus live
+  `work/personal` totals for the selected day
 
 ## Product docs
 
@@ -71,7 +73,7 @@ The app creates `pomodoro-tracker/` subfolders inside each vault on first run if
 ## Daily flow
 
 1. **Morning (plan)** — open `/planner`, curate templates/backlog, and push tasks into Today.
-2. **Execute** — open `/`, click a Today task to activate (up to 2), and hit **Start work** on the timer.
+2. **Execute** — open `/`, optionally activate a Today task (up to 2), and hit **Start work** on the timer. You can also start with no active task and assign one later without resetting the pomodoro.
 3. **Break** — when the work interval ends, choose **Active** (quick personal task during the break) or **Passive** (pure rest).
 4. **Off hours** — zone switches to personal automatically; work tasks hide unless you toggle the zone filter.
 5. **Review** — use `/?date=YYYY-MM-DD` or the header arrows from `/` to inspect previous days in readonly mode and carry unfinished tasks forward.

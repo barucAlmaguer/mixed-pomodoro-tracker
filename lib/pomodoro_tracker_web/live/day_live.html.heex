@@ -3,6 +3,7 @@
   if(@readonly_day?, do: "bg-slate-950", else: situation_bg(@timer, @now))
 ]}>
   <% tl = day_timeline(@now) %>
+  <% summary = day_focus_summary(@selected_date, @sessions, @timer, @now, @tasks) %>
   <div
     :if={not @readonly_day?}
     class="fixed top-0 left-0 right-0 h-[3px] z-50 pointer-events-none"
@@ -17,6 +18,16 @@
         :if={tl.in_range?}
         class="absolute top-0 h-full w-[2px] bg-white shadow-[0_0_4px_rgba(255,255,255,0.8)]"
         style={"left: #{tl.now_pct}%"}
+      />
+    </div>
+  </div>
+  <div class="fixed top-[3px] left-0 right-0 h-[3px] z-50 pointer-events-none">
+    <div class="relative h-full bg-black/55">
+      <div
+        :for={segment <- summary.segments}
+        class={["absolute top-0 h-full", segment.class]}
+        style={segment.style}
+        title={segment.label}
       />
     </div>
   </div>
@@ -58,6 +69,23 @@
             →
           </.link>
         </div>
+      </div>
+    </section>
+
+    <section class="mt-4 flex justify-center">
+      <div class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs">
+        <span class={[
+          "rounded-full px-2 py-1 tabular-nums",
+          if(work_total_alert?(summary.work_seconds),
+            do: "bg-amber-300 text-slate-950",
+            else: "bg-red-500/15 text-red-100"
+          )
+        ]}>
+          work: {focus_total_label(summary.work_seconds)}
+        </span>
+        <span class="rounded-full bg-blue-500/15 px-2 py-1 text-blue-100 tabular-nums">
+          personal: {focus_total_label(summary.personal_seconds)}
+        </span>
       </div>
     </section>
 
