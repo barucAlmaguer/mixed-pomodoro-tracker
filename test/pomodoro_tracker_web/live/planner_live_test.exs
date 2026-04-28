@@ -54,6 +54,10 @@ defmodule PomodoroTrackerWeb.PlannerLiveTest do
     {:ok, view, _html} = live(conn, "/planner")
 
     view
+    |> element(~s(button[phx-click="filter:zone"][phx-value-zone="work"]))
+    |> render_click()
+
+    view
     |> element(~s(button[title="Add to today"][phx-value-id="fix-build"]))
     |> render_click()
 

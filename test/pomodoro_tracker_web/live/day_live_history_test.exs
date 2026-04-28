@@ -49,7 +49,8 @@ defmodule PomodoroTrackerWeb.DayLiveHistoryTest do
 
     {:ok, view, _html} = live(conn, "/?date=#{Date.to_iso8601(yesterday)}")
 
-    assert render(view) =~ "Readonly historical day"
+    assert render(view) =~ "Readonly review"
+    assert render(view) =~ "Seeing: Yesterday"
     refute render(view) =~ "Start work"
 
     view

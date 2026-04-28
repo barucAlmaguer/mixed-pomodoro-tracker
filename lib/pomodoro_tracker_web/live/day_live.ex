@@ -1019,6 +1019,17 @@ defmodule PomodoroTrackerWeb.DayLive do
     if date == Date.utc_today(), do: "Today", else: Date.to_iso8601(date)
   end
 
+  def seeing_label(%Date{} = date) do
+    today = Date.utc_today()
+
+    cond do
+      date == today -> "Today"
+      date == Date.add(today, -1) -> "Yesterday"
+      date == Date.add(today, 1) -> "Tomorrow"
+      true -> Calendar.strftime(date, "%a %b %d") |> String.replace(~r/ 0(\d)$/, " \\1")
+    end
+  end
+
   @doc """
   Dots lit in the 4-pomodoro cycle indicator.
   After the 4th work interval, show all 4 lit until the next work starts,
