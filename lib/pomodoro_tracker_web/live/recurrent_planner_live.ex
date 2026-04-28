@@ -5,17 +5,8 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
 
   use PomodoroTrackerWeb, :live_view
 
-  alias PomodoroTracker.{Cadence, Vault}
+  alias PomodoroTracker.{Cadence, Tags, Vault}
   alias PomodoroTrackerWeb.DayLive, as: ExecuteLive
-
-  @pilares [
-    %{id: :salud, label: "Salud", icon: "💪", color: "rose"},
-    %{id: :sustento, label: "Sustento", icon: "💼", color: "blue"},
-    %{id: :limites, label: "Límites de Trabajo", icon: "🛡️", color: "amber"},
-    %{id: :hogar, label: "Tareas del Hogar", icon: "🏠", color: "emerald"},
-    %{id: :pasatiempos, label: "Pasatiempos", icon: "🎸", color: "purple"},
-    %{id: :sin_pilar, label: "Sin pilar", icon: "•", color: "slate"}
-  ]
 
   @impl true
   def mount(_params, _session, socket) do
@@ -27,8 +18,6 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
     {:ok,
      socket
      |> assign(:page_title, "Plan")
-     |> assign(:pilares, @pilares)
-     |> assign(:selected_pilar, nil)
      |> assign(:zone_filter, :auto)
      |> assign(:tag_filter, MapSet.new())
      |> assign(:archive_visible, false)
@@ -49,18 +38,12 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
   end
 
   @impl true
-  def handle_event("select:pilar", %{"id" => id}, socket) do
-    current = socket.assigns.selected_pilar
-    new_id = if current == id, do: nil, else: String.to_existing_atom(id)
-    {:noreply, assign(socket, :selected_pilar, new_id)}
-  end
-
   def handle_event("toggle:template", %{"id" => id}, socket) do
-    tasks = socket.assigns.templates
+    tasks = socket.assigns.tasks
     task = tasks[id]
 
     new_task =
-      if task do
+      if task && task.kind == :templates do
         updated = %{task | paused: !task.paused}
         Vault.save_task(updated)
         updated
@@ -72,8 +55,8 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
 
     {:noreply,
      socket
-     |> assign(:templates, new_tasks)
-     |> assign(:templates_by_pilar, group_by_pilar(Map.values(new_tasks)))}
+     |> assign(:tasks, new_tasks)
+     |> assign(:tag_registry, ExecuteLive.merged_tag_registry(new_tasks))}
   end
 
   def handle_event("filter:zone", %{"zone" => zone}, socket) do
@@ -81,6 +64,7 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
   end
 
   def handle_event("filter:tag", %{"tag" => tag}, socket) do
+    tag = Tags.normalize(tag)
     current = socket.assigns.tag_filter
 
     new =
@@ -144,7 +128,8 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
        zone: String.to_existing_atom(zone),
        title: "",
        priority: "med",
-       tags: "",
+       tags: [],
+       tag_query: "",
        is_break: false,
        add_to_today: false
      })}
@@ -159,12 +144,20 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
       form
       | title: p["title"] || "",
         priority: p["priority"] || "med",
-        tags: p["tags"] || "",
+        tag_query: p["tag_query"] || "",
         is_break: p["is_break"] == "true",
         add_to_today: p["add_to_today"] == "true"
     }
 
     {:noreply, assign(socket, :new_task_form, form)}
+  end
+
+  def handle_event("new:toggle_tag", %{"tag" => tag}, socket) do
+    {:noreply, update_form_tags(socket, :new_task_form, &toggle_tag(&1, tag))}
+  end
+
+  def handle_event("new:add_tag", _, socket) do
+    {:noreply, update_form_tags(socket, :new_task_form, &merge_query_tags/1)}
   end
 
   def handle_event("new:submit", _params, socket) do
@@ -175,7 +168,7 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
       {:noreply, put_flash(socket, :error, "Title required")}
     else
       id = slugify(title)
-      tags = parse_tags(form.tags, form.is_break)
+      tags = materialized_tags(form)
 
       attrs = %{
         id: id,
@@ -214,9 +207,11 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
         path: t.path,
         kind: t.kind,
         from_template: t.from_template,
+        zone: t.zone,
         title: t.title,
         priority: t.priority || "med",
-        tags: Enum.join(t.tags || [], ", "),
+        tags: visible_task_tags(t.tags || []),
+        tag_query: "",
         related: Enum.join(t.related || [], "\n"),
         body: t.body || "",
         is_break: "break" in (t.tags || [])
@@ -237,7 +232,7 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
       f
       | title: p["title"] || "",
         priority: p["priority"] || "med",
-        tags: p["tags"] || "",
+        tag_query: p["tag_query"] || "",
         related: p["related"] || "",
         body: p["body"] || "",
         is_break: p["is_break"] == "true"
@@ -246,13 +241,21 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
     {:noreply, assign(socket, :edit_form, f)}
   end
 
+  def handle_event("edit:toggle_tag", %{"tag" => tag}, socket) do
+    {:noreply, update_form_tags(socket, :edit_form, &toggle_tag(&1, tag))}
+  end
+
+  def handle_event("edit:add_tag", _, socket) do
+    {:noreply, update_form_tags(socket, :edit_form, &merge_query_tags/1)}
+  end
+
   def handle_event("edit:submit", _params, socket) do
     f = socket.assigns.edit_form
 
     attrs = %{
       title: f.title,
       priority: f.priority,
-      tags: parse_tags(f.tags, f.is_break),
+      tags: materialized_tags(f),
       related: parse_lines(f.related),
       body: f.body
     }
@@ -317,29 +320,10 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
     {:ok, day} = Vault.load_day()
     day = Cadence.ensure_run!(day, tasks)
 
-    templates =
-      tasks
-      |> Enum.filter(fn {_id, t} -> t.kind == :templates end)
-      |> Enum.map(fn {_id, t} -> t end)
-
-    template_map = Map.new(templates, &{&1.id, &1})
-
     socket
     |> assign(:day, day)
     |> assign(:tasks, tasks)
-    |> assign(:templates, template_map)
-    |> assign(:templates_by_pilar, group_by_pilar(templates))
-  end
-
-  defp group_by_pilar(templates) do
-    templates
-    |> Enum.group_by(fn t -> t.pilar || :sin_pilar end)
-    |> Map.put_new(:salud, [])
-    |> Map.put_new(:sustento, [])
-    |> Map.put_new(:limites, [])
-    |> Map.put_new(:hogar, [])
-    |> Map.put_new(:pasatiempos, [])
-    |> Map.put_new(:sin_pilar, [])
+    |> assign(:tag_registry, ExecuteLive.merged_tag_registry(tasks))
   end
 
   defp update_day(socket, fun) do
@@ -348,14 +332,44 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
     {:noreply, assign(socket, :day, new_day)}
   end
 
-  defp parse_tags(str, is_break?) do
-    base = parse_lines(str, ",")
+  defp update_form_tags(socket, form_key, fun) do
+    case socket.assigns[form_key] do
+      nil ->
+        socket
 
-    cond do
-      is_break? and "break" not in base -> base ++ ["break"]
-      not is_break? -> Enum.reject(base, &(&1 == "break"))
-      true -> base
+      form ->
+        assign(socket, form_key, fun.(form))
     end
+  end
+
+  defp toggle_tag(form, tag) do
+    tag = Tags.normalize(tag)
+
+    tags =
+      if tag in form.tags do
+        List.delete(form.tags, tag)
+      else
+        Tags.normalize_many(form.tags ++ [tag])
+      end
+
+    %{form | tags: tags}
+  end
+
+  defp merge_query_tags(form) do
+    query_tags = Tags.parse_input(form.tag_query)
+    %{form | tags: Tags.normalize_many(form.tags ++ query_tags), tag_query: ""}
+  end
+
+  defp materialized_tags(form) do
+    form.tags
+    |> Tags.normalize_many()
+    |> Tags.with_break(form.is_break)
+  end
+
+  defp visible_task_tags(tags) do
+    tags
+    |> Tags.normalize_many()
+    |> Enum.reject(&(&1 == "break"))
   end
 
   defp parse_lines(str, sep \\ "\n")
@@ -381,6 +395,11 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
   defdelegate filtered_backlog(tasks, zone, tag_filter, exclude_ids), to: ExecuteLive
   defdelegate load_archive(), to: ExecuteLive
   defdelegate archive_entries(archive, state_filter, zone_filter), to: ExecuteLive
+  defdelegate tag_suggestions(tag_registry, tasks, zone), to: ExecuteLive
+  defdelegate today_pending_ids(day, tasks, hide_work?), to: ExecuteLive
+  defdelegate zone_counts(day, tasks), to: ExecuteLive
+  defdelegate unfinished_recent(tasks, current_day), to: ExecuteLive
+  defdelegate due_soon_for_today(day, tasks, now), to: ExecuteLive
 
   # View helpers
   def recurrence_label(nil), do: nil
@@ -388,28 +407,6 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
   def recurrence_label("weekdays"), do: "Lunes a viernes"
   def recurrence_label("weekly:" <> days), do: "Semanal (#{days})"
   def recurrence_label(r), do: r
-
-  def pilar_class(color) do
-    case color do
-      "rose" -> "bg-rose-500/10 border-rose-500/30 text-rose-200"
-      "blue" -> "bg-blue-500/10 border-blue-500/30 text-blue-200"
-      "amber" -> "bg-amber-500/10 border-amber-500/30 text-amber-200"
-      "emerald" -> "bg-emerald-500/10 border-emerald-500/30 text-emerald-200"
-      "purple" -> "bg-purple-500/10 border-purple-500/30 text-purple-200"
-      _ -> "bg-white/5 border-white/10 text-white/70"
-    end
-  end
-
-  def pilar_bg(color) do
-    case color do
-      "rose" -> "from-rose-500/20 to-rose-600/5"
-      "blue" -> "from-blue-500/20 to-blue-600/5"
-      "amber" -> "from-amber-500/20 to-amber-600/5"
-      "emerald" -> "from-emerald-500/20 to-emerald-600/5"
-      "purple" -> "from-purple-500/20 to-purple-600/5"
-      _ -> "from-white/10 to-white/5"
-    end
-  end
 
   def last_done_ago(task, _tasks) do
     case task.last_completed_at do
@@ -437,5 +434,157 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
   def streak_count(task) do
     # Simplified streak calculation
     task.streak || 0
+  end
+
+  def planner_tag_rows(tasks, zone, exclude_ids, tag_filter) do
+    candidates = filtered_backlog(tasks, zone, MapSet.new(), exclude_ids)
+    catalog = planner_tag_catalog(candidates)
+    selected = tag_filter |> Enum.to_list() |> Tags.normalize_many()
+
+    [%{key: :root, label: "tags:", chips: root_tag_chips(catalog)}] ++
+      Enum.flat_map(selected, fn selected_tag ->
+        children = direct_children(catalog, selected_tag)
+
+        if children == [] do
+          []
+        else
+          [
+            %{
+              key: selected_tag,
+              label: "tags #{short_tag_label(selected_tag)}:",
+              chips:
+                Enum.map(children, fn child ->
+                  %{
+                    full: child,
+                    label: child_suffix(selected_tag, child)
+                  }
+                end)
+            }
+          ]
+        end
+      end)
+  end
+
+  def planner_kind_label(%{kind: :templates}), do: "template"
+  def planner_kind_label(%{from_template: from}) when is_binary(from), do: "instance"
+  def planner_kind_label(_task), do: "one-off"
+
+  def planner_kind_class(%{kind: :templates}), do: "bg-emerald-400/20 text-emerald-100"
+
+  def planner_kind_class(%{from_template: from}) when is_binary(from),
+    do: "bg-amber-400/20 text-amber-100"
+
+  def planner_kind_class(_task), do: "bg-white/10 text-white/70"
+
+  def planner_state_label(%{kind: :templates, paused: true}), do: "paused"
+  def planner_state_label(%{kind: :templates}), do: "active"
+  def planner_state_label(_task), do: nil
+
+  def planner_state_class("paused"), do: "bg-white/10 text-white/60"
+  def planner_state_class("active"), do: "bg-emerald-500/20 text-emerald-200"
+
+  def planner_meta_badge(nil), do: nil
+  def planner_meta_badge(""), do: nil
+  def planner_meta_badge(value), do: value
+
+  def planner_display_tags(task) do
+    task.tags
+    |> visible_task_tags()
+    |> Enum.take(4)
+  end
+
+  def show_template_metrics?(task), do: task.kind == :templates
+
+  def created_label(%{frontmatter: %{"created_at" => created_at}}) when is_binary(created_at),
+    do: created_at
+
+  def created_label(_task), do: nil
+
+  def row_chip_class(chip, tag_filter) do
+    if MapSet.member?(tag_filter, chip.full) do
+      "bg-amber-300 text-slate-950"
+    else
+      "bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
+    end
+  end
+
+  defp planner_tag_catalog(tasks) do
+    tasks
+    |> Enum.flat_map(fn task -> visible_task_tags(task.tags || []) end)
+    |> Tags.expand_catalog()
+  end
+
+  def planner_today_tasks(day, tasks) do
+    day
+    |> today_pending_ids(tasks, false)
+    |> Enum.flat_map(fn id ->
+      case tasks[id] do
+        nil -> []
+        task -> [task]
+      end
+    end)
+  end
+
+  def planner_suggestions(tasks, day, zone, tag_filter) do
+    filtered_backlog(tasks, zone, tag_filter, day.order ++ (day.done || []))
+  end
+
+  defp root_tag_chips(catalog) do
+    children_map = children_map(catalog)
+
+    catalog
+    |> Enum.filter(&(tag_depth(&1) == 1))
+    |> Enum.sort_by(fn tag ->
+      has_children? = Map.get(children_map, tag, []) != []
+      {if(has_children?, do: 0, else: 1), String.downcase(tag)}
+    end)
+    |> Enum.map(fn tag -> %{full: tag, label: tag} end)
+  end
+
+  defp direct_children(catalog, parent) do
+    catalog
+    |> children_map()
+    |> Map.get(parent, [])
+  end
+
+  defp children_map(catalog) do
+    Enum.reduce(catalog, %{}, fn tag, acc ->
+      case parent_tag(tag) do
+        nil ->
+          Map.put_new(acc, tag, [])
+
+        parent ->
+          acc
+          |> Map.update(parent, [tag], fn children -> Enum.uniq([tag | children]) end)
+          |> Map.put_new(tag, [])
+      end
+    end)
+    |> Enum.into(%{}, fn {parent, children} ->
+      {parent, Enum.sort_by(children, &String.downcase/1)}
+    end)
+  end
+
+  defp parent_tag(tag) do
+    case String.split(tag, ">", trim: true) do
+      [_single] -> nil
+      parts -> parts |> Enum.drop(-1) |> Enum.join(">")
+    end
+  end
+
+  defp child_suffix(parent, child) do
+    child
+    |> String.replace_prefix(parent <> ">", "")
+  end
+
+  defp short_tag_label(tag) do
+    tag
+    |> String.split(">", trim: true)
+    |> List.last()
+  end
+
+  defp tag_depth(tag) do
+    tag
+    |> String.split(">", trim: true)
+    |> length()
   end
 end

@@ -193,4 +193,69 @@ defmodule PomodoroTrackerWeb.Layouts do
     </nav>
     """
   end
+
+  @doc """
+  Small LiveView-native tag picker with multi-select and quick-create support.
+  """
+  attr :selected, :list, default: []
+  attr :suggestions, :list, default: []
+  attr :query, :string, default: ""
+  attr :input_name, :string, required: true
+  attr :toggle_event, :string, required: true
+  attr :add_event, :string, required: true
+  attr :placeholder, :string, default: "add tag or parent>child"
+
+  def tag_picker(assigns) do
+    ~H"""
+    <div class="space-y-2">
+      <div class="flex gap-2">
+        <input
+          name={@input_name}
+          value={@query}
+          placeholder={@placeholder}
+          autocomplete="off"
+          class="flex-1 bg-white/10 rounded px-3 py-2 text-sm"
+        />
+        <button
+          type="button"
+          phx-click={@add_event}
+          class="shrink-0 rounded bg-white/10 px-3 py-2 text-xs uppercase tracking-[0.18em] hover:bg-white/20"
+        >
+          Add
+        </button>
+      </div>
+
+      <div :if={@selected != []} class="flex flex-wrap gap-1.5">
+        <button
+          :for={tag <- @selected}
+          type="button"
+          phx-click={@toggle_event}
+          phx-value-tag={tag}
+          class="rounded-full bg-white/15 px-2 py-1 text-xs text-white/90 hover:bg-white/25"
+          title="Remove tag"
+        >
+          {tag} ×
+        </button>
+      </div>
+
+      <div :if={@suggestions != []} class="flex flex-wrap gap-1.5">
+        <button
+          :for={tag <- @suggestions}
+          type="button"
+          phx-click={@toggle_event}
+          phx-value-tag={tag}
+          class={[
+            "rounded-full px-2 py-1 text-xs transition",
+            if(tag in @selected,
+              do: "bg-white text-slate-950",
+              else: "bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
+            )
+          ]}
+        >
+          {tag}
+        </button>
+      </div>
+    </div>
+    """
+  end
 end

@@ -785,14 +785,15 @@
             <option value="med" selected={@new_task_form.priority == "med"}>med</option>
             <option value="low" selected={@new_task_form.priority == "low"}>low</option>
           </select>
-          <input
-            name="task[tags]"
-            value={@new_task_form.tags}
-            placeholder="tags, comma, sep"
-            autocomplete="off"
-            class="flex-1 bg-white/10 rounded px-2 py-2 text-sm"
-          />
         </div>
+        <PomodoroTrackerWeb.Layouts.tag_picker
+          selected={@new_task_form.tags}
+          suggestions={tag_suggestions(@tag_registry, @tasks, @new_task_form.zone)}
+          query={@new_task_form.tag_query}
+          input_name="task[tag_query]"
+          toggle_event="new:toggle_tag"
+          add_event="new:add_tag"
+        />
         <label
           :if={@new_task_form.kind == :templates and @new_task_form.zone == :personal}
           class="flex items-center gap-2 text-xs"
@@ -861,14 +862,15 @@
             <option value="med" selected={@edit_form.priority == "med"}>med</option>
             <option value="low" selected={@edit_form.priority == "low"}>low</option>
           </select>
-          <input
-            name="task[tags]"
-            value={@edit_form.tags}
-            placeholder="tags, comma, sep"
-            autocomplete="off"
-            class="flex-1 bg-white/10 rounded px-2 py-2 text-sm"
-          />
         </div>
+        <PomodoroTrackerWeb.Layouts.tag_picker
+          selected={@edit_form.tags}
+          suggestions={tag_suggestions(@tag_registry, @tasks, @edit_form.zone)}
+          query={@edit_form.tag_query}
+          input_name="task[tag_query]"
+          toggle_event="edit:toggle_tag"
+          add_event="edit:add_tag"
+        />
         <label class="flex items-center gap-2 text-xs">
           <input type="checkbox" name="task[is_break]" value="true" checked={@edit_form.is_break} />
           Es break?

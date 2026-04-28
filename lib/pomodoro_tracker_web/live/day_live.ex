@@ -1,7 +1,7 @@
 defmodule PomodoroTrackerWeb.DayLive do
   use PomodoroTrackerWeb, :live_view
 
-  alias PomodoroTracker.{Cadence, Priority, Timer, Vault}
+  alias PomodoroTracker.{Cadence, Priority, Tags, Timer, Vault}
 
   @impl true
   def mount(_params, _session, socket) do
@@ -138,6 +138,7 @@ defmodule PomodoroTrackerWeb.DayLive do
   end
 
   def handle_event("filter:tag", %{"tag" => tag}, socket) do
+    tag = Tags.normalize(tag)
     current = socket.assigns.tag_filter
 
     new =
@@ -153,6 +154,7 @@ defmodule PomodoroTrackerWeb.DayLive do
   end
 
   def handle_event("filter:break_tag", %{"tag" => tag}, socket) do
+    tag = Tags.normalize(tag)
     current = socket.assigns.break_tag_filter
     new = if current == tag, do: nil, else: tag
     {:noreply, assign(socket, :break_tag_filter, new)}
@@ -313,7 +315,8 @@ defmodule PomodoroTrackerWeb.DayLive do
        zone: String.to_existing_atom(zone),
        title: "",
        priority: "med",
-       tags: "",
+       tags: [],
+       tag_query: "",
        is_break: false,
        add_to_today: true
      })}
@@ -328,12 +331,20 @@ defmodule PomodoroTrackerWeb.DayLive do
       form
       | title: p["title"] || "",
         priority: p["priority"] || "med",
-        tags: p["tags"] || "",
+        tag_query: p["tag_query"] || "",
         is_break: p["is_break"] == "true",
         add_to_today: p["add_to_today"] == "true"
     }
 
     {:noreply, assign(socket, :new_task_form, form)}
+  end
+
+  def handle_event("new:toggle_tag", %{"tag" => tag}, socket) do
+    {:noreply, update_form_tags(socket, :new_task_form, &toggle_tag(&1, tag))}
+  end
+
+  def handle_event("new:add_tag", _, socket) do
+    {:noreply, update_form_tags(socket, :new_task_form, &merge_query_tags/1)}
   end
 
   def handle_event("new:submit", _params, socket) do
@@ -344,7 +355,7 @@ defmodule PomodoroTrackerWeb.DayLive do
       {:noreply, put_flash(socket, :error, "Title required")}
     else
       id = slugify(title)
-      tags = parse_tags(form.tags, form.is_break)
+      tags = materialized_tags(form)
 
       attrs = %{
         id: id,
@@ -387,9 +398,11 @@ defmodule PomodoroTrackerWeb.DayLive do
         path: t.path,
         kind: t.kind,
         from_template: t.from_template,
+        zone: t.zone,
         title: t.title,
         priority: t.priority || "med",
-        tags: Enum.join(t.tags || [], ", "),
+        tags: visible_task_tags(t.tags || []),
+        tag_query: "",
         related: Enum.join(t.related || [], "\n"),
         body: t.body || "",
         is_break: "break" in (t.tags || [])
@@ -410,7 +423,7 @@ defmodule PomodoroTrackerWeb.DayLive do
       f
       | title: p["title"] || "",
         priority: p["priority"] || "med",
-        tags: p["tags"] || "",
+        tag_query: p["tag_query"] || "",
         related: p["related"] || "",
         body: p["body"] || "",
         is_break: p["is_break"] == "true"
@@ -419,13 +432,21 @@ defmodule PomodoroTrackerWeb.DayLive do
     {:noreply, assign(socket, :edit_form, f)}
   end
 
+  def handle_event("edit:toggle_tag", %{"tag" => tag}, socket) do
+    {:noreply, update_form_tags(socket, :edit_form, &toggle_tag(&1, tag))}
+  end
+
+  def handle_event("edit:add_tag", _, socket) do
+    {:noreply, update_form_tags(socket, :edit_form, &merge_query_tags/1)}
+  end
+
   def handle_event("edit:submit", _params, socket) do
     f = socket.assigns.edit_form
 
     attrs = %{
       title: f.title,
       priority: f.priority,
-      tags: parse_tags(f.tags, f.is_break),
+      tags: materialized_tags(f),
       related: parse_lines(f.related),
       body: f.body
     }
@@ -524,6 +545,7 @@ defmodule PomodoroTrackerWeb.DayLive do
     |> assign(:tasks, tasks)
     |> assign(:day, day)
     |> assign(:sessions, sessions)
+    |> assign(:tag_registry, merged_tag_registry(tasks))
   end
 
   defp append_to_day(date, id, tasks) do
@@ -631,14 +653,44 @@ defmodule PomodoroTrackerWeb.DayLive do
     list |> List.replace_at(i, b) |> List.replace_at(j, a)
   end
 
-  defp parse_tags(str, is_break?) do
-    base = parse_lines(str, ",")
+  defp update_form_tags(socket, form_key, fun) do
+    case socket.assigns[form_key] do
+      nil ->
+        socket
 
-    cond do
-      is_break? and "break" not in base -> base ++ ["break"]
-      not is_break? -> Enum.reject(base, &(&1 == "break"))
-      true -> base
+      form ->
+        assign(socket, form_key, fun.(form))
     end
+  end
+
+  defp toggle_tag(form, tag) do
+    tag = Tags.normalize(tag)
+
+    tags =
+      if tag in form.tags do
+        List.delete(form.tags, tag)
+      else
+        Tags.normalize_many(form.tags ++ [tag])
+      end
+
+    %{form | tags: tags}
+  end
+
+  defp merge_query_tags(form) do
+    query_tags = Tags.parse_input(form.tag_query)
+    %{form | tags: Tags.normalize_many(form.tags ++ query_tags), tag_query: ""}
+  end
+
+  defp materialized_tags(form) do
+    form.tags
+    |> Tags.normalize_many()
+    |> Tags.with_break(form.is_break)
+  end
+
+  defp visible_task_tags(tags) do
+    tags
+    |> Tags.normalize_many()
+    |> Enum.reject(&(&1 == "break"))
   end
 
   defp parse_lines(str, sep \\ "\n")
@@ -1075,13 +1127,13 @@ defmodule PomodoroTrackerWeb.DayLive do
   end
 
   def count_with_tag(tasks, tag) do
-    Enum.count(tasks, fn {_id, t} -> t.kind == :backlog and tag in (t.tags || []) end)
+    Enum.count(tasks, fn {_id, t} -> t.kind == :backlog and Tags.matches?(tag, t.tags || []) end)
   end
 
   def filtered_backlog(tasks, zone, tag_filter, exclude_ids) do
     tasks
     |> backlog_candidates(zone, exclude_ids)
-    |> Enum.filter(fn t -> MapSet.subset?(tag_filter, MapSet.new(t.tags || [])) end)
+    |> Enum.filter(fn t -> Tags.matches_all?(tag_filter, t.tags || []) end)
     |> Enum.sort_by(fn t -> {priority_rank(t.priority), sortable_title(t.title)} end)
   end
 
@@ -1094,7 +1146,7 @@ defmodule PomodoroTrackerWeb.DayLive do
     total = length(candidates)
 
     candidates
-    |> Enum.flat_map(fn t -> t.tags || [] end)
+    |> Enum.flat_map(fn t -> visible_task_tags(t.tags || []) |> Tags.expand_catalog() end)
     |> Enum.frequencies()
     |> Enum.reject(fn {_tag, count} -> total > 1 and count == total end)
     |> Enum.sort_by(fn {tag, _} -> tag end)
@@ -1102,22 +1154,22 @@ defmodule PomodoroTrackerWeb.DayLive do
   end
 
   defp backlog_candidates(tasks, zone, exclude_ids) do
-    candidates =
+    all_candidates =
       tasks
       |> Map.values()
       |> Enum.filter(fn t ->
-        t.kind in [:backlog, :templates] and
-          t.zone == zone and
-          t.id not in exclude_ids
+        t.kind in [:backlog, :templates] and t.zone == zone
       end)
 
     instantiated =
-      for %{kind: :backlog, from_template: ft} <- candidates,
+      for %{kind: :backlog, from_template: ft} <- all_candidates,
           is_binary(ft),
           into: MapSet.new(),
           do: ft
 
-    Enum.reject(candidates, fn t ->
+    all_candidates
+    |> Enum.reject(&(&1.id in exclude_ids))
+    |> Enum.reject(fn t ->
       t.kind == :templates and MapSet.member?(instantiated, t.id)
     end)
   end
@@ -1132,7 +1184,7 @@ defmodule PomodoroTrackerWeb.DayLive do
   def break_picker_tasks(tasks, phase, exclude_ids, day_order, tag_filter) do
     tasks
     |> break_picker_candidates(phase, exclude_ids)
-    |> Enum.filter(fn t -> tag_filter == nil or tag_filter in (t.tags || []) end)
+    |> Enum.filter(fn t -> is_nil(tag_filter) or Tags.matches?(tag_filter, t.tags || []) end)
     |> Enum.sort_by(fn t ->
       case Enum.find_index(day_order, &(&1 == t.id)) do
         nil -> {1, priority_rank(t.priority), sortable_title(t.title)}
@@ -1151,7 +1203,7 @@ defmodule PomodoroTrackerWeb.DayLive do
     total = length(candidates)
 
     candidates
-    |> Enum.flat_map(fn t -> t.tags || [] end)
+    |> Enum.flat_map(fn t -> visible_task_tags(t.tags || []) |> Tags.expand_catalog() end)
     |> Enum.reject(fn tag -> phase == :passive_break and tag == "break" end)
     |> Enum.frequencies()
     |> Enum.reject(fn {_tag, count} -> total > 1 and count == total end)
@@ -1159,25 +1211,51 @@ defmodule PomodoroTrackerWeb.DayLive do
     |> Enum.map(&elem(&1, 0))
   end
 
+  def tag_suggestions(tag_registry, tasks, zone) do
+    discovered =
+      tasks
+      |> Map.values()
+      |> Enum.filter(&(&1.zone == zone))
+      |> Enum.flat_map(fn task -> visible_task_tags(task.tags || []) end)
+
+    tag_registry
+    |> Map.get(zone, [])
+    |> Tags.registry_seed(discovered)
+    |> Tags.expand_catalog()
+  end
+
+  def merged_tag_registry(tasks) do
+    discovered =
+      tasks
+      |> Map.values()
+      |> Enum.group_by(& &1.zone, fn task -> visible_task_tags(task.tags || []) end)
+      |> Map.new(fn {zone, tags} -> {zone, List.flatten(tags)} end)
+
+    Vault.list_registered_tags_by_zone()
+    |> Enum.into(%{}, fn {zone, tags} ->
+      {zone, Tags.registry_seed(tags, Map.get(discovered, zone, []))}
+    end)
+  end
+
   defp break_picker_candidates(tasks, phase, exclude_ids) do
     want_break = phase == :passive_break
 
-    candidates =
+    all_candidates =
       tasks
       |> Map.values()
       |> Enum.filter(fn t ->
-        t.zone == :personal and
-          t.id not in exclude_ids and
-          want_break == "break" in (t.tags || [])
+        t.zone == :personal and want_break == "break" in (t.tags || [])
       end)
 
     instantiated =
-      for %{kind: :backlog, from_template: ft} <- candidates,
+      for %{kind: :backlog, from_template: ft} <- all_candidates,
           is_binary(ft),
           into: MapSet.new(),
           do: ft
 
-    Enum.reject(candidates, fn t ->
+    all_candidates
+    |> Enum.reject(&(&1.id in exclude_ids))
+    |> Enum.reject(fn t ->
       t.kind == :templates and MapSet.member?(instantiated, t.id)
     end)
   end

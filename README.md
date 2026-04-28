@@ -14,6 +14,10 @@ Hammerspoon / menubar / floating-panel integration is currently disabled. The su
 - `/?date=YYYY-MM-DD` opens a readonly historical day review
 - The top chrome now includes a minimal interval-summary bar plus live
   `work/personal` totals for the selected day
+- Tags support nested taxonomy such as `ejercicio>cuello`, with parent-aware
+  filters and a UI picker backed by per-vault YAML registries
+- `/planner` now centers on one unified planning inventory plus compact strips
+  for today's tasks, dragged-forward work, and suggestions
 
 ## Product docs
 
@@ -28,7 +32,8 @@ Hammerspoon / menubar / floating-panel integration is currently disabled. The su
 ├── templates/    # reusable task definitions
 ├── backlog/      # discovered tasks not yet scheduled
 ├── days/         # YYYY-MM-DD.md — today's ordered plan + pomodoro counts
-└── sessions/     # append-only pomodoro log
+├── sessions/     # append-only pomodoro log
+└── settings/     # YAML registries such as tags.yaml
 ```
 
 Day plans and session logs live in the **personal vault** (single source of truth for "today"). Templates and backlog split across both vaults by zone.

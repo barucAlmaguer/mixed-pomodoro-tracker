@@ -231,33 +231,49 @@ is now only a secondary helper because direct per-day historical review exists.
   - `Plan`
 - The current surface is visually highlighted.
 
-### Templates
-
-- Templates render correctly from real `:templates` data.
-- Templates are grouped by pilar.
-- A `Sin pilar` group exists so templates without a pilar do not disappear.
-- Actions:
-  - pause/reactivate template
-  - edit
-  - add to today
-
 ### `Backlog`
 
-- Backlog now lives in `/planner`.
+- The main planning surface is now one unified inventory.
+- There is no separate pillars-based templates section anymore.
 - Zone filter modes:
   - `auto`
   - `work`
   - `personal`
 - `auto` follows work hours.
-- Backlog candidates include both `backlog` items and `templates`.
+- Planning candidates include both `backlog` items and `templates`.
 - If a template has already been instantiated into a backlog task, the template
-  is hidden to avoid duplicates.
-- Dynamic tag chips are generated from the visible backlog candidates.
+  is hidden to avoid duplicates, even if that instance is already in `Today`.
+- Each card explicitly identifies whether the item is:
+  - `template`
+  - `instance`
+  - `one-off`
+- Template cards expose:
+  - pause/reactivate template
+  - last done
+  - streak
+  - weekly status stub
+- Dynamic tag filters are generated from the visible planning candidates.
+- Tag filters are hierarchical:
+  - top-level parent tags appear in the main row
+  - selecting a parent tag opens another row with its direct children
+  - multi-tag filtering still composes across parent tags and flat tags
 - Actions:
   - add to today
   - edit
   - create ad-hoc task
   - create template
+
+### Planning header
+
+- `/planner` now shows a compact planning header above the inventory with:
+  - `Today`
+  - `Dragged Forward`
+  - `Suggestions`
+- `Today` summarizes current planned tasks plus simple work/personal counts.
+- `Dragged Forward` surfaces unfinished tasks from recent days with a quick
+  `+ today` action.
+- `Suggestions` shows the top current inventory candidates under the active
+  zone and tag filters.
 
 ### Archive
 
@@ -297,11 +313,18 @@ experience.
   - recurrence
   - pilar / paused / streak fields
 - Backlog tasks can be promoted into templates.
-- Tags are currently flat strings.
-- Tag editing is currently plain text, comma-separated input, not a structured
-  picker.
-- There is no first-class nested-tag semantics such as `ejercicio>cuello`.
-- There is no tag registry, no tag suggestion UI, and no multi-select tag editor.
+- Tags now support hierarchical strings such as `ejercicio>cuello`.
+- Parent filters match descendants, so filtering by `ejercicio` includes
+  `ejercicio>cuello` and `ejercicio>ojos`.
+- Tag editing now uses a structured picker in both `Execute` and `Plan`:
+  - multi-select existing tags
+  - create new tags
+  - preserve nested tags cleanly
+- Each vault now has `pomodoro-tracker/settings/tags.yaml` as a registry of
+  known tags for that zone.
+- The picker suggestions come from the registry plus discovered task tags, so
+  older vault content still surfaces in the UI even before the registry is
+  fully curated.
 
 ## Known caveats
 

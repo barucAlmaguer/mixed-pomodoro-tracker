@@ -19,10 +19,11 @@ repository. Keep it short, factual, and current.
 - There is no database.
 - Tasks, plans, and session logs live as Markdown files with YAML frontmatter in
   two vaults: `work` and `personal`.
-- Each vault contains `pomodoro-tracker/templates`, `backlog`, `days`, and
-  `sessions`.
+- Each vault contains `pomodoro-tracker/templates`, `backlog`, `days`,
+  `sessions`, and `settings`.
 - The day plan (`days/YYYY-MM-DD.md`) and session log live in the personal
   vault and are the source of truth for "today".
+- Tag registries live at `pomodoro-tracker/settings/tags.yaml` per vault.
 
 ## Current behavior that matters
 
@@ -37,6 +38,11 @@ repository. Keep it short, factual, and current.
 - `Today` is an ordered day plan with `pending`, `active`, `done`, and
   `pomodoros` counts.
 - `/planner` now owns the full backlog / templates / archive surfaces.
+- `/planner` is intentionally tag-driven, not pilar-driven.
+- Templates and one-off tasks are shown together in one planning inventory, with
+  explicit labels such as `template`, `instance`, and `one-off`.
+- Tags now support parent-aware nested taxonomy such as `ejercicio>cuello`.
+- Task edit/create flows use a structured tag picker, not raw comma text.
 - Users can keep up to 2 tasks active at once.
 - Breaks come in two explicit modes:
   - `active_break`: offers personal tasks without the `break` tag

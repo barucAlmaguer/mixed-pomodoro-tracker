@@ -51,6 +51,7 @@ defmodule PomodoroTracker.Vault.Watcher do
   def handle_info({:file_event, _pid, :stop}, state), do: {:noreply, state}
 
   defp relevant?(path, _events) do
-    String.ends_with?(path, ".md")
+    String.ends_with?(path, ".md") or String.ends_with?(path, ".yaml") or
+      String.ends_with?(path, ".yml")
   end
 end

@@ -262,6 +262,10 @@ Open design questions:
 
 ### 8. Add nested tags as a first-class taxonomy
 
+Status:
+
+- Implemented.
+
 Desired behavior:
 
 - Treat tags as structured hierarchical labels, not only flat strings.
@@ -289,19 +293,23 @@ Semantic expectations:
 
 - Filtering by a parent tag such as `ejercicio` should be able to include tasks
   tagged with `ejercicio>cuello` and `ejercicio>ojos`.
-- Filtering by a leaf such as `cuello` should be possible when explicitly
-  requested, but the canonical identity should remain the full hierarchical tag.
+- Filtering by a leaf fragment such as `cuello` is still not a separate feature.
+  The canonical identity remains the full hierarchical tag.
 - A task may carry multiple hierarchical tags.
 
-Implementation direction:
+Implemented shape:
 
-- Preserve a canonical tag string representation in storage.
-- Add parsing/helpers so the UI and filtering logic understand parent/child
-  relationships.
-- Avoid overengineering a separate taxonomy database; the vault-backed model can
-  still work if the tag semantics are explicit.
+- Storage still uses canonical tag strings.
+- Shared helpers now normalize tags and understand parent/child matching.
+- Backlog and break filters now understand parent tags.
+- Tag catalogs derive from task tags and registry data without introducing a
+  separate taxonomy database.
 
 ### 9. Add a real tag picker/editor UX
+
+Status:
+
+- Implemented.
 
 Desired behavior:
 
@@ -328,14 +336,21 @@ Planner/break implications:
 - Active and passive break suggestions should also benefit from the same tag
   semantics and picker model.
 
-Open design questions:
+Implemented shape:
 
-- Should the picker expose the hierarchy as:
-  - searchable chips
-  - nested grouped menu
-  - autocomplete with path-like entries
-- Decide whether new tags are free-form or normalized on creation.
-- Decide whether aliases or display labels are needed later.
+- `Execute` and `Plan` now use a LiveView-native tag picker.
+- The picker can:
+  - show existing tags
+  - select multiple tags
+  - create new tags
+  - preserve nested tags like `perritos>vet`
+- New tags are normalized and registered into per-vault `settings/tags.yaml`.
+
+Remaining refinements:
+
+- Search within very large tag catalogs.
+- Optional display labels or aliases.
+- Richer hierarchy presentation if the catalog grows substantially.
 
 ### 10. Add a habit tracker view built from templates and tags
 

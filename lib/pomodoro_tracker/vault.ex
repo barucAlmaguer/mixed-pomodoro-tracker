@@ -9,9 +9,11 @@ defmodule PomodoroTracker.Vault do
     backlog/    - discovered but not-yet-scheduled tasks
     days/       - YYYY-MM-DD.md, today's ordered plan
     sessions/   - YYYY-MM-DD.md, append-only pomodoro log
+    settings/   - YAML registries and product settings
   """
 
   require Logger
+  alias PomodoroTracker.Tags
 
   @type zone :: :work | :personal
   @type pilar :: :salud | :sustento | :limites | :hogar | :pasatiempos | nil
@@ -58,7 +60,7 @@ defmodule PomodoroTracker.Vault do
   def subdir(zone), do: Path.join(vault_root(zone), vaults()[:subdir])
 
   def dir(zone, kind)
-      when kind in [:templates, :backlog, :days, :sessions],
+      when kind in [:templates, :backlog, :days, :sessions, :settings],
       do: Path.join(subdir(zone), Atom.to_string(kind))
 
   defp vaults, do: Application.fetch_env!(:pomodoro_tracker, :vaults)
@@ -187,12 +189,74 @@ defmodule PomodoroTracker.Vault do
     File.rm(path)
   end
 
+  @doc "YAML registry for known tags in a given vault."
+  def tag_registry_path(zone) when zone in [:work, :personal] do
+    Path.join(dir(zone, :settings), "tags.yaml")
+  end
+
+  def list_registered_tags(zone) when zone in [:work, :personal] do
+    path = tag_registry_path(zone)
+    File.mkdir_p!(Path.dirname(path))
+
+    case File.read(path) do
+      {:ok, raw} ->
+        case YamlElixir.read_from_string(raw) do
+          {:ok, %{"tags" => tags}} when is_list(tags) ->
+            Tags.normalize_many(tags)
+
+          {:ok, %{tags: tags}} when is_list(tags) ->
+            Tags.normalize_many(tags)
+
+          {:ok, _} ->
+            []
+
+          {:error, reason} ->
+            Logger.warning("skip #{path}: #{inspect(reason)}")
+            []
+        end
+
+      {:error, :enoent} ->
+        []
+
+      {:error, reason} ->
+        Logger.warning("skip #{path}: #{inspect(reason)}")
+        []
+    end
+  end
+
+  def list_registered_tags_by_zone do
+    for zone <- [:work, :personal], into: %{} do
+      {zone, list_registered_tags(zone)}
+    end
+  end
+
+  def register_tags(zone, tags) when zone in [:work, :personal] do
+    path = tag_registry_path(zone)
+    File.mkdir_p!(Path.dirname(path))
+
+    merged =
+      zone
+      |> list_registered_tags()
+      |> Tags.registry_seed(tags)
+
+    File.write!(path, to_yaml(%{"tags" => merged}))
+    merged
+  end
+
   defp write_task_file(path, attrs) do
     body = Map.get(attrs, :body, "")
     fm = attrs |> Map.drop([:body, :frontmatter]) |> stringify_keys()
 
     File.mkdir_p!(Path.dirname(path))
     File.write!(path, render(fm, body))
+
+    case attrs do
+      %{zone: zone, tags: tags} when zone in [:work, :personal] and is_list(tags) ->
+        register_tags(zone, tags)
+
+      _ ->
+        :ok
+    end
   end
 
   @doc """
@@ -217,6 +281,11 @@ defmodule PomodoroTracker.Vault do
 
     body = Map.get(task, :body, "")
     File.write!(path, render(new_fm, body))
+
+    if task.zone in [:work, :personal] do
+      register_tags(task.zone, task.tags || [])
+    end
+
     :ok
   end
 
@@ -333,6 +402,14 @@ defmodule PomodoroTracker.Vault do
       new_body = Map.get(body_attrs, :body, body)
 
       File.write!(path, render(new_fm, new_body))
+
+      if is_list(attrs[:tags]) do
+        case infer_zone_from_path(path) do
+          zone when zone in [:work, :personal] -> register_tags(zone, attrs[:tags])
+          _ -> :ok
+        end
+      end
+
       :ok
     end
   end
@@ -647,6 +724,14 @@ defmodule PomodoroTracker.Vault do
       "personal" -> [:personal]
       _ -> []
     end)
+  end
+
+  defp infer_zone_from_path(path) do
+    cond do
+      String.starts_with?(path, vault_root(:work)) -> :work
+      String.starts_with?(path, vault_root(:personal)) -> :personal
+      true -> nil
+    end
   end
 
   defp stringify_keys(map) do
