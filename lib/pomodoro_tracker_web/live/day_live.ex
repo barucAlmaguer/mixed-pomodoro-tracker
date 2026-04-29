@@ -351,6 +351,14 @@ defmodule PomodoroTrackerWeb.DayLive do
     {:noreply, update_form_links(socket, :new_task_form, :started_by_ids, id)}
   end
 
+  def handle_event("new:toggle_on_done_section", _, socket) do
+    {:noreply, toggle_form_flag(socket, :new_task_form, :on_done_open)}
+  end
+
+  def handle_event("new:toggle_started_by_section", _, socket) do
+    {:noreply, toggle_form_flag(socket, :new_task_form, :started_by_open)}
+  end
+
   def handle_event("new:toggle_weekday", %{"day" => day}, socket) do
     {:noreply, update_form_tags(socket, :new_task_form, &toggle_task_form_weekday(&1, day))}
   end
@@ -439,6 +447,14 @@ defmodule PomodoroTrackerWeb.DayLive do
 
   def handle_event("edit:toggle_started_by", %{"id" => id}, socket) do
     {:noreply, update_form_links(socket, :edit_form, :started_by_ids, id)}
+  end
+
+  def handle_event("edit:toggle_on_done_section", _, socket) do
+    {:noreply, toggle_form_flag(socket, :edit_form, :on_done_open)}
+  end
+
+  def handle_event("edit:toggle_started_by_section", _, socket) do
+    {:noreply, toggle_form_flag(socket, :edit_form, :started_by_open)}
   end
 
   def handle_event("edit:toggle_weekday", %{"day" => day}, socket) do
@@ -718,8 +734,10 @@ defmodule PomodoroTrackerWeb.DayLive do
       tag_query: "",
       on_done_ids: [],
       on_done_query: "",
+      on_done_open: false,
       started_by_ids: [],
       started_by_query: "",
+      started_by_open: false,
       related: "",
       body: "",
       is_break: false,
@@ -806,6 +824,25 @@ defmodule PomodoroTrackerWeb.DayLive do
     end)
   end
 
+  def today_follow_up_ids(%{from_template: template_id}, tasks) when is_binary(template_id) do
+    case tasks[template_id] do
+      nil -> []
+      source_template -> TemplateLinks.on_done_ids(source_template)
+    end
+  end
+
+  def today_follow_up_ids(task, _tasks), do: TemplateLinks.on_done_ids(task)
+
+  def priority_icon_class("high"), do: "text-red-300"
+  def priority_icon_class("med"), do: "text-amber-300"
+  def priority_icon_class("low"), do: "text-white/35"
+  def priority_icon_class(_), do: "text-white/20"
+
+  def priority_icon("high"), do: "↑"
+  def priority_icon("med"), do: "="
+  def priority_icon("low"), do: "↓"
+  def priority_icon(_), do: "·"
+
   defp parse_lines(str, sep \\ "\n")
   defp parse_lines(nil, _sep), do: []
   defp parse_lines("", _sep), do: []
@@ -836,6 +873,16 @@ defmodule PomodoroTrackerWeb.DayLive do
           end
 
         assign(socket, form_key, Map.put(form, list_key, next))
+    end
+  end
+
+  defp toggle_form_flag(socket, form_key, flag_key) do
+    case socket.assigns[form_key] do
+      nil ->
+        socket
+
+      form ->
+        assign(socket, form_key, Map.update(form, flag_key, true, &(!&1)))
     end
   end
 
@@ -1320,7 +1367,7 @@ defmodule PomodoroTrackerWeb.DayLive do
 
   def filtered_backlog(tasks, zone, tag_filter, exclude_ids) do
     tasks
-    |> backlog_candidates(zone, exclude_ids)
+    |> backlog_candidates(zone, exclude_ids, Date.utc_today())
     |> Enum.filter(fn t -> Tags.matches_all?(tag_filter, t.tags || []) end)
     |> Enum.sort_by(fn t -> {priority_rank(t.priority), sortable_title(t.title)} end)
   end
@@ -1330,7 +1377,7 @@ defmodule PomodoroTrackerWeb.DayLive do
   Hides tags shared by 100% of candidates (filtering would be a no-op).
   """
   def backlog_tags(tasks, zone, exclude_ids) do
-    candidates = backlog_candidates(tasks, zone, exclude_ids)
+    candidates = backlog_candidates(tasks, zone, exclude_ids, Date.utc_today())
     total = length(candidates)
 
     candidates
@@ -1341,7 +1388,7 @@ defmodule PomodoroTrackerWeb.DayLive do
     |> Enum.map(&elem(&1, 0))
   end
 
-  defp backlog_candidates(tasks, zone, exclude_ids) do
+  defp backlog_candidates(tasks, zone, exclude_ids, selected_date) do
     all_candidates =
       tasks
       |> Map.values()
@@ -1350,8 +1397,9 @@ defmodule PomodoroTrackerWeb.DayLive do
       end)
 
     instantiated =
-      for %{kind: :backlog, from_template: ft} <- all_candidates,
+      for %{kind: :backlog, from_template: ft} = task <- all_candidates,
           is_binary(ft),
+          task_instance_date(task) == selected_date,
           into: MapSet.new(),
           do: ft
 
@@ -1371,7 +1419,7 @@ defmodule PomodoroTrackerWeb.DayLive do
   """
   def break_picker_tasks(tasks, phase, exclude_ids, day_order, tag_filter) do
     tasks
-    |> break_picker_candidates(phase, exclude_ids)
+    |> break_picker_candidates(phase, exclude_ids, Date.utc_today())
     |> Enum.filter(fn t -> is_nil(tag_filter) or Tags.matches?(tag_filter, t.tags || []) end)
     |> Enum.sort_by(fn t ->
       case Enum.find_index(day_order, &(&1 == t.id)) do
@@ -1387,7 +1435,7 @@ defmodule PomodoroTrackerWeb.DayLive do
   and any tag shared by 100% of candidates (filtering would be a no-op).
   """
   def break_picker_tags(tasks, phase, exclude_ids) do
-    candidates = break_picker_candidates(tasks, phase, exclude_ids)
+    candidates = break_picker_candidates(tasks, phase, exclude_ids, Date.utc_today())
     total = length(candidates)
 
     candidates
@@ -1425,7 +1473,7 @@ defmodule PomodoroTrackerWeb.DayLive do
     end)
   end
 
-  defp break_picker_candidates(tasks, phase, exclude_ids) do
+  defp break_picker_candidates(tasks, phase, exclude_ids, selected_date) do
     want_break = phase == :passive_break
 
     all_candidates =
@@ -1436,8 +1484,9 @@ defmodule PomodoroTrackerWeb.DayLive do
       end)
 
     instantiated =
-      for %{kind: :backlog, from_template: ft} <- all_candidates,
+      for %{kind: :backlog, from_template: ft} = task <- all_candidates,
           is_binary(ft),
+          task_instance_date(task) == selected_date,
           into: MapSet.new(),
           do: ft
 
@@ -1458,6 +1507,19 @@ defmodule PomodoroTrackerWeb.DayLive do
   end
 
   defp sortable_title(_), do: ""
+
+  defp task_instance_date(%{frontmatter: %{"created_at" => created_at}})
+       when is_binary(created_at) do
+    created_at
+    |> String.slice(0, 10)
+    |> Date.from_iso8601()
+    |> case do
+      {:ok, date} -> date
+      _ -> nil
+    end
+  end
+
+  defp task_instance_date(_task), do: nil
 
   # ---------------------------------------------------------------------------
   # Today split + counts

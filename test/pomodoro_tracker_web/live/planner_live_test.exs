@@ -131,6 +131,33 @@ defmodule PomodoroTrackerWeb.PlannerLiveTest do
     assert render(view) =~ "Stretch neck"
   end
 
+  test "planner keeps a recurrent visible when only an old instance exists", %{conn: conn} do
+    {:ok, _} =
+      Vault.create_task(:personal, :templates, %{
+        id: "lavar-ropa",
+        title: "Lavar ropa",
+        recurrence: "weekly"
+      })
+
+    {:ok, _} =
+      Vault.create_task(:personal, :backlog, %{
+        id: "lavar-ropa-20260424",
+        title: "Lavar ropa",
+        from_template: "lavar-ropa",
+        created_at: "2026-04-24",
+        priority: "med"
+      })
+
+    {:ok, view, _html} = live(conn, "/planner")
+
+    view
+    |> element(~s(button[phx-click="filter:zone"][phx-value-zone="personal"]))
+    |> render_click()
+
+    assert render(view) =~ "Lavar ropa"
+    assert render(view) =~ "Actuales / esta semana"
+  end
+
   test "planner creates nested tags and registers them in yaml", %{conn: conn} do
     {:ok, view, _html} = live(conn, "/planner")
 
@@ -349,6 +376,10 @@ defmodule PomodoroTrackerWeb.PlannerLiveTest do
     |> render_click()
 
     view
+    |> element(~s(button[phx-click="edit:toggle_started_by_section"]), "Started by (0)")
+    |> render_click()
+
+    view
     |> element(~s(button[phx-click="edit:toggle_started_by"][phx-value-id="patinar"]))
     |> render_click()
 
@@ -358,7 +389,6 @@ defmodule PomodoroTrackerWeb.PlannerLiveTest do
         "title" => "Bañarse",
         "priority" => "med",
         "tag_query" => "",
-        "on_done_query" => "",
         "started_by_query" => "",
         "related" => "",
         "body" => ""

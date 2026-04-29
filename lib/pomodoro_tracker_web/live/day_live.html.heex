@@ -588,6 +588,12 @@
               <div class="text-xs opacity-40 w-4 text-right tabular-nums">{idx + 1}</div>
               <div class="flex-1 text-left min-w-0">
                 <div class="text-sm truncate flex items-center gap-1">
+                  <span class={[
+                    "text-sm leading-none shrink-0",
+                    priority_icon_class(t.priority)
+                  ]}>
+                    {priority_icon(t.priority)}
+                  </span>
                   <span
                     :if={t.id in (@day.auto_injected || [])}
                     title="Auto-inyectada (recurrente)"
@@ -599,7 +605,9 @@
                 </div>
                 <div class="flex gap-2 text-[10px] opacity-60 mt-0.5">
                   <span>{t.zone}</span>
-                  <span :if={t.priority}>· {t.priority}</span>
+                  <span :if={today_follow_up_ids(t, @tasks) != []}>
+                    · then: {Enum.join(today_follow_up_ids(t, @tasks), ",")}
+                  </span>
                   <span :if={@day.pomodoros[t.id]}>· {@day.pomodoros[t.id]}🍅</span>
                 </div>
               </div>
@@ -766,7 +774,7 @@
       <form
         phx-submit="new:submit"
         phx-change="new:change"
-        class="bg-slate-800 text-white rounded-lg p-4 w-full max-w-sm space-y-3 pointer-events-auto"
+        class="bg-slate-800 text-white rounded-lg p-4 w-full max-w-sm space-y-3 pointer-events-auto max-h-[calc(100vh-2rem)] overflow-y-auto"
       >
         <div class="text-sm font-semibold">
           {if @new_task_form.kind == :templates,
@@ -800,36 +808,55 @@
           form={@new_task_form}
           toggle_event="new:toggle_weekday"
         />
-        <PomodoroTrackerWeb.Layouts.template_link_picker
-          :if={@new_task_form.kind == :templates}
-          title="On done"
-          selected={@new_task_form.on_done_ids}
-          choices={
-            template_link_choices(
-              @tasks,
-              Map.get(@new_task_form, :id),
-              @new_task_form.on_done_query
-            )
-          }
-          query={@new_task_form.on_done_query}
-          input_name="task[on_done_query]"
-          toggle_event="new:toggle_on_done"
-        />
-        <PomodoroTrackerWeb.Layouts.template_link_picker
-          :if={@new_task_form.kind == :templates}
-          title="Started by"
-          selected={@new_task_form.started_by_ids}
-          choices={
-            template_link_choices(
-              @tasks,
-              Map.get(@new_task_form, :id),
-              @new_task_form.started_by_query
-            )
-          }
-          query={@new_task_form.started_by_query}
-          input_name="task[started_by_query]"
-          toggle_event="new:toggle_started_by"
-        />
+        <div :if={@new_task_form.kind == :templates} class="space-y-2">
+          <button
+            type="button"
+            phx-click="new:toggle_on_done_section"
+            class="flex w-full items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left text-xs uppercase tracking-[0.18em] text-white/70"
+          >
+            <span>On done ({length(@new_task_form.on_done_ids)})</span>
+            <span>{if @new_task_form.on_done_open, do: "▴", else: "▾"}</span>
+          </button>
+          <PomodoroTrackerWeb.Layouts.template_link_picker
+            :if={@new_task_form.on_done_open}
+            title="On done"
+            selected={@new_task_form.on_done_ids}
+            choices={
+              template_link_choices(
+                @tasks,
+                Map.get(@new_task_form, :id),
+                @new_task_form.on_done_query
+              )
+            }
+            query={@new_task_form.on_done_query}
+            input_name="task[on_done_query]"
+            toggle_event="new:toggle_on_done"
+          />
+
+          <button
+            type="button"
+            phx-click="new:toggle_started_by_section"
+            class="flex w-full items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left text-xs uppercase tracking-[0.18em] text-white/70"
+          >
+            <span>Started by ({length(@new_task_form.started_by_ids)})</span>
+            <span>{if @new_task_form.started_by_open, do: "▴", else: "▾"}</span>
+          </button>
+          <PomodoroTrackerWeb.Layouts.template_link_picker
+            :if={@new_task_form.started_by_open}
+            title="Started by"
+            selected={@new_task_form.started_by_ids}
+            choices={
+              template_link_choices(
+                @tasks,
+                Map.get(@new_task_form, :id),
+                @new_task_form.started_by_query
+              )
+            }
+            query={@new_task_form.started_by_query}
+            input_name="task[started_by_query]"
+            toggle_event="new:toggle_started_by"
+          />
+        </div>
         <label
           :if={@new_task_form.kind == :templates and @new_task_form.zone == :personal}
           class="flex items-center gap-2 text-xs"
@@ -875,7 +902,7 @@
       <form
         phx-submit="edit:submit"
         phx-change="edit:change"
-        class="bg-slate-800 text-white rounded-lg p-4 w-full max-w-sm space-y-3 pointer-events-auto max-h-[90vh] overflow-y-auto"
+        class="bg-slate-800 text-white rounded-lg p-4 w-full max-w-sm space-y-3 pointer-events-auto max-h-[calc(100vh-2rem)] overflow-y-auto"
       >
         <div class="flex items-center justify-between">
           <div class="text-sm font-semibold">
@@ -911,24 +938,43 @@
           form={@edit_form}
           toggle_event="edit:toggle_weekday"
         />
-        <PomodoroTrackerWeb.Layouts.template_link_picker
-          :if={@edit_form.kind == :templates}
-          title="On done"
-          selected={@edit_form.on_done_ids}
-          choices={template_link_choices(@tasks, @edit_form.id, @edit_form.on_done_query)}
-          query={@edit_form.on_done_query}
-          input_name="task[on_done_query]"
-          toggle_event="edit:toggle_on_done"
-        />
-        <PomodoroTrackerWeb.Layouts.template_link_picker
-          :if={@edit_form.kind == :templates}
-          title="Started by"
-          selected={@edit_form.started_by_ids}
-          choices={template_link_choices(@tasks, @edit_form.id, @edit_form.started_by_query)}
-          query={@edit_form.started_by_query}
-          input_name="task[started_by_query]"
-          toggle_event="edit:toggle_started_by"
-        />
+        <div :if={@edit_form.kind == :templates} class="space-y-2">
+          <button
+            type="button"
+            phx-click="edit:toggle_on_done_section"
+            class="flex w-full items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left text-xs uppercase tracking-[0.18em] text-white/70"
+          >
+            <span>On done ({length(@edit_form.on_done_ids)})</span>
+            <span>{if @edit_form.on_done_open, do: "▴", else: "▾"}</span>
+          </button>
+          <PomodoroTrackerWeb.Layouts.template_link_picker
+            :if={@edit_form.on_done_open}
+            title="On done"
+            selected={@edit_form.on_done_ids}
+            choices={template_link_choices(@tasks, @edit_form.id, @edit_form.on_done_query)}
+            query={@edit_form.on_done_query}
+            input_name="task[on_done_query]"
+            toggle_event="edit:toggle_on_done"
+          />
+
+          <button
+            type="button"
+            phx-click="edit:toggle_started_by_section"
+            class="flex w-full items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left text-xs uppercase tracking-[0.18em] text-white/70"
+          >
+            <span>Started by ({length(@edit_form.started_by_ids)})</span>
+            <span>{if @edit_form.started_by_open, do: "▴", else: "▾"}</span>
+          </button>
+          <PomodoroTrackerWeb.Layouts.template_link_picker
+            :if={@edit_form.started_by_open}
+            title="Started by"
+            selected={@edit_form.started_by_ids}
+            choices={template_link_choices(@tasks, @edit_form.id, @edit_form.started_by_query)}
+            query={@edit_form.started_by_query}
+            input_name="task[started_by_query]"
+            toggle_event="edit:toggle_started_by"
+          />
+        </div>
         <label class="flex items-center gap-2 text-xs">
           <input type="checkbox" name="task[is_break]" value="true" checked={@edit_form.is_break} />
           Es break?

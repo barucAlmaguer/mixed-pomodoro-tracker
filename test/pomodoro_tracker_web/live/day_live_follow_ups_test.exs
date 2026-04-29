@@ -58,6 +58,39 @@ defmodule PomodoroTrackerWeb.DayLiveFollowUpsTest do
     assert "banarse-#{today_suffix()}" in reloaded.order
   end
 
+  test "today list shows then label for tasks with follow-ups", %{conn: conn} do
+    {:ok, _} =
+      Vault.create_task(:personal, :templates, %{
+        id: "patinar",
+        title: "Patinar",
+        priority: "med",
+        on_done: ["banarse", "orear-protecciones"]
+      })
+
+    {:ok, _} =
+      Vault.create_task(:personal, :templates, %{
+        id: "banarse",
+        title: "Bañarse"
+      })
+
+    {:ok, _} =
+      Vault.create_task(:personal, :templates, %{
+        id: "orear-protecciones",
+        title: "Orear protecciones"
+      })
+
+    [patinar] = Enum.filter(Vault.list_tasks(:personal, :templates), &(&1.id == "patinar"))
+    {:ok, patinar_id} = Vault.instantiate_template(patinar)
+    {:ok, day} = Vault.load_day()
+    {:ok, _} = Vault.save_day(%{day | order: [patinar_id]})
+
+    {:ok, view, _html} = live(conn, "/")
+
+    html = render(view)
+    assert html =~ "then: banarse,orear-protecciones"
+    refute html =~ "· med"
+  end
+
   test "finishing a template instance reuses an already pending follow-up", %{conn: conn} do
     {:ok, _} =
       Vault.create_task(:personal, :templates, %{

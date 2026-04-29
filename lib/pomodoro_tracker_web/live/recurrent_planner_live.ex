@@ -165,6 +165,14 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
     {:noreply, update_form_links(socket, :new_task_form, :started_by_ids, id)}
   end
 
+  def handle_event("new:toggle_on_done_section", _, socket) do
+    {:noreply, toggle_form_flag(socket, :new_task_form, :on_done_open)}
+  end
+
+  def handle_event("new:toggle_started_by_section", _, socket) do
+    {:noreply, toggle_form_flag(socket, :new_task_form, :started_by_open)}
+  end
+
   def handle_event("new:toggle_weekday", %{"day" => day}, socket) do
     {:noreply,
      update_form_tags(socket, :new_task_form, &ExecuteLive.toggle_task_form_weekday(&1, day))}
@@ -252,6 +260,14 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
 
   def handle_event("edit:toggle_started_by", %{"id" => id}, socket) do
     {:noreply, update_form_links(socket, :edit_form, :started_by_ids, id)}
+  end
+
+  def handle_event("edit:toggle_on_done_section", _, socket) do
+    {:noreply, toggle_form_flag(socket, :edit_form, :on_done_open)}
+  end
+
+  def handle_event("edit:toggle_started_by_section", _, socket) do
+    {:noreply, toggle_form_flag(socket, :edit_form, :started_by_open)}
   end
 
   def handle_event("edit:toggle_weekday", %{"day" => day}, socket) do
@@ -395,6 +411,16 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
           end
 
         assign(socket, form_key, Map.put(form, list_key, next))
+    end
+  end
+
+  defp toggle_form_flag(socket, form_key, flag_key) do
+    case socket.assigns[form_key] do
+      nil ->
+        socket
+
+      form ->
+        assign(socket, form_key, Map.update(form, flag_key, true, &(!&1)))
     end
   end
 
