@@ -325,6 +325,54 @@ defmodule PomodoroTrackerWeb.PlannerLiveTest do
     refute html =~ "due:"
   end
 
+  test "planner can edit started_by and persists the reverse on_done relation", %{conn: conn} do
+    {:ok, _} =
+      Vault.create_task(:personal, :templates, %{
+        id: "patinar",
+        title: "Patinar"
+      })
+
+    {:ok, _} =
+      Vault.create_task(:personal, :templates, %{
+        id: "banarse",
+        title: "Bañarse"
+      })
+
+    {:ok, view, _html} = live(conn, "/planner")
+
+    view
+    |> element(~s(button[phx-click="filter:zone"][phx-value-zone="personal"]))
+    |> render_click()
+
+    view
+    |> element(~s(button[title="Edit"][phx-click="edit:open"][phx-value-id="banarse"]))
+    |> render_click()
+
+    view
+    |> element(~s(button[phx-click="edit:toggle_started_by"][phx-value-id="patinar"]))
+    |> render_click()
+
+    view
+    |> form("form[phx-submit='edit:submit']", %{
+      "task" => %{
+        "title" => "Bañarse",
+        "priority" => "med",
+        "tag_query" => "",
+        "on_done_query" => "",
+        "started_by_query" => "",
+        "related" => "",
+        "body" => ""
+      }
+    })
+    |> render_submit()
+
+    [patinar] = Enum.filter(Vault.list_tasks(:personal, :templates), &(&1.id == "patinar"))
+    [banarse] = Enum.filter(Vault.list_tasks(:personal, :templates), &(&1.id == "banarse"))
+
+    assert patinar.on_done == ["banarse"]
+    assert banarse.on_done == []
+  end
+
   test "finished one-off tasks are hidden from planning inventory and shown in archive", %{
     conn: conn
   } do

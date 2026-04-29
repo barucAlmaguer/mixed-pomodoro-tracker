@@ -292,6 +292,12 @@ experience.
 - Recurrent behavior is driven by structured template frontmatter.
 - Recurrence can now be created and edited from the UI in both `Execute` and
   `Plan` when working with templates.
+- Templates can also define task-chain follow-ups:
+  - `On done` stores the downstream templates that should appear after
+    completion.
+  - `Started by` is the reverse view of those same links and is editable from
+    the target template modal.
+  - Links are validated as a DAG, so cyclic chains are rejected.
 - Supported recurrence families:
   - `daily`
   - `weekly` with explicit weekday selection
@@ -307,6 +313,10 @@ experience.
   the template definition only.
 - Completing an instance updates `last_completed_at` on its source template, so
   completion-based schedules can move correctly.
+- Completing an instance can also materialize follow-up templates into `Today`.
+  If the follow-up is already pending, it is not duplicated. If it was already
+  completed earlier the same day, a suffixed same-day instance such as
+  `-2`, `-3`, ... is created so the task can reappear.
 - There is no separate first-class habit model or habit-tracker view yet.
 
 ## Editing and task metadata
@@ -320,6 +330,7 @@ experience.
   - body/notes
   - due date/time
   - recurrence
+  - follow-up links to other templates
   - pilar / paused / streak fields
 - Backlog tasks can be promoted into templates.
 - Tags now support hierarchical strings such as `ejercicio>cuello`.

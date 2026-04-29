@@ -5,7 +5,7 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
 
   use PomodoroTrackerWeb, :live_view
 
-  alias PomodoroTracker.{Cadence, Recurrence, Tags, Vault}
+  alias PomodoroTracker.{Cadence, Recurrence, Tags, TemplateLinks, Vault}
   alias PomodoroTrackerWeb.DayLive, as: ExecuteLive
 
   @impl true
@@ -157,6 +157,14 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
     {:noreply, update_form_tags(socket, :new_task_form, &merge_query_tags/1)}
   end
 
+  def handle_event("new:toggle_on_done", %{"id" => id}, socket) do
+    {:noreply, update_form_links(socket, :new_task_form, :on_done_ids, id)}
+  end
+
+  def handle_event("new:toggle_started_by", %{"id" => id}, socket) do
+    {:noreply, update_form_links(socket, :new_task_form, :started_by_ids, id)}
+  end
+
   def handle_event("new:toggle_weekday", %{"day" => day}, socket) do
     {:noreply,
      update_form_tags(socket, :new_task_form, &ExecuteLive.toggle_task_form_weekday(&1, day))}
@@ -178,26 +186,36 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
         zone: form.zone,
         priority: form.priority,
         tags: tags,
+        on_done: form.on_done_ids || [],
         created_at: Date.utc_today() |> Date.to_iso8601()
       }
 
       attrs = ExecuteLive.maybe_put_task_recurrence(attrs, form)
 
-      case Vault.create_task(form.zone, form.kind, attrs) do
-        {:ok, _path} ->
-          socket =
-            if form.add_to_today do
-              day = socket.assigns.day
-              Vault.save_day(%{day | order: day.order ++ [id]})
-              socket
-            else
-              socket
-            end
+      case validate_template_links(socket.assigns.tasks, id, form) do
+        {:ok, link_updates} ->
+          case Vault.create_task(form.zone, form.kind, attrs) do
+            {:ok, _path} ->
+              if form.kind == :templates, do: Vault.apply_template_link_updates(link_updates)
 
-          {:noreply, socket |> assign(:new_task_form, nil) |> load_data()}
+              socket =
+                if form.add_to_today do
+                  day = socket.assigns.day
+                  day_id = ExecuteLive.materialize_new_task_for_today(form, id)
+                  Vault.save_day(%{day | order: day.order ++ [day_id]})
+                  socket
+                else
+                  socket
+                end
+
+              {:noreply, socket |> assign(:new_task_form, nil) |> load_data()}
+
+            {:error, reason} ->
+              {:noreply, put_flash(socket, :error, "Could not create: #{inspect(reason)}")}
+          end
 
         {:error, reason} ->
-          {:noreply, put_flash(socket, :error, "Could not create: #{inspect(reason)}")}
+          {:noreply, put_flash(socket, :error, TemplateLinks.relation_error_message(reason))}
       end
     end
   end
@@ -206,7 +224,8 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
     t = socket.assigns.tasks[id]
 
     if t do
-      {:noreply, assign(socket, :edit_form, ExecuteLive.task_form_from_task(t))}
+      {:noreply,
+       assign(socket, :edit_form, ExecuteLive.task_form_from_task(t, socket.assigns.tasks))}
     else
       {:noreply, socket}
     end
@@ -227,6 +246,14 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
     {:noreply, update_form_tags(socket, :edit_form, &merge_query_tags/1)}
   end
 
+  def handle_event("edit:toggle_on_done", %{"id" => id}, socket) do
+    {:noreply, update_form_links(socket, :edit_form, :on_done_ids, id)}
+  end
+
+  def handle_event("edit:toggle_started_by", %{"id" => id}, socket) do
+    {:noreply, update_form_links(socket, :edit_form, :started_by_ids, id)}
+  end
+
   def handle_event("edit:toggle_weekday", %{"day" => day}, socket) do
     {:noreply,
      update_form_tags(socket, :edit_form, &ExecuteLive.toggle_task_form_weekday(&1, day))}
@@ -239,18 +266,26 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
       title: f.title,
       priority: f.priority,
       tags: materialized_tags(f),
+      on_done: f.on_done_ids || [],
       related: parse_lines(f.related),
       body: f.body
     }
 
     attrs = ExecuteLive.maybe_put_task_recurrence(attrs, f)
 
-    case Vault.update_task(f.path, attrs) do
-      :ok ->
-        {:noreply, socket |> assign(:edit_form, nil) |> load_data()}
+    case validate_template_links(socket.assigns.tasks, f.id, f) do
+      {:ok, link_updates} ->
+        case Vault.update_task(f.path, attrs) do
+          :ok ->
+            if f.kind == :templates, do: Vault.apply_template_link_updates(link_updates)
+            {:noreply, socket |> assign(:edit_form, nil) |> load_data()}
+
+          {:error, reason} ->
+            {:noreply, put_flash(socket, :error, "Update failed: #{inspect(reason)}")}
+        end
 
       {:error, reason} ->
-        {:noreply, put_flash(socket, :error, "Update failed: #{inspect(reason)}")}
+        {:noreply, put_flash(socket, :error, TemplateLinks.relation_error_message(reason))}
     end
   end
 
@@ -344,6 +379,25 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
     end
   end
 
+  defp update_form_links(socket, form_key, list_key, id) do
+    case socket.assigns[form_key] do
+      nil ->
+        socket
+
+      form ->
+        current = Map.get(form, list_key, [])
+
+        next =
+          if id in current do
+            List.delete(current, id)
+          else
+            Enum.sort(Enum.uniq(current ++ [id]))
+          end
+
+        assign(socket, form_key, Map.put(form, list_key, next))
+    end
+  end
+
   defp toggle_tag(form, tag) do
     tag = Tags.normalize(tag)
 
@@ -382,6 +436,12 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
     str |> String.split(sep) |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
   end
 
+  defp validate_template_links(tasks, template_id, %{kind: :templates} = form) do
+    TemplateLinks.rewrite(tasks, template_id, form.on_done_ids || [], form.started_by_ids || [])
+  end
+
+  defp validate_template_links(_tasks, _template_id, _form), do: {:ok, %{}}
+
   defp slugify(title) do
     title
     |> String.downcase()
@@ -407,6 +467,7 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
   # View helpers
   defdelegate recurrence_label(rule), to: ExecuteLive
   defdelegate recurrence_compact(rule), to: ExecuteLive
+  defdelegate template_link_choices(tasks, current_id, query), to: ExecuteLive
 
   def last_done_ago(task, _tasks) do
     case task.last_completed_at do

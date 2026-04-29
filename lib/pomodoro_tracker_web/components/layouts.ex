@@ -381,4 +381,54 @@ defmodule PomodoroTrackerWeb.Layouts do
     </div>
     """
   end
+
+  attr :title, :string, required: true
+  attr :selected, :list, required: true
+  attr :choices, :list, required: true
+  attr :query, :string, default: ""
+  attr :input_name, :string, required: true
+  attr :toggle_event, :string, required: true
+  attr :empty_text, :string, default: "No matching templates."
+
+  def template_link_picker(assigns) do
+    ~H"""
+    <div class="space-y-2 rounded-lg border border-white/10 bg-white/5 p-3">
+      <div class="text-[11px] uppercase tracking-[0.18em] text-white/55">{@title}</div>
+      <input
+        name={@input_name}
+        value={@query}
+        placeholder="Filter templates"
+        autocomplete="off"
+        class="w-full rounded bg-white/10 px-2 py-2 text-sm"
+      />
+      <div :if={@selected != []} class="flex flex-wrap gap-1.5">
+        <span
+          :for={choice <- Enum.filter(@choices, &(&1.id in @selected))}
+          class="rounded-full bg-white px-2 py-1 text-xs text-slate-950"
+        >
+          {choice.title}
+        </span>
+      </div>
+      <div :if={@choices == []} class="text-xs text-white/40">{@empty_text}</div>
+      <div :if={@choices != []} class="max-h-40 space-y-1 overflow-y-auto pr-1">
+        <button
+          :for={choice <- @choices}
+          type="button"
+          phx-click={@toggle_event}
+          phx-value-id={choice.id}
+          class={[
+            "flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-xs transition",
+            if(choice.id in @selected,
+              do: "bg-white text-slate-950",
+              else: "bg-white/5 text-white/75 hover:bg-white/10 hover:text-white"
+            )
+          ]}
+        >
+          <span class="truncate">{choice.title}</span>
+          <span class="ml-2 shrink-0 text-[10px] opacity-70"><code>{choice.id}</code></span>
+        </button>
+      </div>
+    </div>
+    """
+  end
 end

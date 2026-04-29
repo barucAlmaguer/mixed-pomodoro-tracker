@@ -1,7 +1,7 @@
 defmodule PomodoroTrackerWeb.DayLive do
   use PomodoroTrackerWeb, :live_view
 
-  alias PomodoroTracker.{Cadence, Priority, Recurrence, Tags, Timer, Vault}
+  alias PomodoroTracker.{Cadence, Priority, Recurrence, Tags, TemplateLinks, Timer, Vault}
 
   @impl true
   def mount(_params, _session, socket) do
@@ -300,8 +300,9 @@ defmodule PomodoroTrackerWeb.DayLive do
 
     Vault.save_day(new_day)
     maybe_refresh_template_completion(task)
+    {:ok, final_day} = materialize_follow_ups(task, new_day, socket.assigns.tasks)
 
-    {:noreply, socket |> assign(:day, new_day) |> load_vault()}
+    {:noreply, socket |> assign(:day, final_day) |> load_vault()}
   end
 
   def handle_event("day:unfinish", %{"id" => id}, socket) do
@@ -342,6 +343,14 @@ defmodule PomodoroTrackerWeb.DayLive do
     {:noreply, update_form_tags(socket, :new_task_form, &merge_query_tags/1)}
   end
 
+  def handle_event("new:toggle_on_done", %{"id" => id}, socket) do
+    {:noreply, update_form_links(socket, :new_task_form, :on_done_ids, id)}
+  end
+
+  def handle_event("new:toggle_started_by", %{"id" => id}, socket) do
+    {:noreply, update_form_links(socket, :new_task_form, :started_by_ids, id)}
+  end
+
   def handle_event("new:toggle_weekday", %{"day" => day}, socket) do
     {:noreply, update_form_tags(socket, :new_task_form, &toggle_task_form_weekday(&1, day))}
   end
@@ -362,26 +371,36 @@ defmodule PomodoroTrackerWeb.DayLive do
         zone: form.zone,
         priority: form.priority,
         tags: tags,
+        on_done: form.on_done_ids || [],
         created_at: Date.utc_today() |> Date.to_iso8601()
       }
 
       attrs = maybe_put_task_recurrence(attrs, form)
 
-      case Vault.create_task(form.zone, form.kind, attrs) do
-        {:ok, _path} ->
-          socket =
-            if form.add_to_today do
-              day = socket.assigns.day
-              Vault.save_day(%{day | order: day.order ++ [id]})
-              socket
-            else
-              socket
-            end
+      case validate_template_links(socket.assigns.tasks, id, form) do
+        {:ok, link_updates} ->
+          case Vault.create_task(form.zone, form.kind, attrs) do
+            {:ok, _path} ->
+              if form.kind == :templates, do: Vault.apply_template_link_updates(link_updates)
 
-          {:noreply, socket |> assign(:new_task_form, nil) |> load_vault()}
+              socket =
+                if form.add_to_today do
+                  day = socket.assigns.day
+                  day_id = materialize_new_task_for_today(form, id)
+                  Vault.save_day(%{day | order: day.order ++ [day_id]})
+                  socket
+                else
+                  socket
+                end
+
+              {:noreply, socket |> assign(:new_task_form, nil) |> load_vault()}
+
+            {:error, reason} ->
+              {:noreply, put_flash(socket, :error, "Could not create: #{inspect(reason)}")}
+          end
 
         {:error, reason} ->
-          {:noreply, put_flash(socket, :error, "Could not create: #{inspect(reason)}")}
+          {:noreply, put_flash(socket, :error, TemplateLinks.relation_error_message(reason))}
       end
     end
   end
@@ -394,7 +413,7 @@ defmodule PomodoroTrackerWeb.DayLive do
     t = socket.assigns.tasks[id]
 
     if t do
-      {:noreply, assign(socket, :edit_form, task_form_from_task(t))}
+      {:noreply, assign(socket, :edit_form, task_form_from_task(t, socket.assigns.tasks))}
     else
       {:noreply, socket}
     end
@@ -414,6 +433,14 @@ defmodule PomodoroTrackerWeb.DayLive do
     {:noreply, update_form_tags(socket, :edit_form, &merge_query_tags/1)}
   end
 
+  def handle_event("edit:toggle_on_done", %{"id" => id}, socket) do
+    {:noreply, update_form_links(socket, :edit_form, :on_done_ids, id)}
+  end
+
+  def handle_event("edit:toggle_started_by", %{"id" => id}, socket) do
+    {:noreply, update_form_links(socket, :edit_form, :started_by_ids, id)}
+  end
+
   def handle_event("edit:toggle_weekday", %{"day" => day}, socket) do
     {:noreply, update_form_tags(socket, :edit_form, &toggle_task_form_weekday(&1, day))}
   end
@@ -425,18 +452,26 @@ defmodule PomodoroTrackerWeb.DayLive do
       title: f.title,
       priority: f.priority,
       tags: materialized_tags(f),
+      on_done: f.on_done_ids || [],
       related: parse_lines(f.related),
       body: f.body
     }
 
     attrs = maybe_put_task_recurrence(attrs, f)
 
-    case Vault.update_task(f.path, attrs) do
-      :ok ->
-        {:noreply, socket |> assign(:edit_form, nil) |> load_vault()}
+    case validate_template_links(socket.assigns.tasks, f.id, f) do
+      {:ok, link_updates} ->
+        case Vault.update_task(f.path, attrs) do
+          :ok ->
+            if f.kind == :templates, do: Vault.apply_template_link_updates(link_updates)
+            {:noreply, socket |> assign(:edit_form, nil) |> load_vault()}
+
+          {:error, reason} ->
+            {:noreply, put_flash(socket, :error, "Update failed: #{inspect(reason)}")}
+        end
 
       {:error, reason} ->
-        {:noreply, put_flash(socket, :error, "Update failed: #{inspect(reason)}")}
+        {:noreply, put_flash(socket, :error, TemplateLinks.relation_error_message(reason))}
     end
   end
 
@@ -681,6 +716,10 @@ defmodule PomodoroTrackerWeb.DayLive do
       priority: "med",
       tags: [],
       tag_query: "",
+      on_done_ids: [],
+      on_done_query: "",
+      started_by_ids: [],
+      started_by_query: "",
       related: "",
       body: "",
       is_break: false,
@@ -693,7 +732,7 @@ defmodule PomodoroTrackerWeb.DayLive do
     |> Map.merge(opts)
   end
 
-  def task_form_from_task(task) do
+  def task_form_from_task(task, tasks \\ %{}) do
     task.kind
     |> task_form_defaults(task.zone, %{
       id: task.id,
@@ -703,6 +742,8 @@ defmodule PomodoroTrackerWeb.DayLive do
       title: task.title,
       priority: task.priority || "med",
       tags: visible_task_tags(task.tags || []),
+      on_done_ids: TemplateLinks.on_done_ids(task),
+      started_by_ids: TemplateLinks.started_by_ids(tasks, task.id),
       related: Enum.join(task.related || [], "\n"),
       body: task.body || "",
       is_break: "break" in (task.tags || [])
@@ -716,6 +757,8 @@ defmodule PomodoroTrackerWeb.DayLive do
       title: params["title"] || "",
       priority: params["priority"] || "med",
       tag_query: params["tag_query"] || "",
+      on_done_query: params["on_done_query"] || Map.get(form, :on_done_query, ""),
+      started_by_query: params["started_by_query"] || Map.get(form, :started_by_query, ""),
       related: params["related"] || Map.get(form, :related, ""),
       body: params["body"] || Map.get(form, :body, ""),
       is_break: params["is_break"] == "true",
@@ -751,6 +794,18 @@ defmodule PomodoroTrackerWeb.DayLive do
 
   defp maybe_refresh_template_completion(_task), do: :ok
 
+  def template_link_choices(tasks, current_id, query \\ "") do
+    needle = query |> to_string() |> String.trim() |> String.downcase()
+
+    tasks
+    |> TemplateLinks.candidate_templates(current_id)
+    |> Enum.filter(fn task ->
+      needle == "" or
+        String.contains?(String.downcase(task.title || ""), needle) or
+        String.contains?(String.downcase(task.id), needle)
+    end)
+  end
+
   defp parse_lines(str, sep \\ "\n")
   defp parse_lines(nil, _sep), do: []
   defp parse_lines("", _sep), do: []
@@ -758,6 +813,81 @@ defmodule PomodoroTrackerWeb.DayLive do
   defp parse_lines(str, sep) when is_binary(str) do
     str |> String.split(sep) |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
   end
+
+  defp validate_template_links(tasks, template_id, %{kind: :templates} = form) do
+    TemplateLinks.rewrite(tasks, template_id, form.on_done_ids || [], form.started_by_ids || [])
+  end
+
+  defp validate_template_links(_tasks, _template_id, _form), do: {:ok, %{}}
+
+  defp update_form_links(socket, form_key, list_key, id) do
+    case socket.assigns[form_key] do
+      nil ->
+        socket
+
+      form ->
+        current = Map.get(form, list_key, [])
+
+        next =
+          if id in current do
+            List.delete(current, id)
+          else
+            Enum.sort(Enum.uniq(current ++ [id]))
+          end
+
+        assign(socket, form_key, Map.put(form, list_key, next))
+    end
+  end
+
+  defp materialize_follow_ups(%{from_template: template_id}, day, tasks)
+       when is_binary(template_id) do
+    source_template = tasks[template_id]
+
+    follow_up_ids =
+      source_template
+      |> TemplateLinks.on_done_ids()
+      |> Enum.uniq()
+
+    {final_day, _created} =
+      Enum.reduce(follow_up_ids, {day, []}, fn target_id, {current_day, created_ids} ->
+        case tasks[target_id] do
+          %{kind: :templates} = target_template ->
+            case Vault.instantiate_follow_up(target_template, current_day) do
+              {:ok, resolved_id} ->
+                if resolved_id in current_day.order or resolved_id in current_day.active do
+                  {current_day, created_ids}
+                else
+                  next_day = %{current_day | order: current_day.order ++ [resolved_id]}
+                  Vault.save_day(next_day)
+                  {next_day, [resolved_id | created_ids]}
+                end
+            end
+
+          _ ->
+            {current_day, created_ids}
+        end
+      end)
+
+    {:ok, final_day}
+  end
+
+  defp materialize_follow_ups(_task, day, _tasks), do: {:ok, day}
+
+  def materialize_new_task_for_today(%{kind: :templates, zone: zone}, id) do
+    zone
+    |> Vault.list_tasks(:templates)
+    |> Enum.find(&(&1.id == id))
+    |> case do
+      %{kind: :templates} = template ->
+        {:ok, instance_id} = Vault.instantiate_template(template)
+        instance_id
+
+      _ ->
+        id
+    end
+  end
+
+  def materialize_new_task_for_today(_form, id), do: id
 
   defp slugify(title) do
     title

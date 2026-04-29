@@ -18,6 +18,9 @@ Hammerspoon / menubar / floating-panel integration is currently disabled. The su
   filters and a UI picker backed by per-vault YAML registries
 - `/planner` now centers on one unified planning inventory plus compact strips
   for today's tasks, dragged-forward work, and suggestions
+- Templates can chain into other templates on completion through `On done` /
+  `Started by`, with same-day follow-up recreation when the earlier instance is
+  already done
 
 ## Product docs
 
@@ -80,7 +83,8 @@ The app creates `pomodoro-tracker/` subfolders inside each vault on first run if
 1. **Morning (plan)** — open `/planner`, curate templates/backlog, and push tasks into Today.
    Templates now support UI-configurable recurrence: `daily`, `weekly` with
    weekday chips, and `every X days|months|years` with fixed-calendar or
-   reset-on-completion anchoring.
+   reset-on-completion anchoring. Reusable templates can also link to follow-up
+   templates that appear automatically when a source task is completed.
 2. **Execute** — open `/`, optionally activate a Today task (up to 2), and hit **Start work** on the timer. You can also start with no active task and assign one later without resetting the pomodoro.
 3. **Break** — when the work interval ends, choose **Active** (quick personal task during the break) or **Passive** (pure rest).
 4. **Off hours** — zone switches to personal automatically; work tasks hide unless you toggle the zone filter.

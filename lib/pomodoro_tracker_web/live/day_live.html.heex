@@ -800,6 +800,36 @@
           form={@new_task_form}
           toggle_event="new:toggle_weekday"
         />
+        <PomodoroTrackerWeb.Layouts.template_link_picker
+          :if={@new_task_form.kind == :templates}
+          title="On done"
+          selected={@new_task_form.on_done_ids}
+          choices={
+            template_link_choices(
+              @tasks,
+              Map.get(@new_task_form, :id),
+              @new_task_form.on_done_query
+            )
+          }
+          query={@new_task_form.on_done_query}
+          input_name="task[on_done_query]"
+          toggle_event="new:toggle_on_done"
+        />
+        <PomodoroTrackerWeb.Layouts.template_link_picker
+          :if={@new_task_form.kind == :templates}
+          title="Started by"
+          selected={@new_task_form.started_by_ids}
+          choices={
+            template_link_choices(
+              @tasks,
+              Map.get(@new_task_form, :id),
+              @new_task_form.started_by_query
+            )
+          }
+          query={@new_task_form.started_by_query}
+          input_name="task[started_by_query]"
+          toggle_event="new:toggle_started_by"
+        />
         <label
           :if={@new_task_form.kind == :templates and @new_task_form.zone == :personal}
           class="flex items-center gap-2 text-xs"
@@ -880,6 +910,24 @@
         <PomodoroTrackerWeb.Layouts.recurrence_editor
           form={@edit_form}
           toggle_event="edit:toggle_weekday"
+        />
+        <PomodoroTrackerWeb.Layouts.template_link_picker
+          :if={@edit_form.kind == :templates}
+          title="On done"
+          selected={@edit_form.on_done_ids}
+          choices={template_link_choices(@tasks, @edit_form.id, @edit_form.on_done_query)}
+          query={@edit_form.on_done_query}
+          input_name="task[on_done_query]"
+          toggle_event="edit:toggle_on_done"
+        />
+        <PomodoroTrackerWeb.Layouts.template_link_picker
+          :if={@edit_form.kind == :templates}
+          title="Started by"
+          selected={@edit_form.started_by_ids}
+          choices={template_link_choices(@tasks, @edit_form.id, @edit_form.started_by_query)}
+          query={@edit_form.started_by_query}
+          input_name="task[started_by_query]"
+          toggle_event="edit:toggle_started_by"
         />
         <label class="flex items-center gap-2 text-xs">
           <input type="checkbox" name="task[is_break]" value="true" checked={@edit_form.is_break} />

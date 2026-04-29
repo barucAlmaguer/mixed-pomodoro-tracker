@@ -13,7 +13,7 @@ defmodule PomodoroTracker.Vault do
   """
 
   require Logger
-  alias PomodoroTracker.{Recurrence, Tags}
+  alias PomodoroTracker.{Recurrence, Tags, TemplateLinks}
 
   @type zone :: :work | :personal
   @type pilar :: :salud | :sustento | :limites | :hogar | :pasatiempos | nil
@@ -35,6 +35,7 @@ defmodule PomodoroTracker.Vault do
           source: String.t() | nil,
           source_id: String.t() | nil,
           related: [String.t()],
+          on_done: [String.t()],
           recurrence: map() | nil,
           duration_hint: String.t() | nil,
           kind: :templates | :backlog,
@@ -112,6 +113,8 @@ defmodule PomodoroTracker.Vault do
         source: fm["source"],
         source_id: fm["source_id"],
         related: fm["related"] || [],
+        on_done:
+          if(kind == :templates, do: TemplateLinks.on_done_ids(%{frontmatter: fm}), else: []),
         recurrence: if(kind == :templates, do: Recurrence.normalize(fm["recurrence"]), else: nil),
         duration_hint: fm["duration_hint"],
         from_template: fm["from_template"],
@@ -414,6 +417,22 @@ defmodule PomodoroTracker.Vault do
     end
   end
 
+  def apply_template_link_updates(updates) when is_map(updates) do
+    tasks = list_all_tasks() |> Map.new(&{&1.id, &1})
+
+    Enum.each(updates, fn {template_id, on_done_ids} ->
+      case tasks[template_id] do
+        %{kind: :templates} = template ->
+          save_task(%{template | on_done: on_done_ids})
+
+        _ ->
+          :ok
+      end
+    end)
+
+    :ok
+  end
+
   @doc """
   Instantiates a template into a dated backlog task. Idempotent: if today's
   instance already exists, returns its id without rewriting.
@@ -430,7 +449,7 @@ defmodule PomodoroTracker.Vault do
     else
       attrs =
         tpl.frontmatter
-        |> Map.drop(["id", "recurrence", "paused", "streak", "last_completed_at"])
+        |> Map.drop(["id", "recurrence", "paused", "streak", "last_completed_at", "on_done"])
         |> Map.merge(%{
           "id" => new_id,
           "from_template" => tpl.id,
@@ -440,6 +459,45 @@ defmodule PomodoroTracker.Vault do
       File.mkdir_p!(Path.dirname(path))
       File.write!(path, render(attrs, tpl.body || ""))
       {:ok, new_id}
+    end
+  end
+
+  @doc """
+  Materializes a follow-up instance for the given template on the provided day.
+
+  If there's already a pending/active instance for that template today, it is
+  reused. If earlier instances are already done, a suffixed `-2`, `-3`, ...
+  instance is created so the task can reappear on the same day.
+  """
+  def instantiate_follow_up(%{kind: :templates} = tpl, day) do
+    date = day.date
+    today_instances = template_instances_for_date(tpl, date)
+
+    pending_instance =
+      Enum.find(today_instances, fn task ->
+        task.id in day.order or task.id in day.active
+      end)
+
+    cond do
+      pending_instance ->
+        {:ok, pending_instance.id}
+
+      true ->
+        new_id = next_template_instance_id(tpl.id, date, today_instances)
+        path = Path.join(dir(tpl.zone, :backlog), "#{new_id}.md")
+
+        attrs =
+          tpl.frontmatter
+          |> Map.drop(["id", "recurrence", "paused", "streak", "last_completed_at", "on_done"])
+          |> Map.merge(%{
+            "id" => new_id,
+            "from_template" => tpl.id,
+            "created_at" => Date.to_iso8601(date)
+          })
+
+        File.mkdir_p!(Path.dirname(path))
+        File.write!(path, render(attrs, tpl.body || ""))
+        {:ok, new_id}
     end
   end
 
@@ -777,4 +835,49 @@ defmodule PomodoroTracker.Vault do
     do: Atom.to_string(v)
 
   defp stringify_value(v), do: v
+
+  defp template_instances_for_date(tpl, date) do
+    tpl.zone
+    |> list_tasks(:backlog)
+    |> Enum.filter(fn task ->
+      task.from_template == tpl.id and task_instance_date(task) == date
+    end)
+  end
+
+  defp task_instance_date(task) do
+    with created_at when is_binary(created_at) <- get_in(task, [:frontmatter, "created_at"]),
+         iso <- String.slice(created_at, 0, 10),
+         {:ok, date} <- Date.from_iso8601(iso) do
+      date
+    else
+      _ -> nil
+    end
+  end
+
+  defp next_template_instance_id(template_id, date, instances) do
+    suffix = date |> Date.to_iso8601() |> String.replace("-", "")
+    base_id = "#{template_id}-#{suffix}"
+
+    max_index =
+      instances
+      |> Enum.map(&instance_sequence(&1.id, base_id))
+      |> Enum.max(fn -> 0 end)
+
+    if max_index <= 0, do: base_id, else: "#{base_id}-#{max_index + 1}"
+  end
+
+  defp instance_sequence(id, base_id) when id == base_id, do: 1
+
+  defp instance_sequence(id, base_id) do
+    case Regex.run(~r/^#{Regex.escape(base_id)}-(\d+)$/, id, capture: :all_but_first) do
+      [raw] ->
+        case Integer.parse(raw) do
+          {value, ""} -> value
+          _ -> 0
+        end
+
+      _ ->
+        0
+    end
+  end
 end
