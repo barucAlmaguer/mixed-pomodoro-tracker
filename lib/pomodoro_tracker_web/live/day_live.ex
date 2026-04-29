@@ -206,7 +206,7 @@ defmodule PomodoroTrackerWeb.DayLive do
     else
       case socket.assigns.tasks[id] do
         %{kind: :templates} = tpl ->
-          {:ok, new_id} = Vault.instantiate_template(tpl)
+          {:ok, new_id} = Vault.instantiate_template(tpl, Date.utc_today(), allow_multiple: true)
           day = socket.assigns.day
 
           new_day =
@@ -583,7 +583,7 @@ defmodule PomodoroTrackerWeb.DayLive do
     resolved =
       case tasks[id] do
         %{kind: :templates} = tpl ->
-          {:ok, new_id} = Vault.instantiate_template(tpl, date)
+          {:ok, new_id} = Vault.instantiate_template(tpl, date, allow_multiple: true)
           new_id
 
         _ ->
@@ -926,7 +926,8 @@ defmodule PomodoroTrackerWeb.DayLive do
     |> Enum.find(&(&1.id == id))
     |> case do
       %{kind: :templates} = template ->
-        {:ok, instance_id} = Vault.instantiate_template(template)
+        {:ok, instance_id} =
+          Vault.instantiate_template(template, Date.utc_today(), allow_multiple: true)
         instance_id
 
       _ ->
@@ -1390,7 +1391,7 @@ defmodule PomodoroTrackerWeb.DayLive do
     |> Enum.map(&elem(&1, 0))
   end
 
-  defp backlog_candidates(tasks, zone, exclude_ids, selected_date) do
+  defp backlog_candidates(tasks, zone, exclude_ids, _selected_date) do
     all_candidates =
       tasks
       |> Map.values()
@@ -1398,26 +1399,17 @@ defmodule PomodoroTrackerWeb.DayLive do
         t.kind in [:backlog, :templates] and t.zone == zone
       end)
 
-    instantiated =
-      for %{kind: :backlog, from_template: ft} = task <- all_candidates,
-          is_binary(ft),
-          task_instance_date(task) == selected_date,
-          into: MapSet.new(),
-          do: ft
-
     all_candidates
     |> Enum.reject(&(&1.id in exclude_ids))
-    |> Enum.reject(fn t ->
-      t.kind == :templates and MapSet.member?(instantiated, t.id)
-    end)
   end
 
   @doc """
   Tasks offered during a break. Active break → personal WITHOUT `break` tag
   (quick chores). Passive break → personal WITH `break` tag (rest).
 
-  Templates whose instance already exists are hidden (dedupe). Tasks already
-  on today's plan rank above everything else so you see them first.
+  Tasks already on today's plan rank above everything else so you see them
+  first. Recurrent bases remain visible so you can create a second independent
+  same-day instance when needed.
   """
   def break_picker_tasks(tasks, phase, exclude_ids, day_order, tag_filter) do
     tasks
@@ -1475,7 +1467,7 @@ defmodule PomodoroTrackerWeb.DayLive do
     end)
   end
 
-  defp break_picker_candidates(tasks, phase, exclude_ids, selected_date) do
+  defp break_picker_candidates(tasks, phase, exclude_ids, _selected_date) do
     want_break = phase == :passive_break
 
     all_candidates =
@@ -1485,18 +1477,8 @@ defmodule PomodoroTrackerWeb.DayLive do
         t.zone == :personal and want_break == "break" in (t.tags || [])
       end)
 
-    instantiated =
-      for %{kind: :backlog, from_template: ft} = task <- all_candidates,
-          is_binary(ft),
-          task_instance_date(task) == selected_date,
-          into: MapSet.new(),
-          do: ft
-
     all_candidates
     |> Enum.reject(&(&1.id in exclude_ids))
-    |> Enum.reject(fn t ->
-      t.kind == :templates and MapSet.member?(instantiated, t.id)
-    end)
   end
 
   defp priority_rank("high"), do: 0
@@ -1509,19 +1491,6 @@ defmodule PomodoroTrackerWeb.DayLive do
   end
 
   defp sortable_title(_), do: ""
-
-  defp task_instance_date(%{frontmatter: %{"created_at" => created_at}})
-       when is_binary(created_at) do
-    created_at
-    |> String.slice(0, 10)
-    |> Date.from_iso8601()
-    |> case do
-      {:ok, date} -> date
-      _ -> nil
-    end
-  end
-
-  defp task_instance_date(_task), do: nil
 
   # ---------------------------------------------------------------------------
   # Today split + counts

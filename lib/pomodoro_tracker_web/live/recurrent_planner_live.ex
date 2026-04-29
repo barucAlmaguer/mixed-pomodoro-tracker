@@ -106,7 +106,7 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
   def handle_event("day:add", %{"id" => id}, socket) do
     case socket.assigns.tasks[id] do
       %{kind: :templates} = tpl ->
-        {:ok, new_id} = Vault.instantiate_template(tpl)
+        {:ok, new_id} = Vault.instantiate_template(tpl, Date.utc_today(), allow_multiple: true)
         day = socket.assigns.day
 
         new_day =

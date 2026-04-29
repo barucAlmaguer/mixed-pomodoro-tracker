@@ -434,19 +434,48 @@ defmodule PomodoroTracker.Vault do
   end
 
   @doc """
-  Instantiates a template into a dated backlog task. Idempotent: if today's
-  instance already exists, returns its id without rewriting.
+  Instantiates a template into a dated backlog task.
+
+  Default behavior is idempotent: if that day's base instance already exists,
+  returns its id without rewriting.
+
+  Pass `allow_multiple: true` to force creating an additional same-day instance
+  with a `-2`, `-3`, ... suffix.
 
   Returns `{:ok, new_id}`.
   """
   def instantiate_template(%{kind: :templates} = tpl, date \\ Date.utc_today()) do
+    instantiate_template(tpl, date, [])
+  end
+
+  def instantiate_template(%{kind: :templates} = tpl, date, opts) when is_list(opts) do
     date_suffix = date |> Date.to_iso8601() |> String.replace("-", "")
     new_id = "#{tpl.id}-#{date_suffix}"
     path = Path.join(dir(tpl.zone, :backlog), "#{new_id}.md")
 
-    if File.exists?(path) do
-      {:ok, new_id}
-    else
+    cond do
+      Keyword.get(opts, :allow_multiple, false) ->
+        today_instances = template_instances_for_date(tpl, date)
+        next_id = next_template_instance_id(tpl.id, date, today_instances)
+        next_path = Path.join(dir(tpl.zone, :backlog), "#{next_id}.md")
+
+        attrs =
+          tpl.frontmatter
+          |> Map.drop(["id", "recurrence", "paused", "streak", "last_completed_at", "on_done"])
+          |> Map.merge(%{
+            "id" => next_id,
+            "from_template" => tpl.id,
+            "created_at" => Date.to_iso8601(date)
+          })
+
+        File.mkdir_p!(Path.dirname(next_path))
+        File.write!(next_path, render(attrs, tpl.body || ""))
+        {:ok, next_id}
+
+      File.exists?(path) ->
+        {:ok, new_id}
+
+      true ->
       attrs =
         tpl.frontmatter
         |> Map.drop(["id", "recurrence", "paused", "streak", "last_completed_at", "on_done"])

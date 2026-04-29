@@ -99,7 +99,7 @@ defmodule PomodoroTrackerWeb.PlannerLiveTest do
     assert render(view) =~ "Stretch neck"
   end
 
-  test "planner does not show duplicate recurrent when today's instance already exists", %{
+  test "planner keeps recurrent visible and can add a second same-day instance", %{
     conn: conn
   } do
     {:ok, _} =
@@ -127,8 +127,16 @@ defmodule PomodoroTrackerWeb.PlannerLiveTest do
     |> element(~s(button[phx-click="filter:zone"][phx-value-zone="personal"]))
     |> render_click()
 
-    refute has_element?(view, ~s(button[title="Add to today"][phx-value-id="stretch-neck"]))
+    assert has_element?(view, ~s(button[title="Add to today"][phx-value-id="stretch-neck"]))
     assert render(view) =~ "Stretch neck"
+
+    view
+    |> element(~s(button[title="Add to today"][phx-value-id="stretch-neck"]))
+    |> render_click()
+
+    {:ok, reloaded_day} = Vault.load_day()
+    assert "stretch-neck-#{today_suffix()}" in reloaded_day.order
+    assert "stretch-neck-#{today_suffix()}-2" in reloaded_day.order
   end
 
   test "planner keeps a recurrent visible when only an old instance exists", %{conn: conn} do
@@ -156,6 +164,10 @@ defmodule PomodoroTrackerWeb.PlannerLiveTest do
 
     assert render(view) =~ "Lavar ropa"
     assert render(view) =~ "Actuales / esta semana"
+  end
+
+  defp today_suffix do
+    Date.utc_today() |> Date.to_iso8601() |> String.replace("-", "")
   end
 
   test "planner creates nested tags and registers them in yaml", %{conn: conn} do

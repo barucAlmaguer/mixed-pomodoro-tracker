@@ -128,6 +128,24 @@ defmodule PomodoroTracker.CadenceTest do
     refute Map.has_key?(instance.frontmatter, "recurrence")
   end
 
+  test "manual same-day instantiation can create a second independent instance" do
+    {:ok, _} =
+      template(:personal, "wash-clothes", "Wash clothes",
+        recurrence: %{
+          type: "weekly",
+          weekdays: [1, 2, 3, 4, 5]
+        }
+      )
+
+    [tpl] = Enum.filter(Vault.list_tasks(:personal, :templates), &(&1.id == "wash-clothes"))
+
+    {:ok, first_id} = Vault.instantiate_template(tpl, ~D[2026-04-29])
+    {:ok, second_id} = Vault.instantiate_template(tpl, ~D[2026-04-29], allow_multiple: true)
+
+    assert first_id == "wash-clothes-20260429"
+    assert second_id == "wash-clothes-20260429-2"
+  end
+
   test "refresh_template_completion keeps completion-based recurrence anchored to done date" do
     {:ok, _} =
       template(:personal, "cell-bill", "Pagar celular",
