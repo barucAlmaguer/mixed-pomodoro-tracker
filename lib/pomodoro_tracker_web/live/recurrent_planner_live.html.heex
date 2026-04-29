@@ -10,7 +10,7 @@
       <div>
         <h1 class="text-3xl font-light tracking-tight">Plan</h1>
         <p class="text-white/50 text-sm mt-1">
-          Templates, backlog y archivadas viven aquí. La ejecución diaria se queda en <code>/</code>.
+          Recurrentes, backlog y archivadas viven aquí. La ejecución diaria se queda en <code>/</code>.
         </p>
       </div>
       <.link
@@ -171,7 +171,7 @@
         <div>
           <h2 class="text-xs uppercase tracking-[0.25em] text-white/55">Planning Inventory</h2>
           <p class="mt-1 text-sm text-white/55">
-            Templates y one-offs viven en una sola lista. Los tags mandan; los pilares ya no.
+            Recurrentes y one-offs viven en una sola lista. Los tags mandan; los pilares ya no.
           </p>
         </div>
         <div class="flex gap-1 text-xs">
@@ -223,7 +223,7 @@
           phx-value-zone={backlog_zone(@now, @zone_filter)}
           class="px-3 py-1.5 rounded bg-white/10 hover:bg-white/20"
         >
-          + Template ({backlog_zone(@now, @zone_filter)})
+          + Recurrente ({backlog_zone(@now, @zone_filter)})
         </button>
       </div>
 
@@ -283,64 +283,53 @@
         >
           <div class="flex items-start gap-3">
             <div class="flex-1 min-w-0">
-              <div class="flex items-start gap-2 justify-between">
-                <button phx-click="edit:open" phx-value-id={t.id} class="text-left min-w-0">
-                  <div class="text-sm font-medium truncate">{t.title}</div>
-                </button>
+              <div class="flex items-start justify-between gap-3">
                 <button
-                  :if={t.kind == :templates}
-                  phx-click="toggle:template"
+                  phx-click="edit:open"
                   phx-value-id={t.id}
-                  class={[
-                    "shrink-0 rounded-full px-2 py-1 text-[10px] uppercase tracking-[0.16em]",
-                    if(t.paused,
-                      do: "bg-white/10 text-white/65 hover:bg-white/15",
-                      else: "bg-emerald-500/20 text-emerald-100 hover:bg-emerald-500/30"
-                    )
-                  ]}
-                  title={if(t.paused, do: "Reactivar template", else: "Pausar template")}
+                  class="text-left min-w-0 w-full flex-1"
                 >
-                  {if(t.paused, do: "paused", else: "active")}
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span class={[
+                      "text-sm leading-none shrink-0",
+                      priority_icon_class(t.priority)
+                    ]}>
+                      {priority_icon(t.priority)}
+                    </span>
+                    <div class="text-sm font-medium truncate">{t.title}</div>
+                  </div>
                 </button>
+
+                <div class="flex shrink-0 gap-1 pt-0.5">
+                  <button
+                    :if={t.kind == :templates}
+                    phx-click="toggle:template"
+                    phx-value-id={t.id}
+                    class="w-7 h-7 rounded bg-white/10 hover:bg-white/20 text-[10px]"
+                    title={if(t.paused, do: "Reactivar recurrente", else: "Pausar recurrente")}
+                  >
+                    {if(t.paused, do: "↺", else: "⏸")}
+                  </button>
+                  <button
+                    phx-click="edit:open"
+                    phx-value-id={t.id}
+                    class="w-7 h-7 rounded bg-white/10 hover:bg-white/20 text-xs"
+                    title="Edit"
+                  >
+                    ✎
+                  </button>
+                  <button
+                    phx-click="day:add"
+                    phx-value-id={t.id}
+                    class="w-7 h-7 rounded bg-white/10 hover:bg-white/20 text-xs"
+                    title="Add to today"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
 
-              <div class="mt-2 flex flex-wrap gap-1.5 text-[10px]">
-                <span class={[
-                  "rounded-full px-2 py-1 uppercase tracking-[0.16em]",
-                  planner_kind_class(t)
-                ]}>
-                  {planner_kind_label(t)}
-                </span>
-                <span
-                  :if={planner_meta_badge(planner_state_label(t))}
-                  class={[
-                    "rounded-full px-2 py-1 uppercase tracking-[0.16em]",
-                    planner_state_class(planner_state_label(t))
-                  ]}
-                >
-                  {planner_state_label(t)}
-                </span>
-                <span
-                  :if={t.recurrence}
-                  class="rounded-full bg-white/10 px-2 py-1 uppercase tracking-[0.16em] text-white/70"
-                >
-                  {recurrence_label(t.recurrence)}
-                </span>
-                <span
-                  :if={t.priority}
-                  class="rounded-full bg-white/10 px-2 py-1 uppercase tracking-[0.16em] text-white/65"
-                >
-                  {t.priority}
-                </span>
-                <span
-                  :if={created = created_label(t)}
-                  class="rounded-full bg-white/10 px-2 py-1 text-white/55"
-                >
-                  created {created}
-                </span>
-              </div>
-
-              <div class="mt-3 flex flex-wrap gap-1.5">
+              <div class="mt-2 flex flex-wrap gap-1.5">
                 <span
                   :for={tag <- planner_display_tags(t)}
                   class="rounded-full bg-black/20 px-2 py-1 text-[11px] text-white/75"
@@ -349,51 +338,58 @@
                 </span>
               </div>
 
-              <div
-                :if={show_template_metrics?(t)}
-                class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-white/55"
-              >
-                <span>
+              <div class="mt-2 flex items-center justify-between gap-3 text-[11px] leading-none text-white/55">
+                <div class="min-w-0 flex-1 overflow-hidden whitespace-nowrap">
+                  <div class="truncate">
+                    <span
+                      :if={created_relative(t)}
+                      title={created_label(t) || ""}
+                    >
+                      {created_relative(t)}
+                    </span>
+                    <span
+                      :if={not is_nil(created_relative(t)) and t.kind != :templates}
+                      class="mx-1 text-white/25"
+                    >
+                      |
+                    </span>
+                    <span :if={t.kind != :templates}>
+                      {if(is_binary(t.from_template), do: "instancia", else: "one-off")}
+                    </span>
+                    <span
+                      :if={
+                        not is_nil(created_relative(t)) and
+                          (not is_nil(t.recurrence) or show_template_pause_badge?(t))
+                      }
+                      class="mx-1 text-white/25"
+                    >
+                      |
+                    </span>
+                    <span :if={t.recurrence} title={recurrence_label(t.recurrence) || ""}>
+                      {recurrence_compact(t.recurrence)}
+                    </span>
+                    <span
+                      :if={not is_nil(t.recurrence) and show_template_pause_badge?(t)}
+                      class="mx-1 text-white/25"
+                    >
+                      |
+                    </span>
+                    <span :if={show_template_pause_badge?(t)} class="text-white/70">pausada</span>
+                  </div>
+                </div>
+
+                <div
+                  :if={show_template_metrics?(t)}
+                  class="shrink-0 whitespace-nowrap text-right"
+                >
                   Última vez: <span class="text-white/80">{last_done_ago(t, @tasks)}</span>
-                </span>
-                <span>
+                  <span class="mx-1 text-white/25">|</span>
                   Streak: <span class="text-amber-300">{streak_count(t)}</span>
-                </span>
-                <span class="font-mono tracking-wider text-white/70">
-                  {weekly_status(t, @tasks)}
-                </span>
+                  <span class="ml-2 font-mono tracking-wider text-white/70">
+                    {weekly_status(t, @tasks)}
+                  </span>
+                </div>
               </div>
-
-              <div
-                :if={t.kind != :templates}
-                class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-white/45"
-              >
-                <span>
-                  {if(is_binary(t.from_template),
-                    do: "Instancia derivada de #{t.from_template}",
-                    else: "Tarea one-off"
-                  )}
-                </span>
-              </div>
-            </div>
-
-            <div class="flex shrink-0 gap-1">
-              <button
-                phx-click="edit:open"
-                phx-value-id={t.id}
-                class="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-xs"
-                title="Edit"
-              >
-                ✎
-              </button>
-              <button
-                phx-click="day:add"
-                phx-value-id={t.id}
-                class="w-9 h-9 rounded-full bg-white text-slate-950 hover:bg-white/90 text-sm"
-                title="Add to today"
-              >
-                +
-              </button>
             </div>
           </div>
         </li>
@@ -533,7 +529,9 @@
         class="bg-slate-800 text-white rounded-lg p-4 w-full max-w-sm space-y-3 pointer-events-auto"
       >
         <div class="text-sm font-semibold">
-          New {@new_task_form.kind} · {@new_task_form.zone}
+          {if @new_task_form.kind == :templates,
+            do: "New recurrente",
+            else: "New backlog task"} · {@new_task_form.zone}
         </div>
         <input
           name="task[title]"
@@ -557,6 +555,10 @@
           input_name="task[tag_query]"
           toggle_event="new:toggle_tag"
           add_event="new:add_tag"
+        />
+        <PomodoroTrackerWeb.Layouts.recurrence_editor
+          form={@new_task_form}
+          toggle_event="new:toggle_weekday"
         />
         <label
           :if={@new_task_form.kind == :templates and @new_task_form.zone == :personal}
@@ -606,10 +608,10 @@
       >
         <div class="flex items-center justify-between">
           <div class="text-sm font-semibold">
-            {if @edit_form.kind == :templates, do: "Edit template", else: "Edit task"}
+            {if @edit_form.kind == :templates, do: "Edit recurrente", else: "Edit task"}
           </div>
           <div :if={@edit_form.from_template} class="text-[10px] text-white/60">
-            from template: <code>{@edit_form.from_template}</code>
+            from recurrente: <code>{@edit_form.from_template}</code>
           </div>
         </div>
         <input
@@ -633,6 +635,10 @@
           input_name="task[tag_query]"
           toggle_event="edit:toggle_tag"
           add_event="edit:add_tag"
+        />
+        <PomodoroTrackerWeb.Layouts.recurrence_editor
+          form={@edit_form}
+          toggle_event="edit:toggle_weekday"
         />
         <label class="flex items-center gap-2 text-xs">
           <input type="checkbox" name="task[is_break]" value="true" checked={@edit_form.is_break} />
@@ -670,9 +676,9 @@
               type="button"
               phx-click="edit:promote"
               class="px-3 py-1.5 rounded bg-amber-500/80 hover:bg-amber-500 text-black text-xs"
-              title="Copy this task into templates/ for reuse"
+              title="Copy this task into recurrentes/ for reuse"
             >
-              Convert to template
+              Convert to recurrente
             </button>
           </div>
           <div class="flex gap-2 ml-auto">

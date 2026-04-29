@@ -258,4 +258,127 @@ defmodule PomodoroTrackerWeb.Layouts do
     </div>
     """
   end
+
+  @doc """
+  Recurrence editor for template forms. Shows only the controls that apply to
+  the selected recurrence type.
+  """
+  attr :form, :map, required: true
+  attr :toggle_event, :string, required: true
+
+  def recurrence_editor(assigns) do
+    ~H"""
+    <div
+      :if={@form.kind == :templates}
+      class="space-y-2 rounded-lg border border-white/10 bg-white/5 p-3"
+    >
+      <div class="text-[11px] uppercase tracking-[0.18em] text-white/55">Recurrence</div>
+
+      <select
+        name="task[recurrence_type]"
+        class="w-full rounded bg-white/10 px-2 py-2 text-sm"
+      >
+        <option value="none" selected={@form.recurrence_type == "none"}>Manual template</option>
+        <option value="daily" selected={@form.recurrence_type == "daily"}>Daily</option>
+        <option value="weekly" selected={@form.recurrence_type == "weekly"}>Weekly</option>
+        <option value="interval" selected={@form.recurrence_type == "interval"}>Every X...</option>
+      </select>
+
+      <div :if={@form.recurrence_type == "daily"} class="text-xs text-white/60">
+        Will appear every day.
+      </div>
+
+      <div :if={@form.recurrence_type == "weekly"} class="space-y-2">
+        <div class="text-xs text-white/60">Weekdays</div>
+        <div class="flex flex-wrap gap-1.5">
+          <button
+            :for={day <- 1..7}
+            type="button"
+            phx-click={@toggle_event}
+            phx-value-day={day}
+            class={[
+              "rounded-full px-2 py-1 text-xs transition",
+              if(day in (@form.recurrence_weekdays || []),
+                do: "bg-white text-slate-950",
+                else: "bg-white/5 text-white/70 hover:bg-white/10 hover:text-white"
+              )
+            ]}
+          >
+            {PomodoroTracker.Recurrence.weekday_short(day)}
+          </button>
+        </div>
+      </div>
+
+      <div :if={@form.recurrence_type == "interval"} class="space-y-2">
+        <div class="grid grid-cols-[80px_1fr] gap-2">
+          <input
+            name="task[recurrence_every]"
+            value={@form.recurrence_every}
+            inputmode="numeric"
+            class="rounded bg-white/10 px-2 py-2 text-sm"
+          />
+          <select
+            name="task[recurrence_unit]"
+            class="rounded bg-white/10 px-2 py-2 text-sm"
+          >
+            <option value="days" selected={@form.recurrence_unit == "days"}>days</option>
+            <option value="months" selected={@form.recurrence_unit == "months"}>months</option>
+            <option value="years" selected={@form.recurrence_unit == "years"}>years</option>
+          </select>
+        </div>
+
+        <div class="space-y-1">
+          <label class="text-xs text-white/60">Anchor date</label>
+          <input
+            type="date"
+            name="task[recurrence_anchor_date]"
+            value={@form.recurrence_anchor_date}
+            class="w-full rounded bg-white/10 px-2 py-2 text-sm"
+          />
+        </div>
+
+        <div class="space-y-1">
+          <label class="text-xs text-white/60">Anchor policy</label>
+          <select
+            name="task[recurrence_anchor_mode]"
+            class="w-full rounded bg-white/10 px-2 py-2 text-sm"
+          >
+            <option value="calendar" selected={@form.recurrence_anchor_mode == "calendar"}>
+              Fixed calendar
+            </option>
+            <option value="completion" selected={@form.recurrence_anchor_mode == "completion"}>
+              Reset when done
+            </option>
+          </select>
+        </div>
+
+        <div class="space-y-1">
+          <label class="text-xs text-white/60">Start popping early</label>
+          <div class="grid grid-cols-[80px_1fr] gap-2">
+            <input
+              name="task[recurrence_lead_value]"
+              value={@form.recurrence_lead_value}
+              inputmode="numeric"
+              class="rounded bg-white/10 px-2 py-2 text-sm"
+            />
+            <select
+              name="task[recurrence_lead_unit]"
+              class="rounded bg-white/10 px-2 py-2 text-sm"
+            >
+              <option value="days" selected={@form.recurrence_lead_unit == "days"}>
+                days before
+              </option>
+              <option value="months" selected={@form.recurrence_lead_unit == "months"}>
+                months before
+              </option>
+              <option value="years" selected={@form.recurrence_lead_unit == "years"}>
+                years before
+              </option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+  end
 end

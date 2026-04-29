@@ -78,6 +78,9 @@ The app creates `pomodoro-tracker/` subfolders inside each vault on first run if
 ## Daily flow
 
 1. **Morning (plan)** — open `/planner`, curate templates/backlog, and push tasks into Today.
+   Templates now support UI-configurable recurrence: `daily`, `weekly` with
+   weekday chips, and `every X days|months|years` with fixed-calendar or
+   reset-on-completion anchoring.
 2. **Execute** — open `/`, optionally activate a Today task (up to 2), and hit **Start work** on the timer. You can also start with no active task and assign one later without resetting the pomodoro.
 3. **Break** — when the work interval ends, choose **Active** (quick personal task during the break) or **Passive** (pure rest).
 4. **Off hours** — zone switches to personal automatically; work tasks hide unless you toggle the zone filter.

@@ -13,7 +13,7 @@ defmodule PomodoroTracker.Vault do
   """
 
   require Logger
-  alias PomodoroTracker.Tags
+  alias PomodoroTracker.{Recurrence, Tags}
 
   @type zone :: :work | :personal
   @type pilar :: :salud | :sustento | :limites | :hogar | :pasatiempos | nil
@@ -35,7 +35,7 @@ defmodule PomodoroTracker.Vault do
           source: String.t() | nil,
           source_id: String.t() | nil,
           related: [String.t()],
-          recurrence: String.t() | nil,
+          recurrence: map() | nil,
           duration_hint: String.t() | nil,
           kind: :templates | :backlog,
           path: String.t(),
@@ -112,7 +112,7 @@ defmodule PomodoroTracker.Vault do
         source: fm["source"],
         source_id: fm["source_id"],
         related: fm["related"] || [],
-        recurrence: fm["recurrence"],
+        recurrence: if(kind == :templates, do: Recurrence.normalize(fm["recurrence"]), else: nil),
         duration_hint: fm["duration_hint"],
         from_template: fm["from_template"],
         due_at: fm["due_at"],
@@ -430,7 +430,7 @@ defmodule PomodoroTracker.Vault do
     else
       attrs =
         tpl.frontmatter
-        |> Map.drop(["id"])
+        |> Map.drop(["id", "recurrence", "paused", "streak", "last_completed_at"])
         |> Map.merge(%{
           "id" => new_id,
           "from_template" => tpl.id,
@@ -440,6 +440,37 @@ defmodule PomodoroTracker.Vault do
       File.mkdir_p!(Path.dirname(path))
       File.write!(path, render(attrs, tpl.body || ""))
       {:ok, new_id}
+    end
+  end
+
+  @doc "Recomputes completion metadata for a template from historical day files."
+  def refresh_template_completion(template_id) when is_binary(template_id) do
+    tasks = list_all_tasks() |> Map.new(&{&1.id, &1})
+
+    case tasks[template_id] do
+      %{kind: :templates} = template ->
+        last_completed_at =
+          day_dates()
+          |> Enum.find_value(fn date ->
+            with {:ok, day} <- load_day(date) do
+              if Enum.any?(day.done || [], fn id ->
+                   case tasks[id] do
+                     %{from_template: ^template_id} -> true
+                     _ -> false
+                   end
+                 end) do
+                Date.to_iso8601(date)
+              else
+                nil
+              end
+            end
+          end)
+
+        save_task(%{template | last_completed_at: last_completed_at})
+        :ok
+
+      _ ->
+        :ok
     end
   end
 
@@ -738,6 +769,7 @@ defmodule PomodoroTracker.Vault do
     Map.new(map, fn {k, v} -> {to_string(k), stringify_value(v)} end)
   end
 
+  defp stringify_value(%Date{} = v), do: Date.to_iso8601(v)
   defp stringify_value(v) when is_map(v), do: stringify_keys(v)
   defp stringify_value(v) when is_list(v), do: Enum.map(v, &stringify_value/1)
 

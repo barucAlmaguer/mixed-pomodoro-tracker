@@ -1,6 +1,6 @@
 defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
   @moduledoc """
-  Planning surface for templates, backlog, and archived tasks.
+  Planning surface for recurrents, backlog, and archived tasks.
   """
 
   use PomodoroTrackerWeb, :live_view
@@ -122,34 +122,26 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
   end
 
   def handle_event("new:open", %{"kind" => kind, "zone" => zone}, socket) do
+    kind = String.to_existing_atom(kind)
+    zone = String.to_existing_atom(zone)
+
     {:noreply,
-     assign(socket, :new_task_form, %{
-       kind: String.to_existing_atom(kind),
-       zone: String.to_existing_atom(zone),
-       title: "",
-       priority: "med",
-       tags: [],
-       tag_query: "",
-       is_break: false,
-       add_to_today: false
-     })}
+     assign(
+       socket,
+       :new_task_form,
+       ExecuteLive.task_form_defaults(kind, zone, %{add_to_today: false})
+     )}
   end
 
   def handle_event("new:close", _, socket), do: {:noreply, assign(socket, :new_task_form, nil)}
 
   def handle_event("new:change", %{"task" => p}, socket) do
-    form = socket.assigns.new_task_form
-
-    form = %{
-      form
-      | title: p["title"] || "",
-        priority: p["priority"] || "med",
-        tag_query: p["tag_query"] || "",
-        is_break: p["is_break"] == "true",
-        add_to_today: p["add_to_today"] == "true"
-    }
-
-    {:noreply, assign(socket, :new_task_form, form)}
+    {:noreply,
+     assign(
+       socket,
+       :new_task_form,
+       ExecuteLive.apply_task_form_params(socket.assigns.new_task_form, p)
+     )}
   end
 
   def handle_event("new:toggle_tag", %{"tag" => tag}, socket) do
@@ -158,6 +150,11 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
 
   def handle_event("new:add_tag", _, socket) do
     {:noreply, update_form_tags(socket, :new_task_form, &merge_query_tags/1)}
+  end
+
+  def handle_event("new:toggle_weekday", %{"day" => day}, socket) do
+    {:noreply,
+     update_form_tags(socket, :new_task_form, &ExecuteLive.toggle_task_form_weekday(&1, day))}
   end
 
   def handle_event("new:submit", _params, socket) do
@@ -178,6 +175,8 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
         tags: tags,
         created_at: Date.utc_today() |> Date.to_iso8601()
       }
+
+      attrs = ExecuteLive.maybe_put_task_recurrence(attrs, form)
 
       case Vault.create_task(form.zone, form.kind, attrs) do
         {:ok, _path} ->
@@ -202,22 +201,7 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
     t = socket.assigns.tasks[id]
 
     if t do
-      form = %{
-        id: id,
-        path: t.path,
-        kind: t.kind,
-        from_template: t.from_template,
-        zone: t.zone,
-        title: t.title,
-        priority: t.priority || "med",
-        tags: visible_task_tags(t.tags || []),
-        tag_query: "",
-        related: Enum.join(t.related || [], "\n"),
-        body: t.body || "",
-        is_break: "break" in (t.tags || [])
-      }
-
-      {:noreply, assign(socket, :edit_form, form)}
+      {:noreply, assign(socket, :edit_form, ExecuteLive.task_form_from_task(t))}
     else
       {:noreply, socket}
     end
@@ -226,19 +210,8 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
   def handle_event("edit:close", _, socket), do: {:noreply, assign(socket, :edit_form, nil)}
 
   def handle_event("edit:change", %{"task" => p}, socket) do
-    f = socket.assigns.edit_form
-
-    f = %{
-      f
-      | title: p["title"] || "",
-        priority: p["priority"] || "med",
-        tag_query: p["tag_query"] || "",
-        related: p["related"] || "",
-        body: p["body"] || "",
-        is_break: p["is_break"] == "true"
-    }
-
-    {:noreply, assign(socket, :edit_form, f)}
+    {:noreply,
+     assign(socket, :edit_form, ExecuteLive.apply_task_form_params(socket.assigns.edit_form, p))}
   end
 
   def handle_event("edit:toggle_tag", %{"tag" => tag}, socket) do
@@ -247,6 +220,11 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
 
   def handle_event("edit:add_tag", _, socket) do
     {:noreply, update_form_tags(socket, :edit_form, &merge_query_tags/1)}
+  end
+
+  def handle_event("edit:toggle_weekday", %{"day" => day}, socket) do
+    {:noreply,
+     update_form_tags(socket, :edit_form, &ExecuteLive.toggle_task_form_weekday(&1, day))}
   end
 
   def handle_event("edit:submit", _params, socket) do
@@ -259,6 +237,8 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
       related: parse_lines(f.related),
       body: f.body
     }
+
+    attrs = ExecuteLive.maybe_put_task_recurrence(attrs, f)
 
     case Vault.update_task(f.path, attrs) do
       :ok ->
@@ -304,11 +284,11 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
       {:ok, _path} ->
         {:noreply,
          socket
-         |> put_flash(:info, "Promoted #{task.title} to template")
+         |> put_flash(:info, "Promoted #{task.title} to recurrente")
          |> load_data()}
 
       {:error, :already_exists} ->
-        {:noreply, put_flash(socket, :error, "Template with this id already exists")}
+        {:noreply, put_flash(socket, :error, "Recurrente with this id already exists")}
 
       _ ->
         {:noreply, socket}
@@ -420,11 +400,8 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
   defdelegate due_soon_for_today(day, tasks, now), to: ExecuteLive
 
   # View helpers
-  def recurrence_label(nil), do: nil
-  def recurrence_label("daily"), do: "Cada día"
-  def recurrence_label("weekdays"), do: "Lunes a viernes"
-  def recurrence_label("weekly:" <> days), do: "Semanal (#{days})"
-  def recurrence_label(r), do: r
+  defdelegate recurrence_label(rule), to: ExecuteLive
+  defdelegate recurrence_compact(rule), to: ExecuteLive
 
   def last_done_ago(task, _tasks) do
     case task.last_completed_at do
@@ -483,7 +460,7 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
       end)
   end
 
-  def planner_kind_label(%{kind: :templates}), do: "template"
+  def planner_kind_label(%{kind: :templates}), do: "recurrent"
   def planner_kind_label(%{from_template: from}) when is_binary(from), do: "instance"
   def planner_kind_label(_task), do: "one-off"
 
@@ -513,10 +490,45 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
 
   def show_template_metrics?(task), do: task.kind == :templates
 
+  def show_template_pause_badge?(task), do: task.kind == :templates and task.paused
+
   def created_label(%{frontmatter: %{"created_at" => created_at}}) when is_binary(created_at),
     do: created_at
 
   def created_label(_task), do: nil
+
+  def created_relative(task) do
+    case created_label(task) do
+      nil ->
+        nil
+
+      created_at ->
+        case Date.from_iso8601(created_at) do
+          {:ok, date} ->
+            days = Date.diff(Date.utc_today(), date)
+
+            cond do
+              days <= 0 -> "creada: hoy"
+              days == 1 -> "creada: ayer"
+              days < 7 -> "creada: hace #{days} días"
+              true -> "creada: hace #{div(days, 7)} sem"
+            end
+
+          _ ->
+            nil
+        end
+    end
+  end
+
+  def priority_icon_class("high"), do: "text-red-300"
+  def priority_icon_class("med"), do: "text-amber-300"
+  def priority_icon_class("low"), do: "text-white/35"
+  def priority_icon_class(_), do: "text-white/20"
+
+  def priority_icon("high"), do: "↑"
+  def priority_icon("med"), do: "="
+  def priority_icon("low"), do: "↓"
+  def priority_icon(_), do: "·"
 
   def row_chip_class(chip, tag_filter) do
     if MapSet.member?(tag_filter, chip.full) do

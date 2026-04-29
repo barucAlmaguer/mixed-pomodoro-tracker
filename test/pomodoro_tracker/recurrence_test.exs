@@ -3,7 +3,38 @@ defmodule PomodoroTracker.RecurrenceTest do
 
   alias PomodoroTracker.Recurrence
 
-  describe "should_run?/2" do
+  describe "normalize/1" do
+    test "keeps supporting legacy daily and weekly strings" do
+      assert Recurrence.normalize("daily") == %{type: :daily}
+      assert Recurrence.normalize("weekdays") == %{type: :weekly, weekdays: [1, 2, 3, 4, 5]}
+      assert Recurrence.normalize("weekly") == %{type: :weekly, weekdays: [1, 2, 3, 4, 5]}
+      assert Recurrence.normalize("weekly:tue,thu") == %{type: :weekly, weekdays: [2, 4]}
+      assert Recurrence.normalize("garbage") == nil
+    end
+
+    test "normalizes structured interval maps" do
+      recurrence =
+        Recurrence.normalize(%{
+          "type" => "interval",
+          "every" => 1,
+          "unit" => "months",
+          "anchor_date" => "2026-04-25",
+          "anchor_mode" => "calendar",
+          "lead" => %{"value" => 0, "unit" => "days"}
+        })
+
+      assert recurrence == %{
+               type: :interval,
+               every: 1,
+               unit: :months,
+               anchor_date: ~D[2026-04-25],
+               anchor_mode: :calendar,
+               lead: nil
+             }
+    end
+  end
+
+  describe "should_run?/3" do
     test "nil and empty rules never run" do
       d = ~D[2026-04-26]
       refute Recurrence.should_run?(nil, d)
@@ -17,20 +48,14 @@ defmodule PomodoroTracker.RecurrenceTest do
       end
     end
 
-    test "weekdays runs Mon-Fri only" do
-      # 2026-04-20 is Mon, 25 Sat, 26 Sun, 27 Mon
-      assert Recurrence.should_run?("weekdays", ~D[2026-04-20])
-      refute Recurrence.should_run?("weekdays", ~D[2026-04-25])
-      refute Recurrence.should_run?("weekdays", ~D[2026-04-26])
-      assert Recurrence.should_run?("weekdays", ~D[2026-04-27])
-    end
-
-    test "weekly without days defaults to Monday" do
+    test "weekly defaults to weekdays" do
       assert Recurrence.should_run?("weekly", ~D[2026-04-20])
-      refute Recurrence.should_run?("weekly", ~D[2026-04-21])
+      assert Recurrence.should_run?("weekly", ~D[2026-04-24])
+      refute Recurrence.should_run?("weekly", ~D[2026-04-25])
+      refute Recurrence.should_run?("weekly", ~D[2026-04-26])
     end
 
-    test "weekly:mon,wed,fri" do
+    test "weekly with explicit days stays exact" do
       rule = "weekly:mon,wed,fri"
       assert Recurrence.should_run?(rule, ~D[2026-04-20])
       refute Recurrence.should_run?(rule, ~D[2026-04-21])
@@ -40,23 +65,45 @@ defmodule PomodoroTracker.RecurrenceTest do
       refute Recurrence.should_run?(rule, ~D[2026-04-25])
     end
 
-    test "case + spacing tolerant" do
-      assert Recurrence.should_run?("  Daily  ", ~D[2026-04-26])
-      assert Recurrence.should_run?("Weekly:Mon, Wed", ~D[2026-04-20])
+    test "calendar intervals can pop early" do
+      recurrence = %{
+        "type" => "interval",
+        "every" => 1,
+        "unit" => "years",
+        "anchor_date" => "2026-11-16",
+        "anchor_mode" => "calendar",
+        "lead" => %{"value" => 1, "unit" => "months"}
+      }
+
+      assert Recurrence.should_run?(recurrence, ~D[2026-10-16])
+      refute Recurrence.should_run?(recurrence, ~D[2026-11-16])
     end
 
-    test "weekly with unknown day tokens returns unknown" do
-      refute Recurrence.should_run?("weekly:funday", ~D[2026-04-20])
-    end
-  end
+    test "completion intervals use last_completed_at as the reset point" do
+      recurrence = %{
+        "type" => "interval",
+        "every" => 28,
+        "unit" => "days",
+        "anchor_date" => "2026-04-15",
+        "anchor_mode" => "completion"
+      }
 
-  describe "parse/1" do
-    test "returns structured rules" do
-      assert Recurrence.parse("daily") == :daily
-      assert Recurrence.parse("weekdays") == :weekdays
-      assert Recurrence.parse("weekly") == {:weekly, [1]}
-      assert Recurrence.parse("weekly:tue,thu") == {:weekly, [2, 4]}
-      assert Recurrence.parse("garbage") == :unknown
+      assert Recurrence.should_run?(recurrence, ~D[2026-05-13], %{last_completed_at: "2026-04-15"})
+
+      refute Recurrence.should_run?(recurrence, ~D[2026-05-05], %{last_completed_at: "2026-04-15"})
+    end
+
+    test "completion intervals fall back to anchor_date when never completed" do
+      recurrence = %{
+        "type" => "interval",
+        "every" => 1,
+        "unit" => "months",
+        "anchor_date" => "2026-05-05",
+        "anchor_mode" => "completion"
+      }
+
+      assert Recurrence.should_run?(recurrence, ~D[2026-06-05], %{last_completed_at: nil})
+      refute Recurrence.should_run?(recurrence, ~D[2026-05-05], %{last_completed_at: nil})
     end
   end
 end

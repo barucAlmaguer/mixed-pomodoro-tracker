@@ -289,15 +289,24 @@ experience.
 
 ## Recurrent tasks
 
-- Recurrent behavior is driven by template frontmatter.
-- Supported recurrence rules:
+- Recurrent behavior is driven by structured template frontmatter.
+- Recurrence can now be created and edited from the UI in both `Execute` and
+  `Plan` when working with templates.
+- Supported recurrence families:
   - `daily`
-  - `weekdays`
-  - `weekly`
-  - `weekly:mon,wed,fri`
+  - `weekly` with explicit weekday selection
+  - `every X days|months|years`
+- Interval recurrences support:
+  - fixed calendar anchoring from a chosen date
+  - reset-on-completion anchoring
+  - optional early-pop behavior such as "1 month before"
 - On first load each day, matching templates are auto-instantiated into backlog
   tasks for that date and injected into `Today`.
 - The day file stores `cadence_ran_for` so the same day is not re-injected.
+- Template instances no longer inherit recurrence metadata; recurrence stays on
+  the template definition only.
+- Completing an instance updates `last_completed_at` on its source template, so
+  completion-based schedules can move correctly.
 - There is no separate first-class habit model or habit-tracker view yet.
 
 ## Editing and task metadata

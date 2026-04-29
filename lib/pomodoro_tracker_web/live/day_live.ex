@@ -1,7 +1,7 @@
 defmodule PomodoroTrackerWeb.DayLive do
   use PomodoroTrackerWeb, :live_view
 
-  alias PomodoroTracker.{Cadence, Priority, Tags, Timer, Vault}
+  alias PomodoroTracker.{Cadence, Priority, Recurrence, Tags, Timer, Vault}
 
   @impl true
   def mount(_params, _session, socket) do
@@ -288,20 +288,31 @@ defmodule PomodoroTrackerWeb.DayLive do
   end
 
   def handle_event("day:finish", %{"id" => id}, socket) do
-    update_day(socket, fn day ->
-      %{
-        day
-        | active: List.delete(day.active, id),
-          order: List.delete(day.order, id),
-          done: day.done ++ [id]
-      }
-    end)
+    task = socket.assigns.tasks[id]
+    day = socket.assigns.day
+
+    new_day = %{
+      day
+      | active: List.delete(day.active, id),
+        order: List.delete(day.order, id),
+        done: day.done ++ [id]
+    }
+
+    Vault.save_day(new_day)
+    maybe_refresh_template_completion(task)
+
+    {:noreply, socket |> assign(:day, new_day) |> load_vault()}
   end
 
   def handle_event("day:unfinish", %{"id" => id}, socket) do
-    update_day(socket, fn day ->
-      %{day | done: List.delete(day.done, id), order: day.order ++ [id]}
-    end)
+    task = socket.assigns.tasks[id]
+    day = socket.assigns.day
+    new_day = %{day | done: List.delete(day.done, id), order: day.order ++ [id]}
+
+    Vault.save_day(new_day)
+    maybe_refresh_template_completion(task)
+
+    {:noreply, socket |> assign(:day, new_day) |> load_vault()}
   end
 
   # ---------------------------------------------------------------------------
@@ -309,34 +320,18 @@ defmodule PomodoroTrackerWeb.DayLive do
   # ---------------------------------------------------------------------------
 
   def handle_event("new:open", %{"kind" => kind, "zone" => zone}, socket) do
+    kind = String.to_existing_atom(kind)
+    zone = String.to_existing_atom(zone)
+
     {:noreply,
-     assign(socket, :new_task_form, %{
-       kind: String.to_existing_atom(kind),
-       zone: String.to_existing_atom(zone),
-       title: "",
-       priority: "med",
-       tags: [],
-       tag_query: "",
-       is_break: false,
-       add_to_today: true
-     })}
+     assign(socket, :new_task_form, task_form_defaults(kind, zone, %{add_to_today: true}))}
   end
 
   def handle_event("new:close", _, socket), do: {:noreply, assign(socket, :new_task_form, nil)}
 
   def handle_event("new:change", %{"task" => p}, socket) do
-    form = socket.assigns.new_task_form
-
-    form = %{
-      form
-      | title: p["title"] || "",
-        priority: p["priority"] || "med",
-        tag_query: p["tag_query"] || "",
-        is_break: p["is_break"] == "true",
-        add_to_today: p["add_to_today"] == "true"
-    }
-
-    {:noreply, assign(socket, :new_task_form, form)}
+    {:noreply,
+     assign(socket, :new_task_form, apply_task_form_params(socket.assigns.new_task_form, p))}
   end
 
   def handle_event("new:toggle_tag", %{"tag" => tag}, socket) do
@@ -345,6 +340,10 @@ defmodule PomodoroTrackerWeb.DayLive do
 
   def handle_event("new:add_tag", _, socket) do
     {:noreply, update_form_tags(socket, :new_task_form, &merge_query_tags/1)}
+  end
+
+  def handle_event("new:toggle_weekday", %{"day" => day}, socket) do
+    {:noreply, update_form_tags(socket, :new_task_form, &toggle_task_form_weekday(&1, day))}
   end
 
   def handle_event("new:submit", _params, socket) do
@@ -365,6 +364,8 @@ defmodule PomodoroTrackerWeb.DayLive do
         tags: tags,
         created_at: Date.utc_today() |> Date.to_iso8601()
       }
+
+      attrs = maybe_put_task_recurrence(attrs, form)
 
       case Vault.create_task(form.zone, form.kind, attrs) do
         {:ok, _path} ->
@@ -393,22 +394,7 @@ defmodule PomodoroTrackerWeb.DayLive do
     t = socket.assigns.tasks[id]
 
     if t do
-      form = %{
-        id: id,
-        path: t.path,
-        kind: t.kind,
-        from_template: t.from_template,
-        zone: t.zone,
-        title: t.title,
-        priority: t.priority || "med",
-        tags: visible_task_tags(t.tags || []),
-        tag_query: "",
-        related: Enum.join(t.related || [], "\n"),
-        body: t.body || "",
-        is_break: "break" in (t.tags || [])
-      }
-
-      {:noreply, assign(socket, :edit_form, form)}
+      {:noreply, assign(socket, :edit_form, task_form_from_task(t))}
     else
       {:noreply, socket}
     end
@@ -417,19 +403,7 @@ defmodule PomodoroTrackerWeb.DayLive do
   def handle_event("edit:close", _, socket), do: {:noreply, assign(socket, :edit_form, nil)}
 
   def handle_event("edit:change", %{"task" => p}, socket) do
-    f = socket.assigns.edit_form
-
-    f = %{
-      f
-      | title: p["title"] || "",
-        priority: p["priority"] || "med",
-        tag_query: p["tag_query"] || "",
-        related: p["related"] || "",
-        body: p["body"] || "",
-        is_break: p["is_break"] == "true"
-    }
-
-    {:noreply, assign(socket, :edit_form, f)}
+    {:noreply, assign(socket, :edit_form, apply_task_form_params(socket.assigns.edit_form, p))}
   end
 
   def handle_event("edit:toggle_tag", %{"tag" => tag}, socket) do
@@ -438,6 +412,10 @@ defmodule PomodoroTrackerWeb.DayLive do
 
   def handle_event("edit:add_tag", _, socket) do
     {:noreply, update_form_tags(socket, :edit_form, &merge_query_tags/1)}
+  end
+
+  def handle_event("edit:toggle_weekday", %{"day" => day}, socket) do
+    {:noreply, update_form_tags(socket, :edit_form, &toggle_task_form_weekday(&1, day))}
   end
 
   def handle_event("edit:submit", _params, socket) do
@@ -450,6 +428,8 @@ defmodule PomodoroTrackerWeb.DayLive do
       related: parse_lines(f.related),
       body: f.body
     }
+
+    attrs = maybe_put_task_recurrence(attrs, f)
 
     case Vault.update_task(f.path, attrs) do
       :ok ->
@@ -495,11 +475,11 @@ defmodule PomodoroTrackerWeb.DayLive do
       {:ok, _path} ->
         {:noreply,
          socket
-         |> put_flash(:info, "Promoted #{task.title} to template")
+         |> put_flash(:info, "Promoted #{task.title} to recurrente")
          |> load_vault()}
 
       {:error, :already_exists} ->
-        {:noreply, put_flash(socket, :error, "Template with this id already exists")}
+        {:noreply, put_flash(socket, :error, "Recurrente with this id already exists")}
 
       _ ->
         {:noreply, socket}
@@ -692,6 +672,84 @@ defmodule PomodoroTrackerWeb.DayLive do
     |> Tags.normalize_many()
     |> Enum.reject(&(&1 == "break"))
   end
+
+  def task_form_defaults(kind, zone, opts \\ %{}) do
+    defaults = %{
+      kind: kind,
+      zone: zone,
+      title: "",
+      priority: "med",
+      tags: [],
+      tag_query: "",
+      related: "",
+      body: "",
+      is_break: false,
+      add_to_today: false,
+      from_template: nil
+    }
+
+    defaults
+    |> Map.merge(Recurrence.default_form())
+    |> Map.merge(opts)
+  end
+
+  def task_form_from_task(task) do
+    task.kind
+    |> task_form_defaults(task.zone, %{
+      id: task.id,
+      path: task.path,
+      kind: task.kind,
+      from_template: task.from_template,
+      title: task.title,
+      priority: task.priority || "med",
+      tags: visible_task_tags(task.tags || []),
+      related: Enum.join(task.related || [], "\n"),
+      body: task.body || "",
+      is_break: "break" in (task.tags || [])
+    })
+    |> Map.merge(Recurrence.form_fields(task.recurrence))
+  end
+
+  def apply_task_form_params(form, params) do
+    form
+    |> Map.merge(%{
+      title: params["title"] || "",
+      priority: params["priority"] || "med",
+      tag_query: params["tag_query"] || "",
+      related: params["related"] || Map.get(form, :related, ""),
+      body: params["body"] || Map.get(form, :body, ""),
+      is_break: params["is_break"] == "true",
+      add_to_today:
+        Map.get(
+          params,
+          "add_to_today",
+          if(Map.get(form, :add_to_today), do: "true", else: "false")
+        ) ==
+          "true"
+    })
+    |> Recurrence.apply_form_params(params)
+  end
+
+  def toggle_task_form_weekday(form, day), do: Recurrence.toggle_weekday(form, day)
+
+  def task_form_recurrence(%{kind: :templates} = form), do: Recurrence.from_form(form)
+  def task_form_recurrence(_form), do: nil
+
+  def maybe_put_task_recurrence(attrs, %{kind: :templates} = form) do
+    Map.put(attrs, :recurrence, task_form_recurrence(form))
+  end
+
+  def maybe_put_task_recurrence(attrs, _form), do: attrs
+
+  def recurrence_compact(rule), do: Recurrence.compact_label(rule)
+  def recurrence_label(rule), do: Recurrence.human_label(rule)
+
+  defp maybe_refresh_template_completion(%{from_template: template_id})
+       when is_binary(template_id) do
+    Vault.refresh_template_completion(template_id)
+  end
+
+  defp maybe_refresh_template_completion(_task), do: :ok
 
   defp parse_lines(str, sep \\ "\n")
   defp parse_lines(nil, _sep), do: []
@@ -1448,7 +1506,8 @@ defmodule PomodoroTrackerWeb.DayLive do
             end)
 
           Enum.reduce(day.order, acc, fn id, history ->
-            if Map.has_key?(history, id) or MapSet.member?(done_set, id) or not Map.has_key?(tasks, id) do
+            if Map.has_key?(history, id) or MapSet.member?(done_set, id) or
+                 not Map.has_key?(tasks, id) do
               history
             else
               Map.put(history, id, %{date: date, state: :unfinished})

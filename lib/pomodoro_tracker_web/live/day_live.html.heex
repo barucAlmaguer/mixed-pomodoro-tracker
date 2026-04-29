@@ -744,7 +744,7 @@
           <div>
             <h2 class="text-xs uppercase tracking-wider text-white/60">Planning Lives In Plan</h2>
             <p class="mt-1 text-sm text-white/70">
-              Backlog, templates y archivadas ya viven fuera de la vista de ejecución.
+              Backlog, recurrentes y archivadas ya viven fuera de la vista de ejecución.
             </p>
           </div>
           <.link
@@ -769,7 +769,9 @@
         class="bg-slate-800 text-white rounded-lg p-4 w-full max-w-sm space-y-3 pointer-events-auto"
       >
         <div class="text-sm font-semibold">
-          New {@new_task_form.kind} · {@new_task_form.zone}
+          {if @new_task_form.kind == :templates,
+            do: "New recurrente",
+            else: "New backlog task"} · {@new_task_form.zone}
         </div>
         <input
           name="task[title]"
@@ -793,6 +795,10 @@
           input_name="task[tag_query]"
           toggle_event="new:toggle_tag"
           add_event="new:add_tag"
+        />
+        <PomodoroTrackerWeb.Layouts.recurrence_editor
+          form={@new_task_form}
+          toggle_event="new:toggle_weekday"
         />
         <label
           :if={@new_task_form.kind == :templates and @new_task_form.zone == :personal}
@@ -843,10 +849,10 @@
       >
         <div class="flex items-center justify-between">
           <div class="text-sm font-semibold">
-            {if @edit_form.kind == :templates, do: "Edit template", else: "Edit task"}
+            {if @edit_form.kind == :templates, do: "Edit recurrente", else: "Edit task"}
           </div>
           <div :if={@edit_form.from_template} class="text-[10px] text-white/60">
-            from template: <code>{@edit_form.from_template}</code>
+            from recurrente: <code>{@edit_form.from_template}</code>
           </div>
         </div>
         <input
@@ -870,6 +876,10 @@
           input_name="task[tag_query]"
           toggle_event="edit:toggle_tag"
           add_event="edit:add_tag"
+        />
+        <PomodoroTrackerWeb.Layouts.recurrence_editor
+          form={@edit_form}
+          toggle_event="edit:toggle_weekday"
         />
         <label class="flex items-center gap-2 text-xs">
           <input type="checkbox" name="task[is_break]" value="true" checked={@edit_form.is_break} />
@@ -907,9 +917,9 @@
               type="button"
               phx-click="edit:promote"
               class="px-3 py-1.5 rounded bg-amber-500/80 hover:bg-amber-500 text-black text-xs"
-              title="Copy this task into templates/ for reuse"
+              title="Copy this task into recurrentes/ for reuse"
             >
-              Convert to template
+              Convert to recurrente
             </button>
           </div>
           <div class="flex gap-2 ml-auto">

@@ -496,7 +496,8 @@ Add coverage for:
   - mixed-zone pomodoros
   - task-level effort summaries
 - Make due-date and lead-time behavior more explicit in the UI.
-- Clarify and possibly simplify the recurrent-task model.
+- Decide whether recurrence should eventually backfill missed cycles / overdue
+  scheduled tasks, instead of only popping on the cycle's computed start date.
 
 ## Explicit non-goals for now
 

@@ -42,7 +42,7 @@ defmodule PomodoroTrackerWeb.PlannerLiveTest do
     refute has_element?(view, "#planner-templates")
     assert render(view) =~ "Planning Inventory"
     assert render(view) =~ "Stretch neck"
-    assert render(view) =~ "template"
+    assert render(view) =~ "Recurrentes y one-offs viven en una sola lista"
   end
 
   test "planner can add backlog work into today", %{conn: conn} do
@@ -98,7 +98,7 @@ defmodule PomodoroTrackerWeb.PlannerLiveTest do
     assert render(view) =~ "Stretch neck"
   end
 
-  test "planner does not show duplicate template when today's instance already exists", %{
+  test "planner does not show duplicate recurrent when today's instance already exists", %{
     conn: conn
   } do
     {:ok, _} =

@@ -106,4 +106,48 @@ defmodule PomodoroTracker.CadenceTest do
 
     refute Enum.any?(new_day.order, &String.starts_with?(&1, "stretch-"))
   end
+
+  test "instantiated instances do not inherit recurrence metadata" do
+    {:ok, _} =
+      template(:personal, "water-bill", "Pagar agua",
+        recurrence: %{
+          type: "interval",
+          every: 1,
+          unit: "months",
+          anchor_date: "2026-04-25",
+          anchor_mode: "calendar"
+        }
+      )
+
+    [tpl] = Enum.filter(Vault.list_tasks(:personal, :templates), &(&1.id == "water-bill"))
+    {:ok, instance_id} = Vault.instantiate_template(tpl, ~D[2026-04-25])
+
+    [instance] = Enum.filter(Vault.list_tasks(:personal, :backlog), &(&1.id == instance_id))
+
+    assert instance.recurrence == nil
+    refute Map.has_key?(instance.frontmatter, "recurrence")
+  end
+
+  test "refresh_template_completion keeps completion-based recurrence anchored to done date" do
+    {:ok, _} =
+      template(:personal, "cell-bill", "Pagar celular",
+        recurrence: %{
+          type: "interval",
+          every: 28,
+          unit: "days",
+          anchor_date: "2026-04-15",
+          anchor_mode: "completion"
+        }
+      )
+
+    [tpl] = Enum.filter(Vault.list_tasks(:personal, :templates), &(&1.id == "cell-bill"))
+    {:ok, instance_id} = Vault.instantiate_template(tpl, ~D[2026-05-13])
+    {:ok, day} = Vault.load_day(~D[2026-05-13])
+    Vault.save_day(%{day | order: [], done: [instance_id]})
+
+    :ok = Vault.refresh_template_completion("cell-bill")
+
+    [reloaded] = Enum.filter(Vault.list_tasks(:personal, :templates), &(&1.id == "cell-bill"))
+    assert reloaded.last_completed_at == "2026-05-13"
+  end
 end

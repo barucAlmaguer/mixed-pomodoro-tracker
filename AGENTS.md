@@ -48,6 +48,13 @@ repository. Keep it short, factual, and current.
   - `active_break`: offers personal tasks without the `break` tag
   - `passive_break`: offers personal tasks with the `break` tag
 - Recurring templates are auto-instantiated into today via `Cadence`.
+- Supported recurrence families are now:
+  - `daily`
+  - `weekly` with explicit weekday selection
+  - `interval` (`every X days|months|years`) with `calendar` or `completion`
+    anchoring plus optional early-pop lead time
+- Template instances must not carry recurrence metadata; recurrence belongs only
+  to the template definition.
 
 ## Timer semantics
 
