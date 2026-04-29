@@ -4,6 +4,7 @@ defmodule PomodoroTrackerWeb.PlannerLiveTest do
   import Phoenix.LiveViewTest
 
   alias PomodoroTracker.{Timer, Vault}
+  alias PomodoroTrackerWeb.RecurrentPlannerLive
 
   setup do
     Timer.reset()
@@ -196,6 +197,132 @@ defmodule PomodoroTrackerWeb.PlannerLiveTest do
     |> render_click()
 
     assert render(view) =~ "Acicalar perritas"
+  end
+
+  test "planner sections backlog by horizon and keeps dragged forward collapsed", %{conn: conn} do
+    today = Date.utc_today()
+    current_week_end = Date.add(today, 7 - Date.day_of_week(today))
+    next_week_due = Date.add(current_week_end, 2)
+    later_due = Date.add(current_week_end, 16)
+    old_day = Date.add(today, -2)
+
+    {:ok, _} =
+      Vault.create_task(:personal, :backlog, %{
+        id: "current-task",
+        title: "Current task",
+        priority: "med",
+        due_at: Date.to_iso8601(today)
+      })
+
+    {:ok, _} =
+      Vault.create_task(:personal, :backlog, %{
+        id: "next-task",
+        title: "Next week task",
+        priority: "med",
+        due_at: Date.to_iso8601(next_week_due)
+      })
+
+    {:ok, _} =
+      Vault.create_task(:personal, :backlog, %{
+        id: "later-task",
+        title: "Later task",
+        priority: "med",
+        due_at: Date.to_iso8601(later_due)
+      })
+
+    {:ok, _} =
+      Vault.create_task(:personal, :backlog, %{
+        id: "dragged-task",
+        title: "Dragged task",
+        priority: "high"
+      })
+
+    {:ok, old_plan} = Vault.load_day(old_day)
+    {:ok, _} = Vault.save_day(%{old_plan | order: ["dragged-task"]})
+
+    {:ok, view, _html} = live(conn, "/planner")
+
+    view
+    |> element(~s(button[phx-click="filter:zone"][phx-value-zone="personal"]))
+    |> render_click()
+
+    html = render(view)
+
+    assert html =~ "Dragged Forward (1)"
+    assert html =~ "Actuales / esta semana"
+    assert html =~ "Próxima semana"
+    assert html =~ "Más adelante"
+    assert html =~ "Current task"
+    assert html =~ "Next week task"
+    assert html =~ "Later task"
+    refute has_element?(view, ~s(button[phx-click="edit:open"][phx-value-id="dragged-task"]))
+  end
+
+  test "planner classifies future recurrentes by next pop date instead of treating them as current",
+       %{} do
+    {:ok, _} =
+      Vault.create_task(:personal, :templates, %{
+        id: "pago-celular-baruc",
+        title: "pago celular Baruc",
+        priority: "med",
+        recurrence: %{
+          type: "interval",
+          every: 1,
+          unit: "months",
+          anchor_date: "2026-05-18",
+          anchor_mode: "completion",
+          lead: %{value: 3, unit: "days"}
+        }
+      })
+
+    tasks = Vault.list_all_tasks() |> Map.new(&{&1.id, &1})
+    {:ok, day} = Vault.load_day()
+
+    sections =
+      RecurrentPlannerLive.planner_sectioned_inventory(
+        tasks,
+        day,
+        :personal,
+        MapSet.new(),
+        ~N[2026-04-29 09:00:00],
+        MapSet.new()
+      )
+
+    assert Enum.empty?(sections.current_week)
+    assert Enum.empty?(sections.next_week)
+    assert Enum.map(sections.later, & &1.id) == ["pago-celular-baruc"]
+  end
+
+  test "planner backlog metadata shows recurrence and next occurrence instead of created date", %{
+    conn: conn
+  } do
+    {:ok, _} =
+      Vault.create_task(:personal, :templates, %{
+        id: "pago-celular-baruc",
+        title: "pago celular Baruc",
+        priority: "med",
+        recurrence: %{
+          type: "interval",
+          every: 20,
+          unit: "days",
+          anchor_date: Date.to_iso8601(Date.add(Date.utc_today(), 4)),
+          anchor_mode: "calendar",
+          lead: %{value: 2, unit: "days"}
+        }
+      })
+
+    {:ok, view, _html} = live(conn, "/planner")
+
+    view
+    |> element(~s(button[phx-click="filter:zone"][phx-value-zone="personal"]))
+    |> render_click()
+
+    html = render(view)
+
+    assert html =~ "cada: 20d -2d"
+    assert html =~ "prox: en "
+    refute html =~ "creada:"
+    refute html =~ "due:"
   end
 
   test "finished one-off tasks are hidden from planning inventory and shown in archive", %{

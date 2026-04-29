@@ -5,7 +5,7 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
 
   use PomodoroTrackerWeb, :live_view
 
-  alias PomodoroTracker.{Cadence, Tags, Vault}
+  alias PomodoroTracker.{Cadence, Recurrence, Tags, Vault}
   alias PomodoroTrackerWeb.DayLive, as: ExecuteLive
 
   @impl true
@@ -20,6 +20,7 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
      |> assign(:page_title, "Plan")
      |> assign(:zone_filter, :auto)
      |> assign(:tag_filter, MapSet.new())
+     |> assign(:dragged_collapsed, true)
      |> assign(:archive_visible, false)
      |> assign(:archive, nil)
      |> assign(:archive_state_filter, :unfinished)
@@ -77,6 +78,10 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
 
   def handle_event("filter:clear_tags", _, socket) do
     {:noreply, assign(socket, :tag_filter, MapSet.new())}
+  end
+
+  def handle_event("planner:toggle_dragged", _, socket) do
+    {:noreply, assign(socket, :dragged_collapsed, not socket.assigns.dragged_collapsed)}
   end
 
   def handle_event("archive:show", _, socket) do
@@ -492,30 +497,31 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
 
   def show_template_pause_badge?(task), do: task.kind == :templates and task.paused
 
-  def created_label(%{frontmatter: %{"created_at" => created_at}}) when is_binary(created_at),
-    do: created_at
+  def planner_target_date(task, today \\ Date.utc_today()) do
+    due_date(task) || Recurrence.next_pop_date(Map.get(task, :recurrence), today, task)
+  end
 
-  def created_label(_task), do: nil
+  def proximity_title(task, today \\ Date.utc_today()) do
+    case planner_target_date(task, today) do
+      %Date{} = date -> Date.to_iso8601(date)
+      _ -> nil
+    end
+  end
 
-  def created_relative(task) do
-    case created_label(task) do
+  def proximity_label(task, today \\ Date.utc_today()) do
+    case planner_target_date(task, today) do
       nil ->
         nil
 
-      created_at ->
-        case Date.from_iso8601(created_at) do
-          {:ok, date} ->
-            days = Date.diff(Date.utc_today(), date)
+      %Date{} = date ->
+        days = Date.diff(date, today)
 
-            cond do
-              days <= 0 -> "creada: hoy"
-              days == 1 -> "creada: ayer"
-              days < 7 -> "creada: hace #{days} días"
-              true -> "creada: hace #{div(days, 7)} sem"
-            end
-
-          _ ->
-            nil
+        cond do
+          days == 0 -> "prox: hoy"
+          days == 1 -> "prox: mañana"
+          days == -1 -> "prox: ayer"
+          days > 1 -> "prox: en #{days} días"
+          true -> "prox: hace #{abs(days)} días"
         end
     end
   end
@@ -563,6 +569,70 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
     tasks
     |> filtered_backlog(zone, tag_filter, exclude_ids)
     |> Enum.reject(&MapSet.member?(hidden_ids, &1.id))
+  end
+
+  def planner_dragged_forward(tasks, day, zone, tag_filter) do
+    tasks
+    |> unfinished_recent(day)
+    |> Enum.filter(fn {_date, task} ->
+      task.zone == zone and Tags.matches_all?(tag_filter, task.tags || [])
+    end)
+    |> Enum.sort_by(fn {date, task} ->
+      {-Date.to_gregorian_days(date), priority_rank(task.priority), sortable_title(task.title)}
+    end)
+  end
+
+  def planner_sectioned_inventory(tasks, day, zone, tag_filter, now, hidden_ids \\ MapSet.new()) do
+    dragged = planner_dragged_forward(tasks, day, zone, tag_filter)
+    dragged_ids = dragged |> Enum.map(&elem(&1, 1).id) |> MapSet.new()
+
+    dated =
+      tasks
+      |> planner_inventory(zone, tag_filter, day.order ++ (day.done || []), hidden_ids)
+      |> Enum.reject(&MapSet.member?(dragged_ids, &1.id))
+
+    today = NaiveDateTime.to_date(now)
+    current_week_end = end_of_week(today)
+    next_week_start = Date.add(current_week_end, 1)
+    next_week_end = Date.add(next_week_start, 6)
+
+    current_week =
+      Enum.filter(dated, fn task ->
+        case planner_target_date(task, today) do
+          nil -> true
+          date -> Date.compare(date, current_week_end) != :gt
+        end
+      end)
+      |> sort_planner_horizon()
+
+    next_week =
+      Enum.filter(dated, fn task ->
+        case planner_target_date(task, today) do
+          nil ->
+            false
+
+          date ->
+            Date.compare(date, next_week_start) != :lt and
+              Date.compare(date, next_week_end) != :gt
+        end
+      end)
+      |> sort_planner_horizon()
+
+    later =
+      Enum.filter(dated, fn task ->
+        case planner_target_date(task, today) do
+          nil -> false
+          date -> Date.compare(date, next_week_end) == :gt
+        end
+      end)
+      |> sort_planner_horizon()
+
+    %{
+      dragged: dragged,
+      current_week: current_week,
+      next_week: next_week,
+      later: later
+    }
   end
 
   defp root_tag_chips(catalog) do
@@ -623,4 +693,46 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
     |> String.split(">", trim: true)
     |> length()
   end
+
+  defp sort_planner_horizon(tasks) do
+    Enum.sort_by(tasks, fn task ->
+      due_sort =
+        case planner_target_date(task, Date.utc_today()) do
+          nil -> {1, ~D[9999-12-31]}
+          date -> {0, date}
+        end
+
+      {due_sort, priority_rank(task.priority), sortable_title(task.title)}
+    end)
+  end
+
+  defp due_date(%{due_at: nil}), do: nil
+  defp due_date(%{due_at: ""}), do: nil
+
+  defp due_date(%{due_at: due_at}) when is_binary(due_at) do
+    case NaiveDateTime.from_iso8601(due_at) do
+      {:ok, dt} ->
+        NaiveDateTime.to_date(dt)
+
+      _ ->
+        case Date.from_iso8601(due_at) do
+          {:ok, date} -> date
+          _ -> nil
+        end
+    end
+  end
+
+  defp due_date(_task), do: nil
+
+  defp end_of_week(%Date{} = date) do
+    Date.add(date, 7 - Date.day_of_week(date))
+  end
+
+  defp priority_rank("high"), do: 0
+  defp priority_rank("med"), do: 1
+  defp priority_rank("low"), do: 2
+  defp priority_rank(_), do: 3
+
+  defp sortable_title(nil), do: ""
+  defp sortable_title(title), do: String.downcase(title)
 end

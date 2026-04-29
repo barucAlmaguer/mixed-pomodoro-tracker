@@ -163,6 +163,32 @@ defmodule PomodoroTracker.Recurrence do
     end
   end
 
+  @doc """
+  Returns the effective "pop" date a recurrence contributes to planning.
+
+  For recurring templates this is the earliest date the task should start
+  appearing, already accounting for `lead`.
+  """
+  @spec next_pop_date(nil | binary() | map(), Date.t(), map()) :: Date.t() | nil
+  def next_pop_date(rule, %Date{} = reference_date, template \\ %{}) do
+    case normalize(rule) do
+      nil ->
+        nil
+
+      %{type: :daily} ->
+        reference_date
+
+      %{type: :weekly, weekdays: weekdays} ->
+        next_weekly_pop_date(reference_date, weekdays)
+
+      %{type: :interval, anchor_mode: :calendar} = recurrence ->
+        next_calendar_pop_date(recurrence, reference_date)
+
+      %{type: :interval, anchor_mode: :completion} = recurrence ->
+        completion_pop_date(recurrence, template)
+    end
+  end
+
   @doc "Compact label for cards and small metadata rows."
   @spec compact_label(nil | binary() | map()) :: binary() | nil
   def compact_label(rule) do
@@ -384,10 +410,50 @@ defmodule PomodoroTracker.Recurrence do
   end
 
   defp pops_on_completion_date?(recurrence, date, template) do
-    anchor = completion_anchor_date(template, recurrence.anchor_date)
-    due_date = shift_date(anchor, recurrence.every, recurrence.unit)
-    pop_date = apply_lead(due_date, recurrence.lead, -1)
+    pop_date = completion_pop_date(recurrence, template)
     Date.compare(pop_date, date) == :eq
+  end
+
+  defp next_weekly_pop_date(reference_date, weekdays) do
+    Enum.find_value(0..6, fn offset ->
+      candidate = Date.add(reference_date, offset)
+      if Date.day_of_week(candidate) in weekdays, do: candidate, else: nil
+    end)
+  end
+
+  defp next_calendar_pop_date(recurrence, reference_date) do
+    do_next_calendar_pop_date(recurrence.anchor_date, recurrence, reference_date, 0)
+  end
+
+  defp do_next_calendar_pop_date(_due_date, _recurrence, _reference_date, steps)
+       when steps > 2048,
+       do: nil
+
+  defp do_next_calendar_pop_date(due_date, recurrence, reference_date, steps) do
+    pop_date = apply_lead(due_date, recurrence.lead, -1)
+
+    case Date.compare(pop_date, reference_date) do
+      :lt ->
+        next_due = shift_date(due_date, recurrence.every, recurrence.unit)
+        do_next_calendar_pop_date(next_due, recurrence, reference_date, steps + 1)
+
+      _ ->
+        pop_date
+    end
+  end
+
+  defp completion_pop_date(recurrence, template) do
+    due_date =
+      case Map.get(template, :last_completed_at) do
+        nil ->
+          recurrence.anchor_date
+
+        _value ->
+          anchor = completion_anchor_date(template, recurrence.anchor_date)
+          shift_date(anchor, recurrence.every, recurrence.unit)
+      end
+
+    apply_lead(due_date, recurrence.lead, -1)
   end
 
   defp completion_anchor_date(template, fallback) do

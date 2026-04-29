@@ -93,7 +93,7 @@ defmodule PomodoroTracker.RecurrenceTest do
       refute Recurrence.should_run?(recurrence, ~D[2026-05-05], %{last_completed_at: "2026-04-15"})
     end
 
-    test "completion intervals fall back to anchor_date when never completed" do
+    test "completion intervals first pop on anchor_date when never completed" do
       recurrence = %{
         "type" => "interval",
         "every" => 1,
@@ -102,8 +102,56 @@ defmodule PomodoroTracker.RecurrenceTest do
         "anchor_mode" => "completion"
       }
 
-      assert Recurrence.should_run?(recurrence, ~D[2026-06-05], %{last_completed_at: nil})
-      refute Recurrence.should_run?(recurrence, ~D[2026-05-05], %{last_completed_at: nil})
+      assert Recurrence.should_run?(recurrence, ~D[2026-05-05], %{last_completed_at: nil})
+      refute Recurrence.should_run?(recurrence, ~D[2026-06-05], %{last_completed_at: nil})
+    end
+  end
+
+  describe "next_pop_date/3" do
+    test "calendar intervals return the next future pop date with lead applied" do
+      recurrence = %{
+        "type" => "interval",
+        "every" => 1,
+        "unit" => "months",
+        "anchor_date" => "2026-05-18",
+        "anchor_mode" => "calendar",
+        "lead" => %{"value" => 3, "unit" => "days"}
+      }
+
+      assert Recurrence.next_pop_date(recurrence, ~D[2026-04-29]) == ~D[2026-05-15]
+      assert Recurrence.next_pop_date(recurrence, ~D[2026-05-16]) == ~D[2026-06-15]
+    end
+
+    test "completion intervals keep the initial anchor pop date until completion resets them" do
+      recurrence = %{
+        "type" => "interval",
+        "every" => 1,
+        "unit" => "months",
+        "anchor_date" => "2026-05-18",
+        "anchor_mode" => "completion",
+        "lead" => %{"value" => 3, "unit" => "days"}
+      }
+
+      assert Recurrence.next_pop_date(recurrence, ~D[2026-04-29], %{last_completed_at: nil}) ==
+               ~D[2026-05-15]
+
+      assert Recurrence.next_pop_date(recurrence, ~D[2026-06-20], %{last_completed_at: nil}) ==
+               ~D[2026-05-15]
+    end
+
+    test "completion intervals move forward after the task is completed" do
+      recurrence = %{
+        "type" => "interval",
+        "every" => 6,
+        "unit" => "months",
+        "anchor_date" => "2026-05-05",
+        "anchor_mode" => "completion"
+      }
+
+      assert Recurrence.next_pop_date(recurrence, ~D[2026-05-10], %{
+               last_completed_at: "2026-05-12"
+             }) ==
+               ~D[2026-11-12]
     end
   end
 end
