@@ -257,6 +257,21 @@ defmodule PomodoroTrackerWeb.DayLive do
     end)
   end
 
+  def handle_event("day:defer_to_tomorrow", %{"id" => id}, socket) do
+    today = Date.utc_today()
+    tomorrow = Date.add(today, 1)
+
+    case defer_task_to_day(today, tomorrow, id, socket.assigns.tasks) do
+      {:ok, :moved, new_day} ->
+        sync_timer_tracking(socket, new_day)
+        {:noreply, socket |> assign(:day, new_day) |> load_vault() |> put_flash(:info, "Moved to tomorrow")}
+
+      {:ok, :merged, new_day} ->
+        sync_timer_tracking(socket, new_day)
+        {:noreply, socket |> assign(:day, new_day) |> load_vault() |> put_flash(:info, "Moved into tomorrow")}
+    end
+  end
+
   def handle_event("day:move", %{"id" => id, "dir" => dir}, socket) do
     update_day(socket, fn day -> %{day | order: move(day.order, id, dir)} end)
   end
@@ -600,6 +615,66 @@ defmodule PomodoroTrackerWeb.DayLive do
     end
   end
 
+  defp defer_task_to_day(from_date, to_date, id, tasks) do
+    resolved =
+      case tasks[id] do
+        %{kind: :templates} = tpl ->
+          {:ok, new_id} = Vault.instantiate_template(tpl, to_date, allow_multiple: true)
+          new_id
+
+        _ ->
+          id
+      end
+
+    {:ok, from_day} = Vault.load_day(from_date)
+    {:ok, to_day} = Vault.load_day(to_date)
+
+    new_from_day = %{
+      from_day
+      | order: List.delete(from_day.order, id),
+        active: List.delete(from_day.active, id),
+        done: List.delete(from_day.done, id),
+        auto_injected: List.delete(from_day.auto_injected || [], id)
+    }
+
+    {status, new_to_day} =
+      if resolved in to_day.order or resolved in to_day.done do
+        {:merged, to_day}
+      else
+        {:moved, %{to_day | order: to_day.order ++ [resolved]}}
+      end
+
+    Vault.save_day(new_from_day)
+    Vault.save_day(new_to_day)
+    increment_dragged_forward_count(resolved, tasks)
+
+    {:ok, status, new_from_day}
+  end
+
+  defp increment_dragged_forward_count(id, tasks) do
+    task =
+      case tasks[id] do
+        nil -> load_task_by_id(id)
+        existing -> existing
+      end
+
+    case task do
+      %{path: _path} = existing ->
+        Vault.save_task(%{
+          existing
+          | dragged_forward_count: (existing.dragged_forward_count || 0) + 1
+        })
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp load_task_by_id(id) when is_binary(id) do
+    Vault.list_all_tasks()
+    |> Enum.find(&(&1.id == id))
+  end
+
   defp parse_selected_date(nil), do: Date.utc_today()
   defp parse_selected_date(""), do: Date.utc_today()
 
@@ -832,6 +907,11 @@ defmodule PomodoroTrackerWeb.DayLive do
   end
 
   def today_follow_up_ids(task, _tasks), do: TemplateLinks.on_done_ids(task)
+
+  def dragged_forward_count(%{dragged_forward_count: count}) when is_integer(count) and count > 0,
+    do: count
+
+  def dragged_forward_count(_task), do: 0
 
   def priority_icon_class("high"), do: "text-red-300"
   def priority_icon_class("med"), do: "text-amber-300"

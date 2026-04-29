@@ -605,12 +605,22 @@
                 </div>
                 <div class="flex gap-2 text-[10px] opacity-60 mt-0.5">
                   <span>{t.zone}</span>
+                  <span :if={dragged_forward_count(t) > 0}>· {dragged_forward_count(t)}↪</span>
                   <span :if={today_follow_up_ids(t, @tasks) != []}>
                     · then: {Enum.join(today_follow_up_ids(t, @tasks), ",")}
                   </span>
                   <span :if={@day.pomodoros[t.id]}>· {@day.pomodoros[t.id]}🍅</span>
                 </div>
               </div>
+              <button
+                :if={not @readonly_day?}
+                phx-click="day:defer_to_tomorrow"
+                phx-value-id={t.id}
+                class="text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/20 shrink-0"
+                title="Trabajar mañana"
+              >
+                ↪
+              </button>
               <button
                 :if={not @readonly_day?}
                 phx-click="day:toggle_active"
@@ -671,6 +681,7 @@
               <div class="text-sm line-through opacity-70 truncate">{t.title}</div>
               <div class="flex gap-2 text-[10px] opacity-60">
                 <span>{t.zone}</span>
+                <span :if={dragged_forward_count(t) > 0}>· {dragged_forward_count(t)}↪</span>
                 <span :if={@day.pomodoros[t.id]}>· {@day.pomodoros[t.id]}🍅</span>
               </div>
             </div>

@@ -97,6 +97,45 @@ defmodule PomodoroTrackerWeb.DayLiveHistoryTest do
     assert File.exists?(Path.join(Vault.dir(:work, :backlog), "cancel-me.md"))
   end
 
+  test "today can move a task to tomorrow and persist dragged count", %{conn: conn} do
+    tomorrow = Date.add(Date.utc_today(), 1)
+
+    {:ok, _} =
+      Vault.create_task(:personal, :backlog, %{
+        id: "carry-forward",
+        title: "Carry forward",
+        priority: "med",
+        tags: ["hogar"]
+      })
+
+    {:ok, _} =
+      Vault.save_day(%{
+        date: Date.utc_today(),
+        order: ["carry-forward"],
+        active: ["carry-forward"],
+        done: [],
+        pomodoros: %{}
+      })
+
+    {:ok, view, _html} = live(conn, "/")
+
+    view
+    |> element(~s([phx-click="day:defer_to_tomorrow"][phx-value-id="carry-forward"]))
+    |> render_click()
+
+    {:ok, today_day} = Vault.load_day()
+    {:ok, tomorrow_day} = Vault.load_day(tomorrow)
+    [task] = Enum.filter(Vault.list_tasks(:personal, :backlog), &(&1.id == "carry-forward"))
+
+    refute "carry-forward" in today_day.order
+    refute "carry-forward" in today_day.active
+    assert "carry-forward" in tomorrow_day.order
+    assert task.dragged_forward_count == 1
+
+    {:ok, tomorrow_view, _html} = live(conn, "/?date=#{Date.to_iso8601(tomorrow)}")
+    assert render(tomorrow_view) =~ "1↪"
+  end
+
   defp make_tmp_vaults do
     base = Path.join(System.tmp_dir!(), "pomo-history-#{System.unique_integer([:positive])}")
     work = Path.join(base, "work")

@@ -46,6 +46,7 @@ defmodule PomodoroTracker.Vault do
           paused: boolean(),
           streak: integer(),
           last_completed_at: String.t() | nil,
+          dragged_forward_count: integer(),
           # Priority fields
           due_at: String.t() | nil,
           lead_time_minutes: integer() | nil
@@ -128,7 +129,8 @@ defmodule PomodoroTracker.Vault do
         pilar: parse_pilar(fm["pilar"]),
         paused: fm["paused"] || false,
         streak: fm["streak"] || 0,
-        last_completed_at: fm["last_completed_at"]
+        last_completed_at: fm["last_completed_at"],
+        dragged_forward_count: fm["dragged_forward_count"] || 0
       }
 
       {:ok, task}
