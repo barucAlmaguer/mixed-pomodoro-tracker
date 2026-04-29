@@ -26,7 +26,13 @@
     <% today_counts = zone_counts(@day, @tasks) %>
     <% dragged_tasks = unfinished_recent(@tasks, @day) |> Enum.take(5) %>
     <% suggested_tasks =
-      planner_suggestions(@tasks, @day, backlog_zone(@now, @zone_filter), @tag_filter)
+      planner_suggestions(
+        @tasks,
+        @day,
+        backlog_zone(@now, @zone_filter),
+        @tag_filter,
+        @planner_hidden_ids
+      )
       |> Enum.take(4) %>
     <% due_soon = due_soon_for_today(@day, @tasks, @now) |> Enum.take(3) %>
 
@@ -226,7 +232,8 @@
           @tasks,
           backlog_zone(@now, @zone_filter),
           @day.order ++ @day.done,
-          @tag_filter
+          @tag_filter,
+          @planner_hidden_ids
         ) %>
       <div class="mb-4 rounded-2xl border border-white/10 bg-black/20 p-3">
         <div class="space-y-3">
@@ -260,11 +267,12 @@
         <li
           :for={
             t <-
-              filtered_backlog(
+              planner_inventory(
                 @tasks,
                 backlog_zone(@now, @zone_filter),
                 @tag_filter,
-                @day.order ++ @day.done
+                @day.order ++ @day.done,
+                @planner_hidden_ids
               )
           }
           class={[

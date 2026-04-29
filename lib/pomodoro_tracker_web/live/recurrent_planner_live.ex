@@ -319,10 +319,27 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
     tasks = Vault.list_all_tasks() |> Map.new(&{&1.id, &1})
     {:ok, day} = Vault.load_day()
     day = Cadence.ensure_run!(day, tasks)
+    task_history = ExecuteLive.task_history_index(tasks)
+
+    hidden_ids =
+      task_history
+      |> Enum.flat_map(fn
+        {id, %{state: :finished}} ->
+          case tasks[id] do
+            %{kind: :templates} -> []
+            _ -> [id]
+          end
+
+        _ ->
+          []
+      end)
+      |> MapSet.new()
 
     socket
     |> assign(:day, day)
     |> assign(:tasks, tasks)
+    |> assign(:task_history, task_history)
+    |> assign(:planner_hidden_ids, hidden_ids)
     |> assign(:tag_registry, ExecuteLive.merged_tag_registry(tasks))
   end
 
@@ -396,6 +413,7 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
   defdelegate load_archive(), to: ExecuteLive
   defdelegate archive_entries(archive, state_filter, zone_filter), to: ExecuteLive
   defdelegate tag_suggestions(tag_registry, tasks, zone), to: ExecuteLive
+  defdelegate task_history_index(tasks), to: ExecuteLive
   defdelegate today_pending_ids(day, tasks, hide_work?), to: ExecuteLive
   defdelegate zone_counts(day, tasks), to: ExecuteLive
   defdelegate unfinished_recent(tasks, current_day), to: ExecuteLive
@@ -436,8 +454,8 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
     task.streak || 0
   end
 
-  def planner_tag_rows(tasks, zone, exclude_ids, tag_filter) do
-    candidates = filtered_backlog(tasks, zone, MapSet.new(), exclude_ids)
+  def planner_tag_rows(tasks, zone, exclude_ids, tag_filter, hidden_ids \\ MapSet.new()) do
+    candidates = planner_inventory(tasks, zone, MapSet.new(), exclude_ids, hidden_ids)
     catalog = planner_tag_catalog(candidates)
     selected = tag_filter |> Enum.to_list() |> Tags.normalize_many()
 
@@ -525,8 +543,14 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
     end)
   end
 
-  def planner_suggestions(tasks, day, zone, tag_filter) do
-    filtered_backlog(tasks, zone, tag_filter, day.order ++ (day.done || []))
+  def planner_suggestions(tasks, day, zone, tag_filter, hidden_ids \\ MapSet.new()) do
+    planner_inventory(tasks, zone, tag_filter, day.order ++ (day.done || []), hidden_ids)
+  end
+
+  def planner_inventory(tasks, zone, tag_filter, exclude_ids, hidden_ids \\ MapSet.new()) do
+    tasks
+    |> filtered_backlog(zone, tag_filter, exclude_ids)
+    |> Enum.reject(&MapSet.member?(hidden_ids, &1.id))
   end
 
   defp root_tag_chips(catalog) do

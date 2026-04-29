@@ -1407,42 +1407,58 @@ defmodule PomodoroTrackerWeb.DayLive do
     cutoff = Date.add(today, -@unfinished_window_days)
 
     tasks = PomodoroTracker.Vault.list_all_tasks() |> Map.new(&{&1.id, &1})
+    history = task_history_index(tasks)
 
-    {unfinished, finished} =
-      PomodoroTracker.Vault.day_dates()
-      |> Enum.filter(fn d -> Date.compare(d, cutoff) == :lt end)
-      |> Enum.reduce({%{}, %{}}, fn date, {unf, fin} ->
-        case PomodoroTracker.Vault.load_day(date) do
-          {:ok, day} ->
-            done_set = MapSet.new(day.done || [])
-
-            unf =
-              day.order
-              |> Enum.reject(&MapSet.member?(done_set, &1))
-              |> Enum.filter(&Map.has_key?(tasks, &1))
-              |> Enum.reduce(unf, fn id, acc ->
-                Map.update(acc, id, date, fn prev ->
-                  if Date.compare(date, prev) == :gt, do: date, else: prev
-                end)
-              end)
-
-            fin =
-              (day.done || [])
-              |> Enum.filter(&Map.has_key?(tasks, &1))
-              |> Enum.reduce(fin, fn id, acc ->
-                Map.update(acc, id, date, fn prev ->
-                  if Date.compare(date, prev) == :gt, do: date, else: prev
-                end)
-              end)
-
-            {unf, fin}
-
-          _ ->
-            {unf, fin}
-        end
+    unfinished =
+      history
+      |> Enum.filter(fn {_id, %{state: state, date: date}} ->
+        state == :unfinished and Date.compare(date, cutoff) == :lt
       end)
+      |> Map.new(fn {id, %{date: date}} -> {id, date} end)
+
+    finished =
+      history
+      |> Enum.filter(fn {_id, %{state: state}} -> state == :finished end)
+      |> Map.new(fn {id, %{date: date}} -> {id, date} end)
 
     %{tasks: tasks, unfinished: unfinished, finished: finished}
+  end
+
+  @doc """
+  Latest known day-state per task id, newest first:
+  - `:finished` if the most recent appearance was in `day.done`
+  - `:unfinished` if the most recent appearance was still pending in `day.order`
+  """
+  def task_history_index(tasks) do
+    PomodoroTracker.Vault.day_dates()
+    |> Enum.sort({:desc, Date})
+    |> Enum.reduce(%{}, fn date, acc ->
+      case PomodoroTracker.Vault.load_day(date) do
+        {:ok, day} ->
+          done_ids = day.done || []
+          done_set = MapSet.new(done_ids)
+
+          acc =
+            Enum.reduce(done_ids, acc, fn id, history ->
+              if Map.has_key?(history, id) or not Map.has_key?(tasks, id) do
+                history
+              else
+                Map.put(history, id, %{date: date, state: :finished})
+              end
+            end)
+
+          Enum.reduce(day.order, acc, fn id, history ->
+            if Map.has_key?(history, id) or MapSet.member?(done_set, id) or not Map.has_key?(tasks, id) do
+              history
+            else
+              Map.put(history, id, %{date: date, state: :unfinished})
+            end
+          end)
+
+        _ ->
+          acc
+      end
+    end)
   end
 
   @doc "Removes the given task id from the order of every day file in the window."

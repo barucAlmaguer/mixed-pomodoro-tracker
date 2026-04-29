@@ -198,6 +198,39 @@ defmodule PomodoroTrackerWeb.PlannerLiveTest do
     assert render(view) =~ "Acicalar perritas"
   end
 
+  test "finished one-off tasks are hidden from planning inventory and shown in archive", %{
+    conn: conn
+  } do
+    {:ok, _} =
+      Vault.create_task(:personal, :backlog, %{
+        id: "done-once",
+        title: "Already done",
+        priority: "med",
+        tags: ["hogar"]
+      })
+
+    {:ok, day} = Vault.load_day()
+    {:ok, _} = Vault.save_day(%{day | order: [], done: ["done-once"]})
+
+    {:ok, view, _html} = live(conn, "/planner")
+
+    view
+    |> element(~s(button[phx-click="filter:zone"][phx-value-zone="personal"]))
+    |> render_click()
+
+    refute has_element?(view, ~s(button[title="Add to today"][phx-value-id="done-once"]))
+
+    view
+    |> element(~s(button[phx-click="archive:show"]))
+    |> render_click()
+
+    view
+    |> element(~s(button[phx-click="archive:state_filter"][phx-value-state="finished"]))
+    |> render_click()
+
+    assert render(view) =~ "Already done"
+  end
+
   test "execute view links out to planner and no longer renders backlog header", %{conn: conn} do
     {:ok, view, _html} = live(conn, "/")
 
