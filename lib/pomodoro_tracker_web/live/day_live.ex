@@ -1154,9 +1154,7 @@ defmodule PomodoroTrackerWeb.DayLive do
     {klass, style, label} =
       case {entry.phase, Enum.sort(entry.zones)} do
         {:work, [:personal, :work]} ->
-          {"",
-           "background: linear-gradient(90deg, rgba(248,113,113,0.9) 0 50%, rgba(96,165,250,0.9) 50% 100%);",
-           "Mixed work/personal"}
+          {"", mixed_focus_style(), "Mixed work/personal"}
 
         {:work, [:work]} ->
           {"bg-red-400/90", nil, "Work"}
@@ -1175,6 +1173,10 @@ defmodule PomodoroTrackerWeb.DayLive do
       end
 
     segment_visual(entry.started_at, entry.ended_at, range_start, klass, style, label)
+  end
+
+  defp mixed_focus_style do
+    "background: repeating-linear-gradient(135deg, rgba(248,113,113,0.92) 0 5px, rgba(96,165,250,0.92) 5px 10px);"
   end
 
   defp segment_visual(started_at, ended_at, range_start, klass, style, label) do

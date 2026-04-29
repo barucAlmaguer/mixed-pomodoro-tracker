@@ -21,8 +21,8 @@
       />
     </div>
   </div>
-  <div class="fixed top-[3px] left-0 right-0 h-[3px] z-50 pointer-events-none">
-    <div class="relative h-full bg-black/55">
+  <div class="fixed top-[3px] left-0 right-0 h-4 z-50 group/summary">
+    <div class="relative h-[3px] bg-black/55 transition-all duration-150 ease-out group-hover/summary:h-[9px]">
       <div
         :for={segment <- summary.segments}
         class={["absolute top-0 h-full", segment.class]}
