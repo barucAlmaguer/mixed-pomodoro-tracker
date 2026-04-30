@@ -107,6 +107,33 @@ defmodule PomodoroTracker.CadenceTest do
     refute Enum.any?(new_day.order, &String.starts_with?(&1, "stretch-"))
   end
 
+  test "lead time does not auto-inject before the real due date" do
+    {:ok, _} =
+      template(:personal, "pedir-super", "Pedir super",
+        recurrence: %{
+          type: "interval",
+          every: 10,
+          unit: "days",
+          anchor_date: "2026-05-01",
+          anchor_mode: "completion",
+          lead: %{
+            value: 3,
+            unit: "days"
+          }
+        }
+      )
+
+    tasks = Vault.list_all_tasks() |> Map.new(&{&1.id, &1})
+
+    {:ok, early_day} = Vault.load_day(~D[2026-04-30])
+    early_result = Cadence.ensure_run!(early_day, tasks, ~D[2026-04-30])
+    refute Enum.any?(early_result.order, &String.starts_with?(&1, "pedir-super-"))
+
+    {:ok, due_day} = Vault.load_day(~D[2026-05-01])
+    due_result = Cadence.ensure_run!(due_day, tasks, ~D[2026-05-01])
+    assert "pedir-super-20260501" in due_result.order
+  end
+
   test "instantiated instances do not inherit recurrence metadata" do
     {:ok, _} =
       template(:personal, "water-bill", "Pagar agua",

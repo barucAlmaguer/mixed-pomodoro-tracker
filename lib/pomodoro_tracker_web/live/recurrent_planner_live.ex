@@ -585,7 +585,7 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
   def show_template_pause_badge?(task), do: task.kind == :templates and task.paused
 
   def planner_target_date(task, today \\ Date.utc_today()) do
-    due_date(task) || Recurrence.next_pop_date(Map.get(task, :recurrence), today, task)
+    due_date(task) || Recurrence.next_due_date(Map.get(task, :recurrence), today, task)
   end
 
   def proximity_title(task, today \\ Date.utc_today()) do
@@ -648,8 +648,31 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
     end)
   end
 
+  def represented_in_today?(task, day, tasks) do
+    represented_ids = MapSet.new(day.order ++ (day.done || []))
+
+    cond do
+      task.id in represented_ids ->
+        true
+
+      task.kind == :templates ->
+        Enum.any?(represented_ids, fn id ->
+          case tasks[id] do
+            %{from_template: template_id} -> template_id == task.id
+            _ -> false
+          end
+        end)
+
+      true ->
+        false
+    end
+  end
+
   def planner_suggestions(tasks, day, zone, tag_filter, hidden_ids \\ MapSet.new()) do
-    planner_inventory(tasks, zone, tag_filter, day.order ++ (day.done || []), hidden_ids)
+    tasks
+    |> ExecuteLive.recurrence_suggestions(day, zone, Date.utc_today())
+    |> Enum.filter(fn %{task: task} -> Tags.matches_all?(tag_filter, task.tags || []) end)
+    |> Enum.reject(fn %{task: task} -> MapSet.member?(hidden_ids, task.id) end)
   end
 
   def planner_inventory(tasks, zone, tag_filter, exclude_ids, hidden_ids \\ MapSet.new()) do

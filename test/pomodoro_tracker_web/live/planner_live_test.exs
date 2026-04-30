@@ -139,6 +139,28 @@ defmodule PomodoroTrackerWeb.PlannerLiveTest do
     assert "stretch-neck-#{today_suffix()}-2" in reloaded_day.order
   end
 
+  test "planner marks recurrents that are already represented in today", %{conn: conn} do
+    {:ok, _} =
+      Vault.create_task(:personal, :templates, %{
+        id: "pedir-super",
+        title: "Pedir super"
+      })
+
+    [template] = Enum.filter(Vault.list_tasks(:personal, :templates), &(&1.id == "pedir-super"))
+    {:ok, instance_id} = Vault.instantiate_template(template)
+    {:ok, day} = Vault.load_day()
+    {:ok, _} = Vault.save_day(%{day | order: [instance_id]})
+
+    {:ok, view, _html} = live(conn, "/planner")
+
+    view
+    |> element(~s(button[phx-click="filter:zone"][phx-value-zone="personal"]))
+    |> render_click()
+
+    assert has_element?(view, ~s(span[title="Ya forma parte de today"]), "today")
+    assert render(view) =~ "Pedir super"
+  end
+
   test "planner keeps a recurrent visible when only an old instance exists", %{conn: conn} do
     {:ok, _} =
       Vault.create_task(:personal, :templates, %{
@@ -241,7 +263,7 @@ defmodule PomodoroTrackerWeb.PlannerLiveTest do
   test "planner sections backlog by horizon and keeps dragged forward collapsed", %{conn: conn} do
     today = Date.utc_today()
     current_week_end = Date.add(today, 7 - Date.day_of_week(today))
-    next_week_due = Date.add(current_week_end, 2)
+    next_week_due = Date.add(current_week_end, 1)
     later_due = Date.add(current_week_end, 16)
     old_day = Date.add(today, -2)
 
@@ -362,6 +384,64 @@ defmodule PomodoroTrackerWeb.PlannerLiveTest do
     assert html =~ "prox: en "
     refute html =~ "creada:"
     refute html =~ "due:"
+  end
+
+  test "planner keeps lead-window recurrents in next due horizon while surfacing them in suggestions",
+       %{conn: conn} do
+    today = Date.utc_today()
+    current_week_end = Date.add(today, 7 - Date.day_of_week(today))
+    next_week_due = Date.add(current_week_end, 1)
+
+    {:ok, _} =
+      Vault.create_task(:personal, :templates, %{
+        id: "pagar-celular",
+        title: "Pagar celular",
+        priority: "high",
+        recurrence: %{
+          type: "interval",
+          every: 1,
+          unit: "months",
+          anchor_date: Date.to_iso8601(next_week_due),
+          anchor_mode: "calendar",
+          lead: %{value: 4, unit: "days"}
+        }
+      })
+
+    tasks = Vault.list_all_tasks() |> Map.new(&{&1.id, &1})
+    {:ok, day} = Vault.load_day()
+
+    sections =
+      RecurrentPlannerLive.planner_sectioned_inventory(
+        tasks,
+        day,
+        :personal,
+        MapSet.new(),
+        NaiveDateTime.new!(today, ~T[09:00:00]),
+        MapSet.new()
+      )
+
+    assert Enum.empty?(sections.current_week)
+    assert Enum.map(sections.next_week, & &1.id) == ["pagar-celular"]
+
+    suggestions =
+      RecurrentPlannerLive.planner_suggestions(
+        tasks,
+        day,
+        :personal,
+        MapSet.new(),
+        MapSet.new()
+      )
+
+    assert [%{task: %{id: "pagar-celular"}, due_date: ^next_week_due}] = suggestions
+
+    {:ok, view, _html} = live(conn, "/planner")
+
+    view
+    |> element(~s(button[phx-click="filter:zone"][phx-value-zone="personal"]))
+    |> render_click()
+
+    html = render(view)
+    assert html =~ "Pagar celular"
   end
 
   test "planner can edit started_by and persists the reverse on_done relation", %{conn: conn} do

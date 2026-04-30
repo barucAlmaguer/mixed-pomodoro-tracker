@@ -64,8 +64,9 @@ defmodule PomodoroTracker.Cadence do
 
   defp template_for?(%{kind: :templates, paused: true}, _date), do: false
 
-  defp template_for?(%{kind: :templates, recurrence: rule} = template, date),
-    do: Recurrence.should_run?(rule, date, template)
+  defp template_for?(%{kind: :templates, recurrence: rule} = template, date) do
+    Recurrence.next_due_date(rule, date, template) == date
+  end
 
   defp template_for?(_, _), do: false
 
