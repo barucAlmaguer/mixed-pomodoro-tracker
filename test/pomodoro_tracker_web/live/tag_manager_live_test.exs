@@ -4,6 +4,7 @@ defmodule PomodoroTrackerWeb.TagManagerLiveTest do
   import Phoenix.LiveViewTest
 
   alias PomodoroTracker.{Timer, Vault}
+  alias PomodoroTrackerWeb.TagManagerLive
 
   setup do
     Timer.reset()
@@ -46,6 +47,63 @@ defmodule PomodoroTrackerWeb.TagManagerLiveTest do
     assert render(view) =~ "hogar"
     assert render(view) =~ "lavanderia"
     assert render(view) =~ "2"
+  end
+
+  test "tag rows keep children directly under their parent" do
+    rows =
+      TagManagerLive.tag_rows([
+        "hogar>lavanderia",
+        "casa",
+        "hogar",
+        "casa>cocina",
+        "hogar>limpieza"
+      ])
+
+    assert rows == [
+             "casa",
+             "casa>cocina",
+             "hogar",
+             "hogar>lavanderia",
+             "hogar>limpieza"
+           ]
+  end
+
+  test "tags view can expand linked tasks with recurrent and one-off metadata", %{conn: conn} do
+    {:ok, _} =
+      Vault.create_task(:personal, :templates, %{
+        id: "lavar-ropa",
+        title: "Lavar ropa",
+        tags: ["hogar>lavanderia"],
+        last_completed_at: "2026-04-29",
+        streak: 3
+      })
+
+    {:ok, _} =
+      Vault.create_task(:personal, :backlog, %{
+        id: "comprar-jabon",
+        title: "Comprar jabón",
+        tags: ["hogar"]
+      })
+
+    [template] = Enum.filter(Vault.list_tasks(:personal, :templates), &(&1.id == "lavar-ropa"))
+    {:ok, instance_id} = Vault.instantiate_template(template, ~D[2026-04-29])
+    {:ok, day} = Vault.load_day(~D[2026-04-29])
+    {:ok, _} = Vault.save_day(%{day | done: [instance_id]})
+
+    {:ok, view, _html} = live(conn, "/tags?zone=personal")
+
+    view
+    |> element(~s([phx-click="tags:toggle_tasks"][phx-value-tag="hogar"]))
+    |> render_click()
+
+    html = render(view)
+    assert html =~ "tareas vinculadas"
+    assert html =~ "Lavar ropa"
+    assert html =~ "Comprar jabón"
+    assert html =~ "recurrent"
+    assert html =~ "one-off"
+    assert html =~ "done 1"
+    assert html =~ "streak: 3"
   end
 
   test "tags view can create and rename a tag", %{conn: conn} do

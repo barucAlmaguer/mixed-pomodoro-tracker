@@ -20,6 +20,7 @@ defmodule PomodoroTrackerWeb.TagManagerLive do
      |> assign(:zone_filter, :personal)
      |> assign(:new_tag_query, "")
      |> assign(:selected_tags, MapSet.new())
+     |> assign(:expanded_tags, MapSet.new())
      |> assign(:renaming_tag, nil)
      |> assign(:rename_value, "")
      |> assign(:delete_tag_dialog, nil)
@@ -63,6 +64,19 @@ defmodule PomodoroTrackerWeb.TagManagerLive do
       end
 
     {:noreply, assign(socket, :selected_tags, next)}
+  end
+
+  def handle_event("tags:toggle_tasks", %{"tag" => tag}, socket) do
+    tag = Tags.normalize(tag)
+
+    next =
+      if MapSet.member?(socket.assigns.expanded_tags, tag) do
+        MapSet.delete(socket.assigns.expanded_tags, tag)
+      else
+        MapSet.put(socket.assigns.expanded_tags, tag)
+      end
+
+    {:noreply, assign(socket, :expanded_tags, next)}
   end
 
   def handle_event("tags:rename_open", %{"tag" => tag}, socket) do
@@ -211,12 +225,15 @@ defmodule PomodoroTrackerWeb.TagManagerLive do
     tag_registry = ExecuteLive.merged_tag_registry(tasks)
     zone = socket.assigns.zone_filter
     catalog = zone_catalog(tag_registry, tasks, zone)
+    completion_counts = template_completion_counts(tasks)
 
     socket
     |> assign(:tasks, tasks)
     |> assign(:tag_registry, tag_registry)
     |> assign(:tag_catalog, catalog)
+    |> assign(:completion_counts, completion_counts)
     |> assign(:selected_tags, MapSet.intersection(socket.assigns.selected_tags, MapSet.new(catalog)))
+    |> assign(:expanded_tags, MapSet.intersection(socket.assigns.expanded_tags, MapSet.new(catalog)))
   end
 
   def tag_route(params) do
@@ -231,9 +248,7 @@ defmodule PomodoroTrackerWeb.TagManagerLive do
 
   def tag_rows(catalog) do
     catalog
-    |> Enum.sort_by(fn tag ->
-      {tag_depth(tag), Enum.map(String.split(tag, ">", trim: true), &String.downcase/1)}
-    end)
+    |> Enum.sort_by(&String.downcase/1)
   end
 
   def row_indent_class(tag) do
@@ -268,6 +283,42 @@ defmodule PomodoroTrackerWeb.TagManagerLive do
   def family_task_count_for_target(tasks, zone, tag) do
     family_task_count(tasks, zone, tag)
   end
+
+  def linked_tasks(tasks, zone, tag) do
+    tasks
+    |> Map.values()
+    |> Enum.filter(fn task ->
+      task.zone == zone and
+        Enum.any?(visible_task_tags(task), fn task_tag -> Tags.matches?(tag, [task_tag]) end)
+    end)
+    |> Enum.sort_by(fn task ->
+      {task_kind_rank(task), String.downcase(task.title || ""), task.id}
+    end)
+  end
+
+  def linked_task_kind(%{kind: :templates}), do: "recurrent"
+  def linked_task_kind(%{from_template: from}) when is_binary(from), do: nil
+  def linked_task_kind(_task), do: "one-off"
+
+  def linked_task_last_done(nil), do: "Nunca"
+  def linked_task_last_done(""), do: "Nunca"
+
+  def linked_task_last_done(dt) when is_binary(dt) do
+    days = Date.diff(Date.utc_today(), Date.from_iso8601!(String.slice(dt, 0, 10)))
+
+    cond do
+      days == 0 -> "Hoy"
+      days == 1 -> "Ayer"
+      days < 7 -> "#{days} días"
+      true -> "#{div(days, 7)} sem"
+    end
+  end
+
+  def linked_task_done_count(completion_counts, %{kind: :templates, id: id}) do
+    Map.get(completion_counts, id, 0)
+  end
+
+  def linked_task_done_count(_completion_counts, _task), do: nil
 
   def descendant_count(catalog, tag) do
     Enum.count(catalog, fn candidate ->
@@ -354,5 +405,41 @@ defmodule PomodoroTrackerWeb.TagManagerLive do
       [_single] -> nil
       parts -> parts |> Enum.drop(-1) |> Enum.join(">")
     end
+  end
+
+  defp task_kind_rank(%{kind: :templates}), do: 0
+  defp task_kind_rank(%{from_template: from}) when is_binary(from), do: 2
+  defp task_kind_rank(_task), do: 1
+
+  defp template_completion_counts(tasks) do
+    template_ids =
+      tasks
+      |> Map.values()
+      |> Enum.filter(&(&1.kind == :templates))
+      |> Enum.map(& &1.id)
+      |> MapSet.new()
+
+    Vault.day_dates()
+    |> Enum.reduce(%{}, fn date, acc ->
+      case Vault.load_day(date) do
+        {:ok, day} ->
+          Enum.reduce(day.done || [], acc, fn done_id, counts ->
+            case tasks[done_id] do
+              %{from_template: template_id} ->
+                if MapSet.member?(template_ids, template_id) do
+                  Map.update(counts, template_id, 1, &(&1 + 1))
+                else
+                  counts
+                end
+
+              _ ->
+                counts
+            end
+          end)
+
+        _ ->
+          acc
+      end
+    end)
   end
 end

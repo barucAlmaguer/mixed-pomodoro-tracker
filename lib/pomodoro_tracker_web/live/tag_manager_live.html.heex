@@ -1,0 +1,327 @@
+<div class="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
+  <PomodoroTrackerWeb.Layouts.flash_group flash={@flash} />
+
+  <div class="mx-auto max-w-6xl px-4 py-8">
+    <div class="flex justify-center">
+      <PomodoroTrackerWeb.Layouts.product_nav id="tags-nav" current={:tags} />
+    </div>
+
+    <section class="mt-8 flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <h1 class="text-3xl font-light tracking-tight">Tags</h1>
+        <p class="mt-1 text-sm text-white/55">
+          Administra la taxonomía completa, corrige mistags y mergea vocabularios como <code>casa</code> + <code>hogar</code>.
+        </p>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <.link
+          patch={tag_route(%{zone: :work})}
+          class={[
+            "rounded-full px-3 py-1.5 text-xs uppercase tracking-[0.18em] transition",
+            if(@zone_filter == :work,
+              do: "bg-red-400 text-slate-950",
+              else: "bg-white/10 text-white/70 hover:bg-white/15"
+            )
+          ]}
+        >
+          work
+        </.link>
+        <.link
+          patch={tag_route(%{zone: :personal})}
+          class={[
+            "rounded-full px-3 py-1.5 text-xs uppercase tracking-[0.18em] transition",
+            if(@zone_filter == :personal,
+              do: "bg-blue-400 text-slate-950",
+              else: "bg-white/10 text-white/70 hover:bg-white/15"
+            )
+          ]}
+        >
+          personal
+        </.link>
+      </div>
+    </section>
+
+    <section class="mt-6 rounded-3xl border border-white/10 bg-black/20 p-5">
+      <div class="flex flex-wrap items-end justify-between gap-4">
+        <form phx-submit="tags:create" phx-change="tags:new_change" class="flex flex-wrap items-center gap-2">
+          <label class="text-xs uppercase tracking-[0.18em] text-white/55">
+            Nuevo tag
+            <input
+              name="new_tag_query"
+              value={@new_tag_query}
+              placeholder="ej. hogar o home>laundry"
+              class="mt-1 w-64 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30"
+            />
+          </label>
+          <button class="rounded-full bg-white px-4 py-2 text-xs uppercase tracking-[0.18em] text-slate-950">
+            Crear
+          </button>
+        </form>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-xs uppercase tracking-[0.18em] text-white/45">
+            seleccionados: {MapSet.size(@selected_tags)}
+          </span>
+          <button
+            phx-click="tags:merge_open"
+            class="rounded-full bg-white/10 px-4 py-2 text-xs uppercase tracking-[0.18em] text-white/70 hover:bg-white/15"
+          >
+            Merge
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section class="mt-6 rounded-3xl border border-white/10 bg-black/20 p-3">
+      <div class="grid grid-cols-[36px_minmax(0,1fr)_100px_120px_120px] gap-2 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-white/35">
+        <div></div>
+        <div>tag</div>
+        <div class="text-right">directas</div>
+        <div class="text-right">con hijos</div>
+        <div class="text-right">acciones</div>
+      </div>
+
+      <div :if={@tag_catalog == []} class="px-3 py-8 text-center text-sm text-white/40">
+        No hay tags todavía en esta zona.
+      </div>
+
+      <div :for={tag <- tag_rows(@tag_catalog)} class="border-t border-white/5 px-3 py-3">
+        <div class="grid grid-cols-[36px_minmax(0,1fr)_100px_120px_120px] gap-2 items-center">
+        <div>
+          <button
+            phx-click="tags:toggle_select"
+            phx-value-tag={tag}
+            class={[
+              "h-6 w-6 rounded border text-xs transition",
+              if(MapSet.member?(@selected_tags, tag),
+                do: "border-white bg-white text-slate-950",
+                else: "border-white/10 bg-white/5 text-white/50 hover:bg-white/10"
+              )
+            ]}
+            title="Select for merge"
+          >
+            {if MapSet.member?(@selected_tags, tag), do: "✓", else: ""}
+          </button>
+        </div>
+
+        <div class={["min-w-0", row_indent_class(tag)]}>
+          <div class="truncate text-sm text-white/90">{tag_suffix(tag)}</div>
+          <div class="mt-1 text-[10px] uppercase tracking-[0.18em] text-white/40">
+            {tag}
+          </div>
+        </div>
+
+        <div class="text-right text-sm tabular-nums text-white/70">
+          {direct_task_count(@tasks, @zone_filter, tag)}
+        </div>
+
+        <div class="text-right text-sm tabular-nums text-white/70">
+          {family_task_count(@tasks, @zone_filter, tag)}
+        </div>
+
+        <div class="flex justify-end gap-1">
+          <button
+            :if={linked_tasks(@tasks, @zone_filter, tag) != []}
+            phx-click="tags:toggle_tasks"
+            phx-value-tag={tag}
+            class="h-7 rounded bg-white/10 px-2 text-[10px] uppercase tracking-[0.16em] text-white/70 hover:bg-white/15"
+            title="Ver tareas vinculadas"
+          >
+            {if MapSet.member?(@expanded_tags, tag), do: "▾", else: "▸"}
+          </button>
+          <button
+            phx-click="tags:rename_open"
+            phx-value-tag={tag}
+            class="h-7 w-7 rounded bg-white/10 text-xs text-white/70 hover:bg-white/15"
+            title="Rename tag"
+          >
+            ✎
+          </button>
+          <button
+            phx-click="tags:delete_open"
+            phx-value-tag={tag}
+            class="h-7 w-7 rounded bg-white/10 text-xs text-white/70 hover:bg-red-500/60"
+            title="Delete tag"
+          >
+            🗑
+          </button>
+        </div>
+
+        <div :if={@renaming_tag == tag} class="col-span-5 rounded-2xl border border-white/10 bg-black/20 p-3">
+          <form phx-submit="tags:rename_submit" phx-change="tags:rename_change" phx-value-tag={tag} class="flex flex-wrap items-center gap-2">
+            <input
+              name="rename_value"
+              value={@rename_value}
+              class="flex-1 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+            />
+            <button class="rounded-full bg-white px-4 py-2 text-xs uppercase tracking-[0.18em] text-slate-950">
+              Save
+            </button>
+            <button
+              type="button"
+              phx-click="tags:rename_cancel"
+              class="rounded-full bg-white/10 px-4 py-2 text-xs uppercase tracking-[0.18em] text-white/70"
+            >
+              Cancel
+            </button>
+          </form>
+        </div>
+
+        <div
+          :if={MapSet.member?(@expanded_tags, tag)}
+          class="col-span-5 mt-3 rounded-2xl border border-white/10 bg-black/20 p-3"
+        >
+          <div class="mb-2 text-[10px] uppercase tracking-[0.18em] text-white/45">
+            tareas vinculadas
+          </div>
+
+          <div class="space-y-2">
+            <div
+              :for={task <- linked_tasks(@tasks, @zone_filter, tag)}
+              class="rounded-xl border border-white/8 bg-white/5 px-3 py-2"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0 flex-1">
+                  <div class="truncate text-sm text-white/90">{task.title}</div>
+                  <div class="mt-1 flex flex-wrap gap-1.5 text-[10px] text-white/60">
+                    <span
+                      :if={kind = linked_task_kind(task)}
+                      class="rounded-full bg-white/10 px-2 py-0.5"
+                    >
+                      {kind}
+                    </span>
+                    <span
+                      :if={task.kind == :templates}
+                      class="rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-100"
+                    >
+                      done {linked_task_done_count(@completion_counts, task)}
+                    </span>
+                    <span :if={task.kind == :templates}>
+                      última vez: {linked_task_last_done(task.last_completed_at)}
+                    </span>
+                    <span :if={task.kind == :templates}>streak: {task.streak || 0}</span>
+                    <span :if={is_binary(task.from_template)} class="text-white/45">
+                      from: {task.from_template}
+                    </span>
+                  </div>
+                </div>
+
+                <div class="shrink-0 flex flex-wrap justify-end gap-1">
+                  <span
+                    :for={task_tag <- visible_task_tags(task)}
+                    class={[
+                      "rounded-full px-2 py-0.5 text-[10px]",
+                      if(Tags.matches?(tag, [task_tag]),
+                        do: "bg-amber-300/20 text-amber-100",
+                        else: "bg-white/10 text-white/55"
+                      )
+                    ]}
+                  >
+                    {task_tag}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div
+    :if={@delete_tag_dialog}
+    class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4"
+    phx-click="tags:delete_cancel"
+  >
+    <div class="pointer-events-auto w-full max-w-md rounded-2xl border border-red-400/20 bg-slate-900 p-5 text-white" phx-click-away="tags:delete_cancel">
+      <div class="text-xs uppercase tracking-[0.22em] text-red-300/80">Delete tag</div>
+      <div class="mt-2 text-lg font-light">{@delete_tag_dialog.tag}</div>
+      <div class="mt-3 space-y-2 text-sm text-white/65">
+        <p>
+          Se eliminará este tag{if @delete_tag_dialog.descendants > 0, do: " y #{Integer.to_string(@delete_tag_dialog.descendants)} tags hijos", else: ""}.
+        </p>
+        <p :if={@delete_tag_dialog.tasks_affected > 0}>
+          {@delete_tag_dialog.tasks_affected} tareas perderían este tag.
+        </p>
+      </div>
+
+      <div class="mt-5 flex justify-end gap-2">
+        <button
+          phx-click="tags:delete_cancel"
+          class="rounded-full bg-white/10 px-4 py-2 text-xs uppercase tracking-[0.18em] text-white/70"
+        >
+          Cancel
+        </button>
+        <button
+          phx-click="tags:delete_confirm"
+          phx-value-tag={@delete_tag_dialog.tag}
+          class="rounded-full bg-red-400 px-4 py-2 text-xs uppercase tracking-[0.18em] text-slate-950"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div
+    :if={@merge_dialog}
+    class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4"
+    phx-click="tags:merge_cancel"
+  >
+    <div class="pointer-events-auto w-full max-w-lg rounded-2xl border border-white/10 bg-slate-900 p-5 text-white" phx-click-away="tags:merge_cancel">
+      <div class="text-xs uppercase tracking-[0.22em] text-white/45">Merge tags</div>
+      <div class="mt-2 text-lg font-light">Combinar tags seleccionados</div>
+
+      <div class="mt-4 flex flex-wrap gap-2">
+        <button
+          :for={tag <- @merge_dialog.source_tags}
+          phx-click="tags:merge_target_pick"
+          phx-value-tag={tag}
+          class={[
+            "rounded-full px-3 py-1.5 text-xs uppercase tracking-[0.18em] transition",
+            if(@merge_dialog.target_tag == tag,
+              do: "bg-white text-slate-950",
+              else: "bg-white/10 text-white/70 hover:bg-white/15"
+            )
+          ]}
+        >
+          {tag}
+        </button>
+      </div>
+
+      <form phx-submit="tags:merge_confirm" phx-change="tags:merge_target_change" class="mt-4 space-y-3">
+        <label class="block text-xs uppercase tracking-[0.18em] text-white/55">
+          dejar como
+          <input
+            name="target_tag"
+            value={@merge_dialog.target_tag}
+            placeholder="otro tag, ej. home o home>laundry"
+            class="mt-1 w-full rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+          />
+        </label>
+
+        <div class="space-y-1 text-sm text-white/65">
+          <p>Tareas potencialmente afectadas: {@merge_dialog.tasks_affected}</p>
+          <p :if={@merge_dialog.target_exists?}>
+            {@merge_dialog.target_tag} ya existe con {@merge_dialog.target_existing_tasks} tareas. Se integrará todo en ese destino.
+          </p>
+        </div>
+
+        <div class="flex justify-end gap-2">
+          <button
+            type="button"
+            phx-click="tags:merge_cancel"
+            class="rounded-full bg-white/10 px-4 py-2 text-xs uppercase tracking-[0.18em] text-white/70"
+          >
+            Cancel
+          </button>
+          <button class="rounded-full bg-white px-4 py-2 text-xs uppercase tracking-[0.18em] text-slate-950">
+            Merge
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
