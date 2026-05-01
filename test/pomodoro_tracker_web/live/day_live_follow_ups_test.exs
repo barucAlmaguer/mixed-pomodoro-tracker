@@ -3,7 +3,7 @@ defmodule PomodoroTrackerWeb.DayLiveFollowUpsTest do
 
   import Phoenix.LiveViewTest
 
-  alias PomodoroTracker.{Timer, Vault}
+  alias PomodoroTracker.{Clock, Timer, Vault}
 
   setup do
     Timer.reset()
@@ -165,7 +165,7 @@ defmodule PomodoroTrackerWeb.DayLiveFollowUpsTest do
   end
 
   defp today_suffix do
-    Date.utc_today() |> Date.to_iso8601() |> String.replace("-", "")
+    Clock.today() |> Date.to_iso8601() |> String.replace("-", "")
   end
 
   defp make_tmp_vaults do

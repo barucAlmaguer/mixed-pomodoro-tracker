@@ -9,7 +9,7 @@ defmodule PomodoroTracker.Cadence do
   render a 🔁 marker.
   """
 
-  alias PomodoroTracker.{Recurrence, Vault}
+  alias PomodoroTracker.{Clock, Recurrence, Vault}
 
   @doc """
   Ensures cadence has run for today. Returns the (possibly updated) `day`
@@ -19,7 +19,7 @@ defmodule PomodoroTracker.Cadence do
   `assigns.tasks`). The function reads templates from there to avoid a second
   vault scan.
   """
-  def ensure_run!(day, tasks, date \\ Date.utc_today()) do
+  def ensure_run!(day, tasks, date \\ Clock.today()) do
     if Map.get(day, :cadence_ran_for) == Date.to_iso8601(date) do
       day
     else

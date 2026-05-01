@@ -3,7 +3,8 @@ defmodule PomodoroTrackerWeb.DayLiveHistoryTest do
 
   import Phoenix.LiveViewTest
 
-  alias PomodoroTracker.{Timer, Vault}
+  alias PomodoroTracker.{Clock, Timer, Vault}
+  alias PomodoroTrackerWeb.DayLive
 
   setup do
     Timer.reset()
@@ -28,7 +29,7 @@ defmodule PomodoroTrackerWeb.DayLiveHistoryTest do
   test "historical day is readonly and can bring task to today without rewriting history", %{
     conn: conn
   } do
-    yesterday = Date.add(Date.utc_today(), -1)
+    yesterday = Date.add(Clock.today(), -1)
 
     {:ok, _} =
       Vault.create_task(:personal, :backlog, %{
@@ -65,7 +66,7 @@ defmodule PomodoroTrackerWeb.DayLiveHistoryTest do
   end
 
   test "historical day can cancel a pending task without deleting the task file", %{conn: conn} do
-    yesterday = Date.add(Date.utc_today(), -1)
+    yesterday = Date.add(Clock.today(), -1)
 
     {:ok, _} =
       Vault.create_task(:work, :backlog, %{
@@ -98,7 +99,7 @@ defmodule PomodoroTrackerWeb.DayLiveHistoryTest do
   end
 
   test "today can move a task to tomorrow and persist dragged count", %{conn: conn} do
-    tomorrow = Date.add(Date.utc_today(), 1)
+    tomorrow = Date.add(Clock.today(), 1)
 
     {:ok, _} =
       Vault.create_task(:personal, :backlog, %{
@@ -110,7 +111,7 @@ defmodule PomodoroTrackerWeb.DayLiveHistoryTest do
 
     {:ok, _} =
       Vault.save_day(%{
-        date: Date.utc_today(),
+        date: Clock.today(),
         order: ["carry-forward"],
         active: ["carry-forward"],
         done: [],
@@ -134,6 +135,44 @@ defmodule PomodoroTrackerWeb.DayLiveHistoryTest do
 
     {:ok, tomorrow_view, _html} = live(conn, "/?date=#{Date.to_iso8601(tomorrow)}")
     assert render(tomorrow_view) =~ "1↪"
+  end
+
+  test "execute suggestions surface lead-window recurrents and today plus opens ad-hoc modal", %{
+    conn: conn
+  } do
+    now = NaiveDateTime.from_erl!(:calendar.local_time())
+    zone = DayLive.backlog_zone(now, :auto)
+
+    {:ok, _} =
+      Vault.create_task(zone, :templates, %{
+        id: "agendar-dentista",
+        title: "Agendar dentista",
+        priority: "high",
+        recurrence: %{
+          type: "interval",
+          every: 1,
+          unit: "months",
+          anchor_date: Date.to_iso8601(Date.add(Clock.today(), 2)),
+          anchor_mode: "calendar",
+          lead: %{value: 3, unit: "days"}
+        }
+      })
+
+    {:ok, view, _html} = live(conn, "/")
+
+    view
+    |> element(~s(button[phx-click="toggle:suggestions"]))
+    |> render_click()
+
+    html = render(view)
+    assert html =~ "Agendar dentista"
+    assert html =~ "toca en 2 días"
+
+    view
+    |> element(~s(button[title="Nueva tarea ad-hoc"]))
+    |> render_click()
+
+    assert render(view) =~ "New backlog task · #{zone}"
   end
 
   defp make_tmp_vaults do

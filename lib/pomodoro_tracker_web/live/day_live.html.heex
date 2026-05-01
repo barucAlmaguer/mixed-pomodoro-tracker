@@ -269,7 +269,7 @@
           else: "Elige algo para descansar"}
       </h2>
 
-      <% break_tags = break_picker_tags(@tasks, @timer.phase, @day.active ++ @day.done) %>
+      <% break_tags = break_picker_tags(@tasks, @timer.phase, @day.active ++ @day.done, @day.order) %>
       <div :if={break_tags != []} class="flex flex-wrap gap-1 mb-2">
         <button
           :for={tag <- break_tags}
@@ -477,6 +477,16 @@
     <% pending = today_pending_ids(@day, @tasks, hide_work) %>
     <% done_ids = today_done_ids(@day) %>
     <% due = if @readonly_day?, do: [], else: due_soon_for_today(@day, @tasks, @now) %>
+    <% suggestions =
+      if @readonly_day?,
+        do: [],
+        else:
+          recurrence_suggestions(
+            @tasks,
+            @day,
+            backlog_zone(@now, @zone_filter),
+            PomodoroTracker.Clock.today()
+          ) %>
     
 <!-- Deadline banner — appears when any task in TODAY is due in <2h -->
     <div
@@ -506,8 +516,68 @@
       </div>
     </div>
 
+    <section :if={not @readonly_day?} class="mt-4">
+      <button
+        phx-click="toggle:suggestions"
+        class="w-full flex items-center justify-between gap-2 rounded bg-amber-900/25 border border-amber-700/40 px-3 py-2"
+      >
+        <div class="flex items-center gap-2">
+          <h2 class="text-xs uppercase tracking-wider text-amber-200/80">Sugerencias</h2>
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-300/20 text-amber-100 tabular-nums">
+            {length(suggestions)}
+          </span>
+        </div>
+        <span class="text-xs text-amber-100/50">
+          {if @suggestions_collapsed, do: "▸", else: "▾"}
+        </span>
+      </button>
+
+      <div :if={not @suggestions_collapsed} class="mt-2">
+        <div
+          :if={suggestions == []}
+          class="text-sm text-white/50 italic py-4 text-center border border-dashed border-amber-700/30 rounded"
+        >
+          No hay sugerencias activas por recurrencia.
+        </div>
+
+        <ul :if={suggestions != []} class="space-y-1">
+          <li
+            :for={entry <- suggestions}
+            :if={task = entry.task}
+            class="flex items-center gap-2 rounded border border-amber-700/30 bg-amber-900/10 px-2 py-2"
+          >
+            <div class="flex-1 min-w-0">
+              <div class="text-sm truncate flex items-center gap-1">
+                <span class={[
+                  "text-sm leading-none shrink-0",
+                  priority_icon_class(task.priority)
+                ]}>
+                  {priority_icon(task.priority)}
+                </span>
+                <span class="truncate">{task.title}</span>
+              </div>
+              <div class="mt-0.5 flex flex-wrap gap-2 text-[10px] text-white/60">
+                <span>{task.zone}</span>
+                <span :if={label = recurrence_compact(task.recurrence)}>· {label}</span>
+                <span class="text-amber-200/80">· {recurrence_due_label(entry.due_date)}</span>
+              </div>
+            </div>
+
+            <button
+              phx-click="day:add"
+              phx-value-id={task.id}
+              class="shrink-0 rounded bg-white/10 px-2 py-1 text-[10px] uppercase tracking-[0.16em] text-white/80 hover:bg-white/15"
+              title="Add to today"
+            >
+              + today
+            </button>
+          </li>
+        </ul>
+      </div>
+    </section>
+
     <section class="mt-6">
-      <button phx-click="toggle:today" class="w-full flex items-center justify-between mb-2 gap-2">
+      <div class="w-full flex items-center justify-between mb-2 gap-2">
         <div class="flex items-center gap-1.5 flex-wrap">
           <h2 class="text-xs uppercase tracking-wider text-white/60">Today</h2>
           <span
@@ -523,8 +593,22 @@
             {zc.personal.done}/{zc.personal.total}
           </span>
         </div>
-        <span class="text-xs text-white/40">{if @today_collapsed, do: "▸", else: "▾"}</span>
-      </button>
+        <div class="flex items-center gap-1">
+          <button
+            :if={not @readonly_day?}
+            phx-click="new:open"
+            phx-value-kind="backlog"
+            phx-value-zone={backlog_zone(@now, @zone_filter)}
+            class="w-6 h-6 rounded bg-white/5 hover:bg-white/15 text-sm text-white/70"
+            title="Nueva tarea ad-hoc"
+          >
+            +
+          </button>
+          <button phx-click="toggle:today" class="text-xs text-white/40 px-1">
+            {if @today_collapsed, do: "▸", else: "▾"}
+          </button>
+        </div>
+      </div>
 
       <div :if={not @today_collapsed}>
         <div

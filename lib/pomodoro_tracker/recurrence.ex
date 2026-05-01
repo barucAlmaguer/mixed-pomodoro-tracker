@@ -16,6 +16,8 @@ defmodule PomodoroTracker.Recurrence do
   Rules can optionally "pop" earlier than their due date through `lead`.
   """
 
+  alias PomodoroTracker.Clock
+
   @weekday_atoms %{
     "mon" => 1,
     "tue" => 2,
@@ -105,7 +107,7 @@ defmodule PomodoroTracker.Recurrence do
           type: :interval,
           every: positive_int(fetch(rule, ["every", :every]), 1),
           unit: parse_unit(fetch(rule, ["unit", :unit]), :days),
-          anchor_date: parse_date(fetch(rule, ["anchor_date", :anchor_date]), Date.utc_today()),
+          anchor_date: parse_date(fetch(rule, ["anchor_date", :anchor_date]), Clock.today()),
           anchor_mode: parse_anchor_mode(fetch(rule, ["anchor_mode", :anchor_mode]), :calendar),
           lead: parse_lead(fetch(rule, ["lead", :lead]))
         }
@@ -189,6 +191,58 @@ defmodule PomodoroTracker.Recurrence do
     end
   end
 
+  @doc """
+  Returns the next real due date for a recurrence, ignoring any `lead` window.
+
+  This is the date that should drive backlog/planning horizons. `lead`
+  belongs to suggestion surfaces, not the base inventory.
+  """
+  @spec next_due_date(nil | binary() | map(), Date.t(), map()) :: Date.t() | nil
+  def next_due_date(rule, %Date{} = reference_date, template \\ %{}) do
+    case normalize(rule) do
+      nil ->
+        nil
+
+      %{type: :daily} ->
+        reference_date
+
+      %{type: :weekly, weekdays: weekdays} ->
+        next_weekly_due_date(reference_date, weekdays)
+
+      %{type: :interval, anchor_mode: :calendar} = recurrence ->
+        next_calendar_due_date(recurrence, reference_date)
+
+      %{type: :interval, anchor_mode: :completion} = recurrence ->
+        completion_due_date(recurrence, template)
+    end
+  end
+
+  @doc """
+  Returns the real due date for a recurrence when the given date is currently
+  inside its visible suggestion window.
+
+  For interval recurrences with `lead`, this means `pop_date <= date <= due_date`.
+  """
+  @spec current_due_date(nil | binary() | map(), Date.t(), map()) :: Date.t() | nil
+  def current_due_date(rule, %Date{} = date, template \\ %{}) do
+    case normalize(rule) do
+      nil ->
+        nil
+
+      %{type: :daily} ->
+        date
+
+      %{type: :weekly, weekdays: weekdays} ->
+        if Date.day_of_week(date) in weekdays, do: date, else: nil
+
+      %{type: :interval, anchor_mode: :calendar} = recurrence ->
+        current_calendar_due_date(recurrence, date)
+
+      %{type: :interval, anchor_mode: :completion} = recurrence ->
+        current_completion_due_date(recurrence, date, template)
+    end
+  end
+
   @doc "Compact label for cards and small metadata rows."
   @spec compact_label(nil | binary() | map()) :: binary() | nil
   def compact_label(rule) do
@@ -248,7 +302,7 @@ defmodule PomodoroTracker.Recurrence do
   end
 
   @doc "Default recurrence editor state for LiveView forms."
-  def default_form(today \\ Date.utc_today()) do
+  def default_form(today \\ Clock.today()) do
     %{
       recurrence_type: "none",
       recurrence_weekdays: @weekday_defaults,
@@ -262,7 +316,7 @@ defmodule PomodoroTracker.Recurrence do
   end
 
   @doc "Populate recurrence form state from an existing recurrence rule."
-  def form_fields(rule, today \\ Date.utc_today()) do
+  def form_fields(rule, today \\ Clock.today()) do
     base = default_form(today)
 
     case normalize(rule) do
@@ -313,9 +367,9 @@ defmodule PomodoroTracker.Recurrence do
           params
           |> Map.get(
             "recurrence_anchor_date",
-            form.recurrence_anchor_date || Date.to_iso8601(Date.utc_today())
+            form.recurrence_anchor_date || Date.to_iso8601(Clock.today())
           )
-          |> valid_date_string(form.recurrence_anchor_date || Date.to_iso8601(Date.utc_today())),
+          |> valid_date_string(form.recurrence_anchor_date || Date.to_iso8601(Clock.today())),
         recurrence_anchor_mode:
           params
           |> Map.get("recurrence_anchor_mode", form.recurrence_anchor_mode || "calendar")
@@ -373,7 +427,7 @@ defmodule PomodoroTracker.Recurrence do
           type: :interval,
           every: positive_int(form.recurrence_every, 1),
           unit: parse_unit(form.recurrence_unit, :months),
-          anchor_date: parse_date(form.recurrence_anchor_date, Date.utc_today()),
+          anchor_date: parse_date(form.recurrence_anchor_date, Clock.today()),
           anchor_mode: parse_anchor_mode(form.recurrence_anchor_mode, :calendar),
           lead:
             if(lead_value > 0,
@@ -414,12 +468,56 @@ defmodule PomodoroTracker.Recurrence do
     Date.compare(pop_date, date) == :eq
   end
 
+  defp current_calendar_due_date(recurrence, date) do
+    do_current_calendar_due_date(recurrence.anchor_date, recurrence, date, 0)
+  end
+
+  defp do_current_calendar_due_date(_due_date, _recurrence, _date, steps) when steps > 2048, do: nil
+
+  defp do_current_calendar_due_date(due_date, recurrence, date, steps) do
+    pop_date = apply_lead(due_date, recurrence.lead, -1)
+
+    cond do
+      Date.compare(date, pop_date) == :lt ->
+        nil
+
+      Date.compare(date, due_date) == :gt ->
+        next_due = shift_date(due_date, recurrence.every, recurrence.unit)
+        do_current_calendar_due_date(next_due, recurrence, date, steps + 1)
+
+      true ->
+        due_date
+    end
+  end
+
+  defp current_completion_due_date(recurrence, date, template) do
+    due_date =
+      case Map.get(template, :last_completed_at) do
+        nil ->
+          recurrence.anchor_date
+
+        _value ->
+          anchor = completion_anchor_date(template, recurrence.anchor_date)
+          shift_date(anchor, recurrence.every, recurrence.unit)
+      end
+
+    pop_date = apply_lead(due_date, recurrence.lead, -1)
+
+    if Date.compare(date, pop_date) in [:eq, :gt] and Date.compare(date, due_date) in [:eq, :lt] do
+      due_date
+    else
+      nil
+    end
+  end
+
   defp next_weekly_pop_date(reference_date, weekdays) do
     Enum.find_value(0..6, fn offset ->
       candidate = Date.add(reference_date, offset)
       if Date.day_of_week(candidate) in weekdays, do: candidate, else: nil
     end)
   end
+
+  defp next_weekly_due_date(reference_date, weekdays), do: next_weekly_pop_date(reference_date, weekdays)
 
   defp next_calendar_pop_date(recurrence, reference_date) do
     do_next_calendar_pop_date(recurrence.anchor_date, recurrence, reference_date, 0)
@@ -442,7 +540,31 @@ defmodule PomodoroTracker.Recurrence do
     end
   end
 
+  defp next_calendar_due_date(recurrence, reference_date) do
+    do_next_calendar_due_date(recurrence.anchor_date, recurrence, reference_date, 0)
+  end
+
+  defp do_next_calendar_due_date(_due_date, _recurrence, _reference_date, steps)
+       when steps > 2048,
+       do: nil
+
+  defp do_next_calendar_due_date(due_date, recurrence, reference_date, steps) do
+    case Date.compare(due_date, reference_date) do
+      :lt ->
+        next_due = shift_date(due_date, recurrence.every, recurrence.unit)
+        do_next_calendar_due_date(next_due, recurrence, reference_date, steps + 1)
+
+      _ ->
+        due_date
+    end
+  end
+
   defp completion_pop_date(recurrence, template) do
+    due_date = completion_due_date(recurrence, template)
+    apply_lead(due_date, recurrence.lead, -1)
+  end
+
+  defp completion_due_date(recurrence, template) do
     due_date =
       case Map.get(template, :last_completed_at) do
         nil ->
@@ -453,7 +575,7 @@ defmodule PomodoroTracker.Recurrence do
           shift_date(anchor, recurrence.every, recurrence.unit)
       end
 
-    apply_lead(due_date, recurrence.lead, -1)
+    due_date
   end
 
   defp completion_anchor_date(template, fallback) do

@@ -1,7 +1,7 @@
 defmodule PomodoroTrackerWeb.DayLive do
   use PomodoroTrackerWeb, :live_view
 
-  alias PomodoroTracker.{Cadence, Priority, Recurrence, Tags, TemplateLinks, Timer, Vault}
+  alias PomodoroTracker.{Cadence, Clock, Priority, Recurrence, Tags, TemplateLinks, Timer, Vault}
 
   @impl true
   def mount(_params, _session, socket) do
@@ -14,15 +14,16 @@ defmodule PomodoroTrackerWeb.DayLive do
     {:ok,
      socket
      |> assign(:page_title, "Today")
-     |> assign(:selected_date, Date.utc_today())
+     |> assign(:selected_date, Clock.today())
      |> assign(:readonly_day?, false)
-     |> assign(:now, NaiveDateTime.from_erl!(:calendar.local_time()))
+     |> assign(:now, Clock.now())
      |> assign(:timer, Timer.state())
      |> assign(:zone_filter, :auto)
      |> assign(:tag_filter, MapSet.new())
      |> assign(:new_task_form, nil)
      |> assign(:edit_form, nil)
      |> assign(:break_tag_filter, nil)
+     |> assign(:suggestions_collapsed, true)
      |> assign(:today_collapsed, false)
      |> assign(:unfinished_collapsed, true)
      |> assign(:archive_visible, false)
@@ -40,7 +41,7 @@ defmodule PomodoroTrackerWeb.DayLive do
     {:noreply,
      socket
      |> assign(:selected_date, date)
-     |> assign(:readonly_day?, date != Date.utc_today())
+     |> assign(:readonly_day?, date != Clock.today())
      |> assign(:page_title, page_title_for(date))
      |> load_vault()}
   end
@@ -64,7 +65,7 @@ defmodule PomodoroTrackerWeb.DayLive do
   def handle_info(:vault_changed, socket), do: {:noreply, load_vault(socket)}
 
   def handle_info(:tick_clock, socket) do
-    {:noreply, assign(socket, :now, NaiveDateTime.from_erl!(:calendar.local_time()))}
+    {:noreply, assign(socket, :now, Clock.now())}
   end
 
   # ---------------------------------------------------------------------------
@@ -164,6 +165,10 @@ defmodule PomodoroTrackerWeb.DayLive do
     {:noreply, assign(socket, :today_collapsed, not socket.assigns.today_collapsed)}
   end
 
+  def handle_event("toggle:suggestions", _, socket) do
+    {:noreply, assign(socket, :suggestions_collapsed, not socket.assigns.suggestions_collapsed)}
+  end
+
   def handle_event("toggle:unfinished", _, socket) do
     {:noreply, assign(socket, :unfinished_collapsed, not socket.assigns.unfinished_collapsed)}
   end
@@ -206,7 +211,7 @@ defmodule PomodoroTrackerWeb.DayLive do
     else
       case socket.assigns.tasks[id] do
         %{kind: :templates} = tpl ->
-          {:ok, new_id} = Vault.instantiate_template(tpl, Date.utc_today(), allow_multiple: true)
+          {:ok, new_id} = Vault.instantiate_template(tpl, Clock.today(), allow_multiple: true)
           day = socket.assigns.day
 
           new_day =
@@ -228,7 +233,7 @@ defmodule PomodoroTrackerWeb.DayLive do
   end
 
   def handle_event("day:bring_to_today", %{"id" => id}, socket) do
-    case append_to_day(Date.utc_today(), id, socket.assigns.tasks) do
+    case append_to_day(Clock.today(), id, socket.assigns.tasks) do
       {:ok, :added, _resolved} ->
         {:noreply, put_flash(socket, :info, "Added to today")}
 
@@ -258,7 +263,7 @@ defmodule PomodoroTrackerWeb.DayLive do
   end
 
   def handle_event("day:defer_to_tomorrow", %{"id" => id}, socket) do
-    today = Date.utc_today()
+    today = Clock.today()
     tomorrow = Date.add(today, 1)
 
     case defer_task_to_day(today, tomorrow, id, socket.assigns.tasks) do
@@ -395,7 +400,7 @@ defmodule PomodoroTrackerWeb.DayLive do
         priority: form.priority,
         tags: tags,
         on_done: form.on_done_ids || [],
-        created_at: Date.utc_today() |> Date.to_iso8601()
+        created_at: Clock.today() |> Date.to_iso8601()
       }
 
       attrs = maybe_put_task_recurrence(attrs, form)
@@ -579,7 +584,7 @@ defmodule PomodoroTrackerWeb.DayLive do
     if a? or b? or c?, do: Vault.save_day(day)
 
     day =
-      if date == Date.utc_today() do
+      if date == Clock.today() do
         Cadence.ensure_run!(day, tasks, date)
       else
         day
@@ -675,18 +680,18 @@ defmodule PomodoroTrackerWeb.DayLive do
     |> Enum.find(&(&1.id == id))
   end
 
-  defp parse_selected_date(nil), do: Date.utc_today()
-  defp parse_selected_date(""), do: Date.utc_today()
+  defp parse_selected_date(nil), do: Clock.today()
+  defp parse_selected_date(""), do: Clock.today()
 
   defp parse_selected_date(date) when is_binary(date) do
     case Date.from_iso8601(date) do
       {:ok, parsed} -> parsed
-      _ -> Date.utc_today()
+      _ -> Clock.today()
     end
   end
 
   defp page_title_for(date) do
-    if date == Date.utc_today(), do: "Today", else: Date.to_iso8601(date)
+    if date == Clock.today(), do: "Today", else: Date.to_iso8601(date)
   end
 
   defp migrate_template_ids(ids, tasks) do
@@ -712,7 +717,7 @@ defmodule PomodoroTrackerWeb.DayLive do
   defp sync_timer_tracking(socket, day) do
     timer_state = Timer.state()
 
-    if socket.assigns.selected_date == Date.utc_today() and timer_state.phase != :idle do
+    if socket.assigns.selected_date == Clock.today() and timer_state.phase != :idle do
       tasks =
         socket.assigns.tasks
         |> ensure_tasks_loaded(day.active)
@@ -908,6 +913,37 @@ defmodule PomodoroTrackerWeb.DayLive do
 
   def today_follow_up_ids(task, _tasks), do: TemplateLinks.on_done_ids(task)
 
+  def recurrence_suggestions(tasks, day, zone, today \\ Clock.today()) do
+    represented_template_ids = represented_template_ids(day, tasks)
+
+    tasks
+    |> Map.values()
+    |> Enum.filter(fn task ->
+      task.kind == :templates and task.zone == zone and not task.paused and not is_nil(task.recurrence) and
+        not MapSet.member?(represented_template_ids, task.id)
+    end)
+    |> Enum.flat_map(fn task ->
+      case Recurrence.current_due_date(task.recurrence, today, task) do
+        %Date{} = due_date -> [%{task: task, due_date: due_date}]
+        _ -> []
+      end
+    end)
+    |> Enum.sort_by(fn %{task: task, due_date: due_date} ->
+      due_bucket = if due_date == today, do: 0, else: 1
+      {due_bucket, priority_rank(task.priority), due_date, sortable_title(task.title)}
+    end)
+  end
+
+  def recurrence_due_label(%Date{} = due_date, today \\ Clock.today()) do
+    case Date.diff(due_date, today) do
+      0 -> "toca hoy"
+      1 -> "toca mañana"
+      days when days > 1 -> "toca en #{days} días"
+      -1 -> "tocó ayer"
+      days -> "tocó hace #{abs(days)} días"
+    end
+  end
+
   def dragged_forward_count(%{dragged_forward_count: count}) when is_integer(count) and count > 0,
     do: count
 
@@ -1007,7 +1043,7 @@ defmodule PomodoroTrackerWeb.DayLive do
     |> case do
       %{kind: :templates} = template ->
         {:ok, instance_id} =
-          Vault.instantiate_template(template, Date.utc_today(), allow_multiple: true)
+          Vault.instantiate_template(template, Clock.today(), allow_multiple: true)
         instance_id
 
       _ ->
@@ -1150,7 +1186,7 @@ defmodule PomodoroTrackerWeb.DayLive do
   end
 
   defp maybe_append_live_interval(entries, selected_date, timer, now, tasks) do
-    if selected_date == Date.utc_today() and timer.phase != :idle and timer.started_at do
+    if selected_date == Clock.today() and timer.phase != :idle and timer.started_at do
       live_entry = %{
         phase: timer.phase,
         tasks: timer.task_ids || [],
@@ -1386,11 +1422,11 @@ defmodule PomodoroTrackerWeb.DayLive do
   def day_route(%Date{} = date), do: ~p"/?date=#{Date.to_iso8601(date)}"
 
   def day_label(%Date{} = date) do
-    if date == Date.utc_today(), do: "Today", else: Date.to_iso8601(date)
+    if date == Clock.today(), do: "Today", else: Date.to_iso8601(date)
   end
 
   def seeing_label(%Date{} = date) do
-    today = Date.utc_today()
+    today = Clock.today()
 
     cond do
       date == today -> "Today"
@@ -1450,7 +1486,7 @@ defmodule PomodoroTrackerWeb.DayLive do
 
   def filtered_backlog(tasks, zone, tag_filter, exclude_ids) do
     tasks
-    |> backlog_candidates(zone, exclude_ids, Date.utc_today())
+    |> backlog_candidates(zone, exclude_ids, Clock.today())
     |> Enum.filter(fn t -> Tags.matches_all?(tag_filter, t.tags || []) end)
     |> Enum.sort_by(fn t -> {priority_rank(t.priority), sortable_title(t.title)} end)
   end
@@ -1460,7 +1496,7 @@ defmodule PomodoroTrackerWeb.DayLive do
   Hides tags shared by 100% of candidates (filtering would be a no-op).
   """
   def backlog_tags(tasks, zone, exclude_ids) do
-    candidates = backlog_candidates(tasks, zone, exclude_ids, Date.utc_today())
+    candidates = backlog_candidates(tasks, zone, exclude_ids, Clock.today())
     total = length(candidates)
 
     candidates
@@ -1493,7 +1529,7 @@ defmodule PomodoroTrackerWeb.DayLive do
   """
   def break_picker_tasks(tasks, phase, exclude_ids, day_order, tag_filter) do
     tasks
-    |> break_picker_candidates(phase, exclude_ids, Date.utc_today())
+    |> break_picker_candidates(phase, exclude_ids, day_order)
     |> Enum.filter(fn t -> is_nil(tag_filter) or Tags.matches?(tag_filter, t.tags || []) end)
     |> Enum.sort_by(fn t ->
       case Enum.find_index(day_order, &(&1 == t.id)) do
@@ -1508,8 +1544,8 @@ defmodule PomodoroTrackerWeb.DayLive do
   Excludes the implicit `break` tag during passive break (every item has it)
   and any tag shared by 100% of candidates (filtering would be a no-op).
   """
-  def break_picker_tags(tasks, phase, exclude_ids) do
-    candidates = break_picker_candidates(tasks, phase, exclude_ids, Date.utc_today())
+  def break_picker_tags(tasks, phase, exclude_ids, day_order) do
+    candidates = break_picker_candidates(tasks, phase, exclude_ids, day_order)
     total = length(candidates)
 
     candidates
@@ -1547,7 +1583,7 @@ defmodule PomodoroTrackerWeb.DayLive do
     end)
   end
 
-  defp break_picker_candidates(tasks, phase, exclude_ids, _selected_date) do
+  defp break_picker_candidates(tasks, phase, exclude_ids, day_order) do
     want_break = phase == :passive_break
 
     all_candidates =
@@ -1559,6 +1595,48 @@ defmodule PomodoroTrackerWeb.DayLive do
 
     all_candidates
     |> Enum.reject(&(&1.id in exclude_ids))
+    |> dedupe_break_picker_candidates(day_order)
+  end
+
+  defp dedupe_break_picker_candidates(candidates, day_order) do
+    today_ids = MapSet.new(day_order)
+
+    candidates
+    |> Enum.group_by(&break_picker_family_key/1)
+    |> Enum.map(fn {_family_key, family} ->
+      pick_break_picker_candidate(family, today_ids)
+    end)
+  end
+
+  defp break_picker_family_key(%{from_template: template_id}) when is_binary(template_id),
+    do: {:template_family, template_id}
+
+  defp break_picker_family_key(%{kind: :templates, id: id}), do: {:template_family, id}
+  defp break_picker_family_key(%{id: id}), do: {:task, id}
+
+  defp pick_break_picker_candidate(family, today_ids) do
+    today_instance =
+      Enum.find(family, fn
+        %{id: id, from_template: template_id} when is_binary(template_id) ->
+          MapSet.member?(today_ids, id)
+
+        _ ->
+          false
+      end)
+
+    today_member =
+      Enum.find(family, fn task ->
+        MapSet.member?(today_ids, task.id)
+      end)
+
+    template = Enum.find(family, &(&1.kind == :templates))
+
+    cond do
+      today_instance -> today_instance
+      today_member -> today_member
+      template -> template
+      true -> Enum.min_by(family, &{priority_rank(&1.priority), sortable_title(&1.title), &1.id})
+    end
   end
 
   defp priority_rank("high"), do: 0
@@ -1655,6 +1733,23 @@ defmodule PomodoroTrackerWeb.DayLive do
     not work_hours?(now) and not show_off_hour_work?
   end
 
+  defp represented_template_ids(day, tasks) do
+    day.order
+    |> Kernel.++(day.done || [])
+    |> Enum.reduce(MapSet.new(), fn id, acc ->
+      case tasks[id] do
+        %{kind: :templates, id: template_id} ->
+          MapSet.put(acc, template_id)
+
+        %{from_template: template_id} when is_binary(template_id) ->
+          MapSet.put(acc, template_id)
+
+        _ ->
+          acc
+      end
+    end)
+  end
+
   # ---------------------------------------------------------------------------
   # Unfinished (last 7 days) + archive (older / done)
   # ---------------------------------------------------------------------------
@@ -1667,7 +1762,7 @@ defmodule PomodoroTrackerWeb.DayLive do
   the most recent unfinished date.
   """
   def unfinished_recent(tasks, current_day) do
-    today = Date.utc_today()
+    today = Clock.today()
     current_ids = MapSet.new(current_day.order ++ (current_day.done || []))
 
     1..@unfinished_window_days
@@ -1704,7 +1799,7 @@ defmodule PomodoroTrackerWeb.DayLive do
   the user clicks 'Ver archivadas'.
   """
   def load_archive do
-    today = Date.utc_today()
+    today = Clock.today()
     cutoff = Date.add(today, -@unfinished_window_days)
 
     tasks = PomodoroTracker.Vault.list_all_tasks() |> Map.new(&{&1.id, &1})
@@ -1765,7 +1860,7 @@ defmodule PomodoroTrackerWeb.DayLive do
 
   @doc "Removes the given task id from the order of every day file in the window."
   def dismiss_from_recent(id, days) do
-    today = Date.utc_today()
+    today = Clock.today()
 
     for n <- 1..days do
       date = Date.add(today, -n)

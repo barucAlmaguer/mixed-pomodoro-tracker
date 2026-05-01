@@ -3,7 +3,7 @@ defmodule PomodoroTrackerWeb.PlannerLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias PomodoroTracker.{Timer, Vault}
+  alias PomodoroTracker.{Clock, Timer, Vault}
   alias PomodoroTrackerWeb.RecurrentPlannerLive
 
   setup do
@@ -189,7 +189,7 @@ defmodule PomodoroTrackerWeb.PlannerLiveTest do
   end
 
   defp today_suffix do
-    Date.utc_today() |> Date.to_iso8601() |> String.replace("-", "")
+    Clock.today() |> Date.to_iso8601() |> String.replace("-", "")
   end
 
   test "planner creates nested tags and registers them in yaml", %{conn: conn} do
@@ -261,7 +261,7 @@ defmodule PomodoroTrackerWeb.PlannerLiveTest do
   end
 
   test "planner sections backlog by horizon and keeps dragged forward collapsed", %{conn: conn} do
-    today = Date.utc_today()
+    today = Clock.today()
     current_week_end = Date.add(today, 7 - Date.day_of_week(today))
     next_week_due = Date.add(current_week_end, 1)
     later_due = Date.add(current_week_end, 16)
@@ -366,7 +366,7 @@ defmodule PomodoroTrackerWeb.PlannerLiveTest do
           type: "interval",
           every: 20,
           unit: "days",
-          anchor_date: Date.to_iso8601(Date.add(Date.utc_today(), 4)),
+          anchor_date: Date.to_iso8601(Date.add(Clock.today(), 4)),
           anchor_mode: "calendar",
           lead: %{value: 2, unit: "days"}
         }
@@ -388,7 +388,7 @@ defmodule PomodoroTrackerWeb.PlannerLiveTest do
 
   test "planner keeps lead-window recurrents in next due horizon while surfacing them in suggestions",
        %{conn: conn} do
-    today = Date.utc_today()
+    today = Clock.today()
     current_week_end = Date.add(today, 7 - Date.day_of_week(today))
     next_week_due = Date.add(current_week_end, 1)
 

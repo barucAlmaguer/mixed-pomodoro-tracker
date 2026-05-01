@@ -304,7 +304,7 @@ defmodule PomodoroTrackerWeb.TagManagerLive do
   def linked_task_last_done(""), do: "Nunca"
 
   def linked_task_last_done(dt) when is_binary(dt) do
-    days = Date.diff(Date.utc_today(), Date.from_iso8601!(String.slice(dt, 0, 10)))
+    days = Date.diff(PomodoroTracker.Clock.today(), Date.from_iso8601!(String.slice(dt, 0, 10)))
 
     cond do
       days == 0 -> "Hoy"

@@ -5,7 +5,7 @@ defmodule PomodoroTrackerWeb.HabitTrackerLive do
 
   use PomodoroTrackerWeb, :live_view
 
-  alias PomodoroTracker.{Tags, Vault}
+  alias PomodoroTracker.{Clock, Tags, Vault}
   alias PomodoroTrackerWeb.DayLive, as: ExecuteLive
 
   @impl true
@@ -14,7 +14,7 @@ defmodule PomodoroTrackerWeb.HabitTrackerLive do
       Phoenix.PubSub.subscribe(PomodoroTracker.PubSub, Vault.Watcher.topic())
     end
 
-    today = Date.utc_today()
+    today = Clock.today()
 
     {:ok,
      socket
@@ -35,7 +35,7 @@ defmodule PomodoroTrackerWeb.HabitTrackerLive do
 
   @impl true
   def handle_params(params, _uri, socket) do
-    today = Date.utc_today()
+    today = Clock.today()
     zone = parse_zone(params["zone"])
     scale = parse_scale(params["scale"])
     month = parse_month(params["month"], today)
@@ -346,7 +346,7 @@ defmodule PomodoroTrackerWeb.HabitTrackerLive do
           date: date,
           count: count,
           current_month?: date.month == month.month and date.year == month.year,
-          future?: Date.compare(date, Date.utc_today()) == :gt,
+          future?: Date.compare(date, Clock.today()) == :gt,
           title: month_cell_title(tag, date, count)
         }
       end)
@@ -386,7 +386,7 @@ defmodule PomodoroTrackerWeb.HabitTrackerLive do
         end_date: week_end,
         count: count,
         current_year?: Enum.any?(week, &(&1.year == year)),
-        future?: Date.compare(week_start, Date.utc_today()) == :gt,
+        future?: Date.compare(week_start, Clock.today()) == :gt,
         title: week_cell_title(tag, week_start, week_end, count)
       }
     end)
@@ -668,7 +668,7 @@ defmodule PomodoroTrackerWeb.HabitTrackerLive do
           date: date,
           count: count,
           current_month?: date.month == month.month and date.year == month.year,
-          future?: Date.compare(date, Date.utc_today()) == :gt,
+          future?: Date.compare(date, Clock.today()) == :gt,
           title: month_cell_title(label, date, count)
         }
       end)
@@ -697,7 +697,7 @@ defmodule PomodoroTrackerWeb.HabitTrackerLive do
         end_date: week_end,
         count: count,
         current_year?: Enum.any?(week, &(&1.year == year)),
-        future?: Date.compare(week_start, Date.utc_today()) == :gt,
+        future?: Date.compare(week_start, Clock.today()) == :gt,
         title: week_cell_title(label, week_start, week_end, count)
       }
     end)

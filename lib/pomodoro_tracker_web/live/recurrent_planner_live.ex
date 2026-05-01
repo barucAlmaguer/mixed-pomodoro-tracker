@@ -5,7 +5,7 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
 
   use PomodoroTrackerWeb, :live_view
 
-  alias PomodoroTracker.{Cadence, Recurrence, Tags, TemplateLinks, Vault}
+  alias PomodoroTracker.{Cadence, Clock, Recurrence, Tags, TemplateLinks, Vault}
   alias PomodoroTrackerWeb.DayLive, as: ExecuteLive
 
   @impl true
@@ -27,7 +27,7 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
      |> assign(:archive_zone_filter, :all)
      |> assign(:new_task_form, nil)
      |> assign(:edit_form, nil)
-     |> assign(:now, NaiveDateTime.from_erl!(:calendar.local_time()))
+     |> assign(:now, Clock.now())
      |> load_data()}
   end
 
@@ -35,7 +35,7 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
   def handle_info(:vault_changed, socket), do: {:noreply, load_data(socket)}
 
   def handle_info(:tick_clock, socket) do
-    {:noreply, assign(socket, :now, NaiveDateTime.from_erl!(:calendar.local_time()))}
+    {:noreply, assign(socket, :now, Clock.now())}
   end
 
   @impl true
@@ -106,7 +106,7 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
   def handle_event("day:add", %{"id" => id}, socket) do
     case socket.assigns.tasks[id] do
       %{kind: :templates} = tpl ->
-        {:ok, new_id} = Vault.instantiate_template(tpl, Date.utc_today(), allow_multiple: true)
+        {:ok, new_id} = Vault.instantiate_template(tpl, Clock.today(), allow_multiple: true)
         day = socket.assigns.day
 
         new_day =
@@ -195,7 +195,7 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
         priority: form.priority,
         tags: tags,
         on_done: form.on_done_ids || [],
-        created_at: Date.utc_today() |> Date.to_iso8601()
+        created_at: Clock.today() |> Date.to_iso8601()
       }
 
       attrs = ExecuteLive.maybe_put_task_recurrence(attrs, form)
@@ -501,7 +501,7 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
         "Nunca"
 
       dt ->
-        days = Date.diff(Date.utc_today(), Date.from_iso8601!(String.slice(dt, 0, 10)))
+        days = Date.diff(Clock.today(), Date.from_iso8601!(String.slice(dt, 0, 10)))
 
         cond do
           days == 0 -> "Hoy"
@@ -584,18 +584,18 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
 
   def show_template_pause_badge?(task), do: task.kind == :templates and task.paused
 
-  def planner_target_date(task, today \\ Date.utc_today()) do
+  def planner_target_date(task, today \\ Clock.today()) do
     due_date(task) || Recurrence.next_due_date(Map.get(task, :recurrence), today, task)
   end
 
-  def proximity_title(task, today \\ Date.utc_today()) do
+  def proximity_title(task, today \\ Clock.today()) do
     case planner_target_date(task, today) do
       %Date{} = date -> Date.to_iso8601(date)
       _ -> nil
     end
   end
 
-  def proximity_label(task, today \\ Date.utc_today()) do
+  def proximity_label(task, today \\ Clock.today()) do
     case planner_target_date(task, today) do
       nil ->
         nil
@@ -670,7 +670,7 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
 
   def planner_suggestions(tasks, day, zone, tag_filter, hidden_ids \\ MapSet.new()) do
     tasks
-    |> ExecuteLive.recurrence_suggestions(day, zone, Date.utc_today())
+    |> ExecuteLive.recurrence_suggestions(day, zone, Clock.today())
     |> Enum.filter(fn %{task: task} -> Tags.matches_all?(tag_filter, task.tags || []) end)
     |> Enum.reject(fn %{task: task} -> MapSet.member?(hidden_ids, task.id) end)
   end
@@ -807,7 +807,7 @@ defmodule PomodoroTrackerWeb.RecurrentPlannerLive do
   defp sort_planner_horizon(tasks) do
     Enum.sort_by(tasks, fn task ->
       due_sort =
-        case planner_target_date(task, Date.utc_today()) do
+        case planner_target_date(task, Clock.today()) do
           nil -> {1, ~D[9999-12-31]}
           date -> {0, date}
         end

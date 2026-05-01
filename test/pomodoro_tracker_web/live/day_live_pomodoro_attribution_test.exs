@@ -3,7 +3,7 @@ defmodule PomodoroTrackerWeb.DayLivePomodoroAttributionTest do
 
   import Phoenix.LiveViewTest
 
-  alias PomodoroTracker.{Timer, Vault}
+  alias PomodoroTracker.{Clock, Timer, Vault}
 
   setup do
     Timer.reset()
@@ -45,7 +45,7 @@ defmodule PomodoroTrackerWeb.DayLivePomodoroAttributionTest do
 
     {:ok, _} =
       Vault.save_day(%{
-        date: Date.utc_today(),
+        date: Clock.today(),
         order: ["fold-laundry"],
         active: [],
         done: [],
@@ -91,7 +91,7 @@ defmodule PomodoroTrackerWeb.DayLivePomodoroAttributionTest do
 
     {:ok, _} =
       Vault.save_day(%{
-        date: Date.utc_today(),
+        date: Clock.today(),
         order: ["stretch-neck"],
         active: [],
         done: [],

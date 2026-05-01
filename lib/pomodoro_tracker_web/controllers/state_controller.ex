@@ -8,10 +8,10 @@ defmodule PomodoroTrackerWeb.StateController do
 
   use PomodoroTrackerWeb, :controller
 
-  alias PomodoroTracker.{Cadence, Priority, Timer, Vault}
+  alias PomodoroTracker.{Cadence, Clock, Priority, Timer, Vault}
 
   def show(conn, _params) do
-    now = NaiveDateTime.from_erl!(:calendar.local_time())
+    now = Clock.now()
 
     tasks_list = Vault.list_all_tasks()
     tasks = Map.new(tasks_list, &{&1.id, &1})

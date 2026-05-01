@@ -13,7 +13,7 @@ defmodule PomodoroTracker.Vault do
   """
 
   require Logger
-  alias PomodoroTracker.{Recurrence, Tags, TemplateLinks}
+  alias PomodoroTracker.{Clock, Recurrence, Tags, TemplateLinks}
 
   @type zone :: :work | :personal
   @type pilar :: :salud | :sustento | :limites | :hogar | :pasatiempos | nil
@@ -248,6 +248,160 @@ defmodule PomodoroTracker.Vault do
     merged
   end
 
+  def rename_tag(zone, old_tag, new_tag) when zone in [:work, :personal] do
+    old_tag = Tags.normalize(old_tag)
+    new_tag = Tags.normalize(new_tag)
+
+    cond do
+      is_nil(old_tag) or is_nil(new_tag) ->
+        {:error, :invalid_tag}
+
+      old_tag == new_tag ->
+        {:ok, :unchanged}
+
+      true ->
+        for kind <- [:templates, :backlog],
+            task <- list_tasks(zone, kind),
+            reduce: [] do
+          acc ->
+            rewritten = rewrite_task_tags(task.tags || [], old_tag, new_tag)
+
+            if rewritten == Tags.normalize_many(task.tags || []) do
+              acc
+            else
+              save_task(%{task | tags: rewritten})
+              [task.id | acc]
+            end
+        end
+
+        registry =
+          zone
+          |> list_registered_tags()
+          |> rewrite_task_tags(old_tag, new_tag)
+
+        path = tag_registry_path(zone)
+        File.mkdir_p!(Path.dirname(path))
+        File.write!(path, to_yaml(%{"tags" => registry}))
+        {:ok, :renamed}
+    end
+  end
+
+  def delete_tag(zone, tag) when zone in [:work, :personal] do
+    tag = Tags.normalize(tag)
+
+    if is_nil(tag) do
+      {:error, :invalid_tag}
+    else
+      tasks =
+        for kind <- [:templates, :backlog],
+            task <- list_tasks(zone, kind),
+            reduce: [] do
+          acc ->
+            retained =
+              task.tags
+              |> Tags.normalize_many()
+              |> Enum.reject(&tag_matches_subtree?(tag, &1))
+
+            if retained == Tags.normalize_many(task.tags || []) do
+              acc
+            else
+              save_task(%{task | tags: retained})
+              [task.id | acc]
+            end
+        end
+
+      registry =
+        zone
+        |> list_registered_tags()
+        |> Enum.reject(&tag_matches_subtree?(tag, &1))
+        |> Tags.normalize_many()
+
+      path = tag_registry_path(zone)
+      File.mkdir_p!(Path.dirname(path))
+      File.write!(path, to_yaml(%{"tags" => registry}))
+
+      {:ok, %{tasks_affected: length(tasks)}}
+    end
+  end
+
+  def merge_tags(zone, source_tags, target_tag) when zone in [:work, :personal] do
+    sources =
+      source_tags
+      |> List.wrap()
+      |> Tags.normalize_many()
+      |> Enum.reject(&is_nil/1)
+
+    target_tag = Tags.normalize(target_tag)
+
+    cond do
+      length(sources) < 1 or is_nil(target_tag) ->
+        {:error, :invalid_tag}
+
+      true ->
+        tasks_affected =
+          for kind <- [:templates, :backlog],
+              task <- list_tasks(zone, kind),
+              reduce: [] do
+            acc ->
+              rewritten = rewrite_task_tags_multi(task.tags || [], sources, target_tag)
+
+              if rewritten == Tags.normalize_many(task.tags || []) do
+                acc
+              else
+                save_task(%{task | tags: rewritten})
+                [task.id | acc]
+              end
+          end
+
+        registry =
+          zone
+          |> list_registered_tags()
+          |> rewrite_task_tags_multi(sources, target_tag)
+
+        path = tag_registry_path(zone)
+        File.mkdir_p!(Path.dirname(path))
+        File.write!(path, to_yaml(%{"tags" => registry}))
+
+        {:ok, %{tasks_affected: length(tasks_affected)}}
+    end
+  end
+
+  defp rewrite_task_tags(tags, old_tag, new_tag) do
+    tags
+    |> Enum.map(fn tag -> replace_tag_prefix(tag, old_tag, new_tag) end)
+    |> Tags.normalize_many()
+  end
+
+  defp rewrite_task_tags_multi(tags, source_tags, target_tag) do
+    ordered_sources =
+      source_tags
+      |> Enum.uniq()
+      |> Enum.sort_by(&{-String.length(&1), String.downcase(&1)})
+
+    tags
+    |> Enum.map(fn tag ->
+      case Enum.find(ordered_sources, &tag_matches_subtree?(&1, tag)) do
+        nil -> tag
+        source_tag -> replace_tag_prefix(tag, source_tag, target_tag)
+      end
+    end)
+    |> Tags.normalize_many()
+  end
+
+  defp tag_matches_subtree?(parent, candidate) do
+    candidate == parent or String.starts_with?(candidate, parent <> ">")
+  end
+
+  defp replace_tag_prefix(tag, old_tag, new_tag) when tag == old_tag, do: new_tag
+
+  defp replace_tag_prefix(tag, old_tag, new_tag) do
+    if String.starts_with?(tag, old_tag <> ">") do
+      new_tag <> String.replace_prefix(tag, old_tag, "")
+    else
+      tag
+    end
+  end
+
   defp write_task_file(path, attrs) do
     body = Map.get(attrs, :body, "")
     fm = attrs |> Map.drop([:body, :frontmatter]) |> stringify_keys()
@@ -299,7 +453,7 @@ defmodule PomodoroTracker.Vault do
   # ---------------------------------------------------------------------------
 
   @doc "Path for today's plan (lives in personal vault — single source of truth)."
-  def day_path(date \\ Date.utc_today()) do
+  def day_path(date \\ Clock.today()) do
     Path.join(dir(:personal, :days), "#{Date.to_iso8601(date)}.md")
   end
 
@@ -325,7 +479,7 @@ defmodule PomodoroTracker.Vault do
     |> Enum.sort({:desc, Date})
   end
 
-  def load_day(date \\ Date.utc_today()) do
+  def load_day(date \\ Clock.today()) do
     path = day_path(date)
 
     case File.read(path) do
@@ -446,7 +600,7 @@ defmodule PomodoroTracker.Vault do
 
   Returns `{:ok, new_id}`.
   """
-  def instantiate_template(%{kind: :templates} = tpl, date \\ Date.utc_today()) do
+  def instantiate_template(%{kind: :templates} = tpl, date \\ Clock.today()) do
     instantiate_template(tpl, date, [])
   end
 
@@ -587,7 +741,7 @@ defmodule PomodoroTracker.Vault do
   # Session log (append-only)
   # ---------------------------------------------------------------------------
 
-  def log_session(entry, date \\ Date.utc_today()) do
+  def log_session(entry, date \\ Clock.today()) do
     path = Path.join(dir(:personal, :sessions), "#{Date.to_iso8601(date)}.md")
     File.mkdir_p!(Path.dirname(path))
 
@@ -614,7 +768,7 @@ defmodule PomodoroTracker.Vault do
 
   @doc "List parsed session log entries for a given date."
   @spec list_sessions(Date.t()) :: [session]
-  def list_sessions(date \\ Date.utc_today()) do
+  def list_sessions(date \\ Clock.today()) do
     path = Path.join(dir(:personal, :sessions), "#{Date.to_iso8601(date)}.md")
 
     case File.read(path) do
