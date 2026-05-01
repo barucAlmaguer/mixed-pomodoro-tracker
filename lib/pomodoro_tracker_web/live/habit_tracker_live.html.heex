@@ -1,0 +1,504 @@
+<div class="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
+  <PomodoroTrackerWeb.Layouts.flash_group flash={@flash} />
+
+  <div class="mx-auto max-w-6xl px-4 py-8">
+    <div class="flex justify-center">
+      <PomodoroTrackerWeb.Layouts.product_nav id="habits-nav" current={:habits} />
+    </div>
+
+    <section class="mt-8 flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <h1 class="text-3xl font-light tracking-tight">Habits</h1>
+        <p class="mt-1 text-sm text-white/55">
+          Vista agregada por tags. Se cuenta el historial de <code>done</code>, no las tareas específicas.
+        </p>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <.link
+          patch={habit_route(%{zone: "work", tag: @selected_tag, month: @month, year: @year, scale: @scale})}
+          class={[
+            "rounded-full px-3 py-1.5 text-xs uppercase tracking-[0.18em] transition",
+            if(@zone_filter == :work,
+              do: "bg-red-400 text-slate-950",
+              else: "bg-white/10 text-white/70 hover:bg-white/15"
+            )
+          ]}
+        >
+          work
+        </.link>
+        <.link
+          patch={habit_route(%{zone: "personal", tag: @selected_tag, month: @month, year: @year, scale: @scale})}
+          class={[
+            "rounded-full px-3 py-1.5 text-xs uppercase tracking-[0.18em] transition",
+            if(@zone_filter == :personal,
+              do: "bg-blue-400 text-slate-950",
+              else: "bg-white/10 text-white/70 hover:bg-white/15"
+            )
+          ]}
+        >
+          personal
+        </.link>
+      </div>
+    </section>
+
+    <section class="mt-6 rounded-3xl border border-white/10 bg-black/20 p-4">
+      <div class="flex flex-wrap gap-2">
+        <.link
+          :for={tag <- @top_tags}
+          patch={habit_route(%{zone: @zone_filter, tag: tag, month: @month, year: @year, scale: @scale})}
+          class={[
+            "rounded-full border px-3 py-1.5 text-xs uppercase tracking-[0.18em] transition",
+            if(@selected_tag == tag,
+              do: "border-blue-300/50 bg-blue-400 text-slate-950",
+              else: "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+            )
+          ]}
+        >
+          {tag}
+        </.link>
+      </div>
+
+      <div :if={@selected_tag} class="mt-4 flex flex-wrap items-center gap-2 text-xs text-white/60">
+        <span class="rounded-full bg-white/10 px-3 py-1">{@selected_tag}</span>
+        <span class="rounded-full bg-white/5 px-3 py-1">
+          hijos: {child_count(@tag_catalog, @selected_tag)}
+        </span>
+        <span class="rounded-full bg-white/5 px-3 py-1">
+          días activos en {@year}: {year_daily_total(@activity, @selected_tag, @year)}
+        </span>
+      </div>
+    </section>
+
+    <section :if={@selected_tag} class="mt-8 rounded-3xl border border-white/10 bg-black/20 p-5">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div class="text-xs uppercase tracking-[0.22em] text-white/45">View</div>
+          <h2 class="mt-1 text-xl font-light">{@selected_tag}</h2>
+          <p :if={@scale == :daily} class="mt-1 text-sm text-white/55">
+            Heatmap mensual. Cada cuadro representa un día con al menos una tarea completada de este tag o alguno de sus hijos.
+          </p>
+          <p :if={@scale == :weekly} class="mt-1 text-sm text-white/55">
+            Resumen anual por semanas. Cada cuadro se activa si hubo al menos una tarea completada esa semana.
+          </p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <.link
+            patch={habit_route(%{zone: @zone_filter, tag: @selected_tag, month: @month, year: @year, scale: :daily})}
+            class={[
+              "rounded-full px-3 py-1.5 text-xs uppercase tracking-[0.18em] transition",
+              if(@scale == :daily,
+                do: "bg-white text-slate-950",
+                else: "bg-white/10 text-white/70 hover:bg-white/15"
+              )
+            ]}
+          >
+            daily
+          </.link>
+          <.link
+            patch={habit_route(%{zone: @zone_filter, tag: @selected_tag, month: @month, year: @year, scale: :weekly})}
+            class={[
+              "rounded-full px-3 py-1.5 text-xs uppercase tracking-[0.18em] transition",
+              if(@scale == :weekly,
+                do: "bg-white text-slate-950",
+                else: "bg-white/10 text-white/70 hover:bg-white/15"
+              )
+            ]}
+          >
+            weekly
+          </.link>
+
+          <div :if={@scale == :daily} class="flex items-center gap-2">
+            <.link
+              patch={
+                habit_route(%{
+                  zone: @zone_filter,
+                  tag: @selected_tag,
+                  month: previous_month(@month),
+                  year: @year,
+                  scale: @scale
+                })
+              }
+              class="rounded-full bg-white/10 px-3 py-1.5 text-sm text-white/80 hover:bg-white/15"
+            >
+              ←
+            </.link>
+            <div class="min-w-32 text-center text-sm text-white/80">{selected_month_label(@month)}</div>
+            <.link
+              patch={
+                habit_route(%{
+                  zone: @zone_filter,
+                  tag: @selected_tag,
+                  month: next_month(@month),
+                  year: @year,
+                  scale: @scale
+                })
+              }
+              class="rounded-full bg-white/10 px-3 py-1.5 text-sm text-white/80 hover:bg-white/15"
+            >
+              →
+            </.link>
+          </div>
+
+          <div :if={@scale == :weekly} class="flex items-center gap-2">
+            <.link
+              patch={habit_route(%{zone: @zone_filter, tag: @selected_tag, month: @month, year: @year - 1, scale: @scale})}
+              class="rounded-full bg-white/10 px-3 py-1.5 text-sm text-white/80 hover:bg-white/15"
+            >
+              ←
+            </.link>
+            <div class="min-w-16 text-center text-sm text-white/80">{selected_year_label(@year)}</div>
+            <.link
+              patch={habit_route(%{zone: @zone_filter, tag: @selected_tag, month: @month, year: @year + 1, scale: @scale})}
+              class="rounded-full bg-white/10 px-3 py-1.5 text-sm text-white/80 hover:bg-white/15"
+            >
+              →
+            </.link>
+          </div>
+        </div>
+      </div>
+
+      <div :if={@scale == :daily} class="mt-5 flex gap-2 overflow-x-auto pb-1">
+        <div :for={week <- month_columns(@activity, @selected_tag, @month)} class="flex flex-col gap-2">
+          <div
+            :for={cell <- week}
+            class={[
+              "h-5 w-5 rounded-[6px] transition-transform hover:scale-110",
+              heat_cell_class(cell)
+            ]}
+            title={cell.title}
+          />
+        </div>
+      </div>
+
+      <div :if={@scale == :weekly} class="mt-5 flex gap-2 overflow-x-auto pb-1">
+        <div :for={column <- year_week_columns(@activity, @selected_tag, @year)} class="flex flex-col gap-2">
+          <div
+            :for={cell <- column}
+            class={[
+              "h-5 w-5 rounded-[6px] transition-transform hover:scale-110",
+              week_cell_class(cell)
+            ]}
+            title={cell.title}
+          />
+        </div>
+      </div>
+    </section>
+
+    <section :if={@selected_tag} class="mt-8 rounded-3xl border border-white/10 bg-black/20 p-5">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div class="text-xs uppercase tracking-[0.22em] text-white/45">Branches</div>
+          <h2 class="mt-1 text-xl font-light">Ramas y tareas directas</h2>
+          <p class="mt-1 text-sm text-white/55">
+            Cada rama muestra su heatmap propio y, si quieres, sus tareas exactas en un panel colapsable.
+          </p>
+        </div>
+
+        <form phx-submit="habit:add_child" phx-change="habit:add_child_change" class="flex items-center gap-2">
+          <input
+            name="child_tag_query"
+            value={@child_tag_query}
+            placeholder="nuevo hijo, ej. coordinacion"
+            class="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30"
+          />
+          <button
+            class="rounded-full bg-white text-slate-950 px-3 py-2 text-xs uppercase tracking-[0.18em]"
+          >
+            Agregar tag
+          </button>
+        </form>
+      </div>
+
+      <div class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <article
+          :for={branch <- branch_tags(@tag_catalog, @selected_tag)}
+          class="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <div class="text-[11px] uppercase tracking-[0.2em] text-white/40">
+                {if branch == @selected_tag, do: "seleccionado", else: tag_suffix(@selected_tag)}
+              </div>
+              <div class="mt-1 text-base text-white/90 truncate">{tag_suffix(branch)}</div>
+              <div class="mt-1 flex flex-wrap gap-1 text-[10px] text-white/45">
+                <span class="rounded-full bg-white/5 px-2 py-0.5">
+                  directas: {length(direct_tag_tasks(@tasks, @zone_filter, branch))}
+                </span>
+                <span class="rounded-full bg-white/5 px-2 py-0.5">
+                  hijos: {child_count(@tag_catalog, branch)}
+                </span>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-1">
+              <button
+                phx-click="habit:new_task_open"
+                phx-value-tag={branch}
+                class="rounded-full bg-white/10 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-white/70 hover:bg-white/15"
+                title="Crear tarea en este tag"
+              >
+                + tarea
+              </button>
+              <button
+                phx-click="habit:rename_open"
+                phx-value-tag={branch}
+                class="h-6 w-6 rounded bg-white/10 text-xs text-white/70 hover:bg-white/15"
+                title="Rename tag"
+              >
+                ✎
+              </button>
+              <button
+                phx-click="habit:delete_tag_open"
+                phx-value-tag={branch}
+                class="h-6 w-6 rounded bg-white/10 text-xs text-white/70 hover:bg-red-500/60"
+                title="Delete tag"
+              >
+                🗑
+              </button>
+            </div>
+          </div>
+
+          <form
+            :if={@renaming_tag == branch}
+            phx-submit="habit:rename_submit"
+            phx-change="habit:rename_change"
+            phx-value-tag={branch}
+            class="mt-3 flex items-center gap-2"
+          >
+            <input
+              name="rename_value"
+              value={@rename_value}
+              class="flex-1 rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-sm text-white"
+            />
+            <button class="rounded-full bg-white px-3 py-1.5 text-xs uppercase tracking-[0.18em] text-slate-950">
+              Save
+            </button>
+            <button
+              type="button"
+              phx-click="habit:rename_cancel"
+              class="rounded-full bg-white/10 px-3 py-1.5 text-xs uppercase tracking-[0.18em] text-white/70"
+            >
+              Cancel
+            </button>
+          </form>
+
+          <div :if={@scale == :daily} class="mt-4 flex gap-1.5 overflow-x-auto pb-1">
+            <div :for={week <- month_columns(@activity, branch, @month)} class="flex flex-col gap-1.5">
+              <div
+                :for={cell <- week}
+                class={[
+                  "h-3.5 w-3.5 rounded-[4px] transition-transform hover:scale-110",
+                  heat_cell_class(cell)
+                ]}
+                title={cell.title}
+              />
+            </div>
+          </div>
+
+          <div :if={@scale == :weekly} class="mt-4 flex gap-1.5 overflow-x-auto pb-1">
+            <div :for={column <- year_week_columns(@activity, branch, @year)} class="flex flex-col gap-1.5">
+              <div
+                :for={cell <- column}
+                class={[
+                  "h-3.5 w-3.5 rounded-[4px] transition-transform hover:scale-110",
+                  week_cell_class(cell)
+                ]}
+                title={cell.title}
+              />
+            </div>
+          </div>
+
+          <div class="mt-4 border-t border-white/10 pt-3">
+            <button
+              phx-click="habit:toggle_tasks"
+              phx-value-tag={branch}
+              class="flex w-full items-center justify-between text-left text-xs uppercase tracking-[0.18em] text-white/55"
+            >
+              <span>ver tareas</span>
+              <span>{if task_section_open?(@task_sections_open, branch), do: "▴", else: "▾"}</span>
+            </button>
+
+            <div :if={task_section_open?(@task_sections_open, branch)} class="mt-3 space-y-3">
+              <div :if={direct_tag_tasks(@tasks, @zone_filter, branch) == []} class="text-sm italic text-white/35">
+                No hay tareas directas en este tag todavía.
+              </div>
+
+              <article
+                :for={task <- direct_tag_tasks(@tasks, @zone_filter, branch)}
+                id={"task-habit-#{task.id}"}
+                class="rounded-xl border border-white/10 bg-black/20 px-3 py-3"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center gap-1.5">
+                      <div class="truncate text-sm text-white/90">{task.title}</div>
+                      <span class={["rounded-full px-2 py-0.5 text-[10px]", direct_task_kind_class(task)]}>
+                        {direct_task_kind_label(task)}
+                      </span>
+                      <span :if={task.recurrence} class="rounded-full bg-white/5 px-2 py-0.5 text-[10px] text-white/60">
+                        {ExecuteLive.recurrence_compact(task.recurrence)}
+                      </span>
+                    </div>
+                    <div class="mt-1 flex flex-wrap gap-1.5 text-[10px] text-white/50">
+                      <span class="rounded-full bg-white/5 px-2 py-0.5">
+                        done: {task_total_done(@task_activity, task)}
+                      </span>
+                      <span class="rounded-full bg-white/5 px-2 py-0.5">
+                        última: {if last = task_last_done(@task_activity, task), do: Calendar.strftime(last, "%b %-d"), else: "nunca"}
+                      </span>
+                      <span :for={extra_tag <- Enum.reject(task.tags || [], &(&1 == branch))} class="rounded-full bg-white/5 px-2 py-0.5">
+                        {extra_tag}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div :if={@scale == :daily} class="mt-3 flex gap-1 overflow-x-auto pb-1">
+                  <div :for={week <- task_month_columns(@task_activity, task, @month)} class="flex flex-col gap-1">
+                    <div
+                      :for={cell <- week}
+                      class={[
+                        "h-2.5 w-2.5 rounded-[3px] transition-transform hover:scale-110",
+                        heat_cell_class(cell)
+                      ]}
+                      title={cell.title}
+                    />
+                  </div>
+                </div>
+
+                <div :if={@scale == :weekly} class="mt-3 flex gap-1 overflow-x-auto pb-1">
+                  <div :for={column <- task_year_week_columns(@task_activity, task, @year)} class="flex flex-col gap-1">
+                    <div
+                      :for={cell <- column}
+                      class={[
+                        "h-2.5 w-2.5 rounded-[3px] transition-transform hover:scale-110",
+                        week_cell_class(cell)
+                      ]}
+                      title={cell.title}
+                    />
+                  </div>
+                </div>
+              </article>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <div
+      :if={@task_form}
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4"
+      phx-click="habit:new_task_close"
+    >
+      <form
+        phx-submit="habit:new_task_submit"
+        phx-change="habit:new_task_change"
+        class="pointer-events-auto w-full max-w-sm space-y-3 rounded-2xl bg-slate-800 p-4 text-white max-h-[calc(100vh-2rem)] overflow-y-auto"
+        phx-click-away="habit:new_task_close"
+      >
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <div class="text-sm font-semibold">Nueva tarea de hábito</div>
+            <div class="mt-1 text-xs text-white/55">
+              Tag exacto: <code>{@task_form.habit_tag}</code>
+            </div>
+          </div>
+          <button type="button" phx-click="habit:new_task_close" class="text-white/60 hover:text-white">
+            ×
+          </button>
+        </div>
+
+        <label class="block text-xs uppercase tracking-[0.18em] text-white/55">
+          Título
+          <input
+            name="task[title]"
+            value={@task_form.title}
+            class="mt-1 w-full rounded bg-white/10 px-3 py-2 text-sm"
+          />
+        </label>
+
+        <label class="block text-xs uppercase tracking-[0.18em] text-white/55">
+          Prioridad
+          <select name="task[priority]" class="mt-1 w-full rounded bg-white/10 px-3 py-2 text-sm">
+            <option value="high" selected={@task_form.priority == "high"}>High</option>
+            <option value="med" selected={@task_form.priority == "med"}>Med</option>
+            <option value="low" selected={@task_form.priority == "low"}>Low</option>
+          </select>
+        </label>
+
+        <PomodoroTrackerWeb.Layouts.recurrence_editor
+          form={@task_form}
+          toggle_event="habit:new_task_toggle_weekday"
+        />
+
+        <label class="block text-xs uppercase tracking-[0.18em] text-white/55">
+          Nota
+          <textarea
+            name="task[body]"
+            rows="4"
+            class="mt-1 w-full rounded bg-white/10 px-3 py-2 text-sm"
+          >{@task_form.body}</textarea>
+        </label>
+
+        <div class="flex justify-end gap-2 pt-1">
+          <button
+            type="button"
+            phx-click="habit:new_task_close"
+            class="rounded-full bg-white/10 px-4 py-2 text-xs uppercase tracking-[0.18em] text-white/70"
+          >
+            Cancel
+          </button>
+          <button class="rounded-full bg-white px-4 py-2 text-xs uppercase tracking-[0.18em] text-slate-950">
+            Save
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <div
+      :if={@delete_tag_dialog}
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4"
+      phx-click="habit:delete_tag_cancel"
+    >
+      <div class="pointer-events-auto w-full max-w-md rounded-2xl border border-red-400/20 bg-slate-900 p-5 text-white" phx-click-away="habit:delete_tag_cancel">
+        <div class="text-xs uppercase tracking-[0.22em] text-red-300/80">Delete tag</div>
+        <div class="mt-2 text-lg font-light">{@delete_tag_dialog.tag}</div>
+        <div class="mt-3 space-y-2 text-sm text-white/65">
+          <p>
+            Se eliminará este tag{if @delete_tag_dialog.descendants > 0, do: " y #{Integer.to_string(@delete_tag_dialog.descendants)} tags hijos", else: ""}.
+          </p>
+          <p :if={@delete_tag_dialog.tasks_affected > 0}>
+            {@delete_tag_dialog.tasks_affected} tareas perderían este tag.
+          </p>
+          <p :if={@delete_tag_dialog.tasks_affected == 0}>
+            No hay tareas asignadas actualmente a este tag.
+          </p>
+        </div>
+
+        <div class="mt-5 flex justify-end gap-2">
+          <button
+            phx-click="habit:delete_tag_cancel"
+            class="rounded-full bg-white/10 px-4 py-2 text-xs uppercase tracking-[0.18em] text-white/70"
+          >
+            Cancel
+          </button>
+          <button
+            phx-click="habit:delete_tag_confirm"
+            phx-value-tag={@delete_tag_dialog.tag}
+            class="rounded-full bg-red-400 px-4 py-2 text-xs uppercase tracking-[0.18em] text-slate-950"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <section :if={is_nil(@selected_tag)} class="mt-10 rounded-3xl border border-dashed border-white/10 bg-black/20 p-8 text-center">
+      <div class="text-sm text-white/60">
+        No hay tags suficientes para construir hábitos todavía. Crea tags en tus tareas o regístralos desde planning.
+      </div>
+    </section>
+  </div>
+</div>
