@@ -137,6 +137,45 @@ defmodule PomodoroTrackerWeb.DayLiveHistoryTest do
     assert render(tomorrow_view) =~ "1↪"
   end
 
+  test "unfinished recent ignores tasks whose latest appearance is already finished", %{
+    conn: _conn
+  } do
+    stale_day = Date.add(Clock.today(), -5)
+    finished_day = Date.add(Clock.today(), -1)
+
+    {:ok, _} =
+      Vault.create_task(:personal, :backlog, %{
+        id: "agendar-mtto-mazda-20260429",
+        title: "agendar mtto mazda",
+        priority: "med",
+        tags: ["carro"],
+        from_template: "agendar-mtto-mazda"
+      })
+
+    {:ok, _} =
+      Vault.save_day(%{
+        date: stale_day,
+        order: ["agendar-mtto-mazda-20260429"],
+        active: [],
+        done: [],
+        pomodoros: %{}
+      })
+
+    {:ok, _} =
+      Vault.save_day(%{
+        date: finished_day,
+        order: [],
+        active: [],
+        done: ["agendar-mtto-mazda-20260429"],
+        pomodoros: %{}
+      })
+
+    tasks = Vault.list_all_tasks() |> Map.new(&{&1.id, &1})
+    {:ok, current_day} = Vault.load_day()
+
+    assert DayLive.unfinished_recent(tasks, current_day) == []
+  end
+
   test "execute suggestions surface lead-window recurrents and today plus opens ad-hoc modal", %{
     conn: conn
   } do

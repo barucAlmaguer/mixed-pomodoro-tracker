@@ -21,14 +21,32 @@
       />
     </div>
   </div>
-  <div class="fixed top-[3px] left-0 right-0 h-4 z-50 group/summary">
-    <div class="relative h-[3px] bg-black/55 transition-all duration-150 ease-out group-hover/summary:h-[9px]">
+  <% bounds = timeline_picker_bounds() %>
+  <div
+    id="timeline-retro-picker"
+    class="fixed top-[3px] left-0 right-0 h-10 z-50 group/summary"
+    phx-hook="TimelineRangePicker"
+    data-start-minute={bounds.start_minute}
+    data-end-minute={bounds.end_minute}
+    data-step-minute={bounds.step_minute}
+  >
+    <div data-role="surface" class="absolute inset-x-0 top-0 h-10 cursor-crosshair select-none">
+      <div class="relative h-[3px] bg-black/55 transition-all duration-150 ease-out group-hover/summary:h-[9px]">
+        <div
+          data-role="selection"
+          class="hidden absolute top-0 h-full rounded-sm bg-amber-300/70 shadow-[0_0_0_1px_rgba(253,224,71,0.35)]"
+        />
+        <div
+          data-role="tooltip"
+          class="hidden absolute top-3 -translate-x-1/2 whitespace-nowrap rounded bg-black/85 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-white/80 shadow-lg"
+        />
       <div
         :for={segment <- summary.segments}
         class={["absolute top-0 h-full", segment.class]}
         style={segment.style}
         title={segment.label}
       />
+      </div>
     </div>
   </div>
 
@@ -863,6 +881,144 @@
   </div>
   
 <!-- New task modal (click-outside-only close, phx-change controlled) -->
+  <div :if={@retrospective_form}>
+    <div class="fixed inset-0 bg-black/70 z-30" phx-click="retrospective:close"></div>
+    <div class="fixed inset-0 z-40 flex items-center justify-center p-4 pointer-events-none">
+      <form
+        phx-submit="retrospective:submit"
+        phx-change="retrospective:change"
+        class="bg-slate-900 text-white rounded-2xl p-4 w-full max-w-xl space-y-4 pointer-events-auto max-h-[calc(100vh-2rem)] overflow-y-auto border border-white/10 shadow-2xl"
+      >
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <div class="text-[11px] uppercase tracking-[0.22em] text-amber-200/70">Retrospective fill</div>
+            <div class="mt-1 text-lg font-light">
+              {Date.to_iso8601(@retrospective_form.date)} · {@retrospective_form.start_label} → {@retrospective_form.end_label}
+            </div>
+            <div class="mt-1 text-xs text-white/50">
+              {@retrospective_form.duration_minutes} min · usa esto para rellenar huecos del timeline sin tocar el conteo de pomodoros
+            </div>
+          </div>
+          <button type="button" phx-click="retrospective:close" class="text-white/60 hover:text-white">
+            ×
+          </button>
+        </div>
+
+        <div class="grid gap-3 md:grid-cols-[1fr_1fr]">
+          <label class="space-y-1">
+            <span class="text-xs uppercase tracking-[0.18em] text-white/55">Phase</span>
+            <select name="retro[phase]" class="w-full rounded bg-white/10 px-3 py-2 text-sm">
+              <option value="work" selected={@retrospective_form.phase == "work"}>work</option>
+              <option value="active_break" selected={@retrospective_form.phase == "active_break"}>active break</option>
+              <option value="passive_break" selected={@retrospective_form.phase == "passive_break"}>passive break</option>
+            </select>
+          </label>
+          <label :if={@retrospective_form.phase == "work"} class="space-y-1">
+            <span class="text-xs uppercase tracking-[0.18em] text-white/55">Classification</span>
+            <select name="retro[zone_mode]" class="w-full rounded bg-white/10 px-3 py-2 text-sm">
+              <option value="auto" selected={@retrospective_form.zone_mode == "auto"}>
+                auto ({@retrospective_form.default_zone_label})
+              </option>
+              <option value="work" selected={@retrospective_form.zone_mode == "work"}>work</option>
+              <option value="personal" selected={@retrospective_form.zone_mode == "personal"}>personal</option>
+              <option value="mixed" selected={@retrospective_form.zone_mode == "mixed"}>work + personal</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="rounded-2xl border border-amber-300/20 bg-amber-200/5 p-3">
+          <div class="text-[11px] uppercase tracking-[0.18em] text-amber-100/70">Tasks</div>
+          <div class="mt-1 text-xs text-white/50">
+            No guardamos timestamps exactos por tarea todavía, así que aquí se priorizan tareas hechas o tocadas ese día.
+          </div>
+
+          <input
+            name="retro[task_query]"
+            value={@retrospective_form.task_query}
+            placeholder="Filtra por título o id"
+            autocomplete="off"
+            class="mt-3 w-full rounded bg-white/10 px-3 py-2 text-sm"
+          />
+
+          <div :if={@retrospective_form.task_ids != []} class="mt-3 flex flex-wrap gap-1.5">
+            <span
+              :for={choice <- Enum.filter(retrospective_filtered_choices(@retrospective_form, @tasks, @selected_date, @day, @sessions, @now), &(&1.id in @retrospective_form.task_ids))}
+              class="rounded-full bg-white px-2 py-1 text-xs text-slate-950"
+            >
+              {choice.title}
+            </span>
+          </div>
+
+          <div class="mt-3 max-h-56 space-y-1 overflow-y-auto pr-1">
+            <button
+              :for={choice <- Enum.take(retrospective_filtered_choices(@retrospective_form, @tasks, @selected_date, @day, @sessions, @now), 18)}
+              type="button"
+              phx-click="retrospective:toggle_task"
+              phx-value-id={choice.id}
+              class={[
+                "flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs transition",
+                if(choice.id in @retrospective_form.task_ids,
+                  do: "bg-white text-slate-950",
+                  else: "bg-white/5 text-white/75 hover:bg-white/10 hover:text-white"
+                )
+              ]}
+            >
+              <div class="min-w-0">
+                <div class="truncate">{choice.title}</div>
+                <div class="mt-0.5 flex flex-wrap gap-1.5 text-[10px] opacity-70">
+                  <span>{choice.zone}</span>
+                  <span>· {choice.kind}</span>
+                  <span :if={choice.recurrence}>· {choice.recurrence}</span>
+                  <span :if={choice.done_today?}>· done ese día</span>
+                  <span :if={not choice.done_today? and choice.touched_today?}>· tocada ese día</span>
+                  <span :if={not choice.done_today? and not choice.touched_today? and choice.planned_today?}>· estaba en el día</span>
+                </div>
+              </div>
+              <span class="ml-3 shrink-0 text-[10px] opacity-60"><code>{choice.id}</code></span>
+            </button>
+          </div>
+        </div>
+
+        <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+          <div class="text-[11px] uppercase tracking-[0.18em] text-white/60">Nueva ad-hoc on the spot</div>
+          <div class="mt-3 grid gap-2 md:grid-cols-[1fr_110px_120px]">
+            <input
+              name="retro[ad_hoc_title]"
+              value={@retrospective_form.ad_hoc_title}
+              placeholder="Ej. llamada con taller"
+              autocomplete="off"
+              class="rounded bg-white/10 px-3 py-2 text-sm"
+            />
+            <select name="retro[ad_hoc_zone]" class="rounded bg-white/10 px-3 py-2 text-sm">
+              <option value="work" selected={@retrospective_form.ad_hoc_zone == "work"}>work</option>
+              <option value="personal" selected={@retrospective_form.ad_hoc_zone == "personal"}>personal</option>
+            </select>
+            <button
+              type="button"
+              phx-click="retrospective:create_ad_hoc"
+              class="rounded-full bg-white px-3 py-2 text-xs uppercase tracking-[0.18em] text-slate-950"
+            >
+              Crear y usar
+            </button>
+          </div>
+        </div>
+
+        <div class="flex gap-2 justify-end">
+          <button
+            type="button"
+            phx-click="retrospective:close"
+            class="px-3 py-1.5 rounded bg-white/10 text-sm"
+          >
+            Cancel
+          </button>
+          <button class="px-4 py-1.5 rounded-full bg-amber-300 text-slate-950 text-sm font-medium">
+            Guardar intervalo
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div :if={@new_task_form}>
     <div class="fixed inset-0 bg-black/60 z-30" phx-click="new:close"></div>
     <div class="fixed inset-0 z-40 flex items-center justify-center p-4 pointer-events-none">

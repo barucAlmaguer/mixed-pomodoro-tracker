@@ -190,6 +190,32 @@ defmodule PomodoroTrackerWeb.Layouts do
       >
         Plan
       </.link>
+      <.link
+        id={"#{@id}-habits"}
+        navigate={~p"/habits"}
+        class={[
+          "px-3 py-1.5 rounded-full text-xs uppercase tracking-[0.2em] transition",
+          if(@current == :habits,
+            do: "bg-white text-slate-950",
+            else: "text-white/70 hover:text-white hover:bg-white/10"
+          )
+        ]}
+      >
+        Habits
+      </.link>
+      <.link
+        id={"#{@id}-tags"}
+        navigate={~p"/tags"}
+        class={[
+          "px-3 py-1.5 rounded-full text-xs uppercase tracking-[0.2em] transition",
+          if(@current == :tags,
+            do: "bg-white text-slate-950",
+            else: "text-white/70 hover:text-white hover:bg-white/10"
+          )
+        ]}
+      >
+        Tags
+      </.link>
     </nav>
     """
   end

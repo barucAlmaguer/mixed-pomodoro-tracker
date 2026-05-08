@@ -154,4 +154,36 @@ defmodule PomodoroTracker.RecurrenceTest do
                ~D[2026-11-12]
     end
   end
+
+  describe "next_due_date/3 and current_due_date/3" do
+    test "next_due_date ignores lead for calendar intervals" do
+      recurrence = %{
+        "type" => "interval",
+        "every" => 1,
+        "unit" => "months",
+        "anchor_date" => "2026-05-18",
+        "anchor_mode" => "calendar",
+        "lead" => %{"value" => 3, "unit" => "days"}
+      }
+
+      assert Recurrence.next_due_date(recurrence, ~D[2026-04-29]) == ~D[2026-05-18]
+      assert Recurrence.next_due_date(recurrence, ~D[2026-05-19]) == ~D[2026-06-18]
+    end
+
+    test "current_due_date returns the true due date only while inside the visible window" do
+      recurrence = %{
+        "type" => "interval",
+        "every" => 1,
+        "unit" => "months",
+        "anchor_date" => "2026-05-18",
+        "anchor_mode" => "calendar",
+        "lead" => %{"value" => 3, "unit" => "days"}
+      }
+
+      assert Recurrence.current_due_date(recurrence, ~D[2026-05-14]) == nil
+      assert Recurrence.current_due_date(recurrence, ~D[2026-05-15]) == ~D[2026-05-18]
+      assert Recurrence.current_due_date(recurrence, ~D[2026-05-18]) == ~D[2026-05-18]
+      assert Recurrence.current_due_date(recurrence, ~D[2026-05-19]) == nil
+    end
+  end
 end

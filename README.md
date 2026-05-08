@@ -10,17 +10,20 @@ Hammerspoon / menubar / floating-panel integration is currently disabled. The su
 - Slack/GitHub filter badges in the top bar (tag filters, not live integrations)
 - 1 or 2 active tasks at a time
 - Pomodoro usage auto-logged per task for traceability
-- `/` is the execution surface and `/planner` is the planning surface
+- `/` is the execution surface, `/planner` is the planning surface, `/habits` is the tag-aggregated habit tracker, and `/tags` is the taxonomy manager
 - `/?date=YYYY-MM-DD` opens a readonly historical day review
 - The top chrome now includes a minimal interval-summary bar plus live
   `work/personal` totals for the selected day
 - Tags support nested taxonomy such as `ejercicio>cuello`, with parent-aware
   filters and a UI picker backed by per-vault YAML registries
 - `/planner` now centers on one unified planning inventory plus compact strips
-  for today's tasks, dragged-forward work, and suggestions
+  for today's tasks and recurrence-driven suggestions, while dragged-forward
+  work lives inside the main inventory
 - Templates can chain into other templates on completion through `On done` /
   `Started by`, with same-day follow-up recreation when the earlier instance is
   already done
+- Recurrent `lead` / `Start popping early` now feeds suggestion sections
+  without pulling tasks forward in the base backlog horizons
 
 ## Product docs
 
@@ -80,15 +83,17 @@ The app creates `pomodoro-tracker/` subfolders inside each vault on first run if
 
 ## Daily flow
 
-1. **Morning (plan)** — open `/planner`, curate templates/backlog, and push tasks into Today.
+1. **Morning (plan)** — open `/planner`, curate templates/backlog, review recurrence suggestions, and push tasks into Today.
    Templates now support UI-configurable recurrence: `daily`, `weekly` with
    weekday chips, and `every X days|months|years` with fixed-calendar or
    reset-on-completion anchoring. Reusable templates can also link to follow-up
    templates that appear automatically when a source task is completed.
-2. **Execute** — open `/`, optionally activate a Today task (up to 2), and hit **Start work** on the timer. You can also start with no active task and assign one later without resetting the pomodoro.
+2. **Execute** — open `/`, optionally create an ad-hoc task directly from the `Today` header, review recurrence suggestions, activate a Today task (up to 2), and hit **Start work** on the timer. You can also start with no active task and assign one later without resetting the pomodoro.
 3. **Break** — when the work interval ends, choose **Active** (quick personal task during the break) or **Passive** (pure rest).
 4. **Off hours** — zone switches to personal automatically; work tasks hide unless you toggle the zone filter.
 5. **Review** — use `/?date=YYYY-MM-DD` or the header arrows from `/` to inspect previous days in readonly mode and carry unfinished tasks forward.
+6. **Habit tracking** — open `/habits` to see monthly or yearly heatmaps aggregated by tag families such as `ejercicio` → `ejercicio>cuello`, inspect direct tasks per branch, create new recurrent/manual templates from that branch, and clean up mistagged tags.
+7. **Tag cleanup** — open `/tags` to rename, merge, or delete taxonomy branches across the vault-backed task files.
 
 Pomodoro counts accumulate on the task per day (`3🍅`, `5🍅`, …). A task doesn't have to finish in one pomodoro.
 
@@ -109,5 +114,6 @@ Wire it to a cron / schedule (e.g. via `/schedule` in Claude Code) to sync in th
 - `PomodoroTracker.Timer` — GenServer state machine (`:idle | :work | :active_break | :passive_break | :long_break`), broadcasts via PubSub
 - `PomodoroTrackerWeb.DayLive` — execution surface, reacts to both `timer` and `vault` topics
 - `PomodoroTrackerWeb.RecurrentPlannerLive` — planning surface for templates, backlog, and archived tasks
+- `PomodoroTrackerWeb.HabitTrackerLive` — tag-based habit aggregation surface with child-tag management
 
 No database. Zero server-side state beyond the Timer GenServer — all source-of-truth is in your vault, and any external editor (Obsidian, vim, another agent) triggers a live UI refresh.

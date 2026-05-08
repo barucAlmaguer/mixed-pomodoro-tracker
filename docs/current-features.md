@@ -8,13 +8,17 @@ supposed to do.
 
 - `/` is the main supported app surface.
 - `/planner` is the supported planning surface.
+- `/habits` is the supported habit-tracking surface.
+- `/tags` is the supported tag-management surface.
 - `/api/state` exposes a read-only JSON snapshot of timer + today + next due
   task.
 - Hammerspoon / menubar / floating panel are intentionally disabled.
 - `/` supports historical day navigation through `?date=YYYY-MM-DD`.
 - There is now explicit product-level navigation between `Execute` and `Plan`.
-- There is still no first-class navigation model yet for historical review,
-  settings, habit tracking, or other future views.
+- There is now explicit product-level navigation between `Execute`, `Plan`,
+  `Habits`, and `Tags`.
+- There is still no first-class navigation model yet for settings or other
+  future views.
 
 ## Core model
 
@@ -180,6 +184,10 @@ supposed to do.
 ### `Today`
 
 - `Today` is collapsible.
+- There is a quick `+` button in the `Today` header to create an ad-hoc task
+  directly from `Execute`.
+- That quick-create flow auto-selects `work` or `personal` from the current
+  execution context.
 - It shows separate progress counters for `work` and `personal`.
 - Pending tasks can be:
   - reordered
@@ -188,6 +196,18 @@ supposed to do.
   - removed from today
 - Done tasks are shown separately with `undo`.
 - Recurrent auto-injected items show a `🔁` marker.
+
+### `Sugerencias`
+
+- `Execute` now has a yellow collapsible `Sugerencias` section above `Today`.
+- It shows recurrent templates that are currently inside their visible
+  suggestion window but are not already represented in `Today`.
+- `Start popping early` / recurrence lead time affects this section.
+- Each suggestion shows:
+  - title
+  - compact recurrence label
+  - real due label such as `toca hoy` or `toca en N días`
+- Adding from suggestions materializes the recurrent into `Today` as needed.
 
 ### Off-hours behavior
 
@@ -222,6 +242,39 @@ is now only a secondary helper because direct per-day historical review exists.
 - When `Today` is empty on the live execution day, the empty state now points
   the user to `Plan`.
 
+## Habit tracking screen (`/habits`)
+
+- Habit tracking is aggregated by tags, not by hardcoded habit types.
+- The selected zone can be switched between `work` and `personal`.
+- The primary scope is the selected parent/root tag, for example `ejercicio`.
+- Parent aggregation includes descendants automatically, so `ejercicio`
+  includes:
+  - `ejercicio`
+  - `ejercicio>cuello`
+  - `ejercicio>cardio`
+  - etc.
+- The main habit view currently includes:
+  - a `daily / weekly` toggle so only one scale is shown at a time
+  - a monthly daily heatmap where each square is one day
+  - a yearly weekly heatmap where each square is one week
+  - branch cards for the selected tag plus its direct descendants
+- Activity is derived from historical `done` state in day files.
+- The tracker shows whether matching tasks were completed on a date/week, not
+  the specific task list itself.
+- The tracker can currently:
+  - add a direct child tag under the selected parent
+  - rename a displayed tag subtree across registry and task files for the
+    current zone
+  - delete a displayed tag subtree, removing that tag from affected tasks
+  - create a new template task directly under an exact branch tag
+- Each branch card can collapse/expand its direct tasks.
+- Direct task lists are exact-tag lists, not descendant aggregates.
+- Direct tasks currently distinguish:
+  - recurrente
+  - manual
+  - instancia
+  - one-off
+
 ## Planning screen (`/planner`)
 
 ### Product navigation
@@ -229,6 +282,8 @@ is now only a secondary helper because direct per-day historical review exists.
 - A minimal persistent nav now exists between:
   - `Execute`
   - `Plan`
+  - `Habits`
+  - `Tags`
 - The current surface is visually highlighted.
 
 ### `Backlog`
@@ -267,13 +322,13 @@ is now only a secondary helper because direct per-day historical review exists.
 
 - `/planner` now shows a compact planning header above the inventory with:
   - `Today`
-  - `Dragged Forward`
   - `Suggestions`
+- `Dragged Forward` now lives inside the main planning inventory as its own
+  collapsible yellow section.
 - `Today` summarizes current planned tasks plus simple work/personal counts.
-- `Dragged Forward` surfaces unfinished tasks from recent days with a quick
-  `+ today` action.
-- `Suggestions` shows the top current inventory candidates under the active
-  zone and tag filters.
+- `Suggestions` is now a yellow-highlighted section for recurrent templates
+  whose recurrence currently applies, including `Start popping early` windows.
+- Lead time affects `Suggestions`, not the base backlog horizon buckets.
 
 ### Archive
 
@@ -305,7 +360,7 @@ experience.
 - Interval recurrences support:
   - fixed calendar anchoring from a chosen date
   - reset-on-completion anchoring
-  - optional early-pop behavior such as "1 month before"
+  - optional early-appearance behavior such as "1 month before"
 - On first load each day, matching templates are auto-instantiated into backlog
   tasks for that date and injected into `Today`.
 - The day file stores `cadence_ran_for` so the same day is not re-injected.
@@ -317,7 +372,27 @@ experience.
   If the follow-up is already pending, it is not duplicated. If it was already
   completed earlier the same day, a suffixed same-day instance such as
   `-2`, `-3`, ... is created so the task can reappear.
-- There is no separate first-class habit model or habit-tracker view yet.
+- The real due date and the suggestion/pop window are now treated separately:
+  - backlog horizons use the next real due date
+  - suggestion sections use the visible lead window
+
+## Tag management screen (`/tags`)
+
+- `/tags` is a dedicated CRUD surface for the tag taxonomy.
+- It supports switching between `work` and `personal`.
+- It shows, per tag:
+  - direct task count
+  - family count including descendants
+- It supports:
+  - creating tags
+  - renaming a tag or subtree
+  - deleting a tag or subtree
+  - selecting multiple tags and merging them into an existing or new target
+- Merge can rewrite:
+  - `casa` + `hogar` -> `home`
+  - `lavanderia` -> `home>laundry`
+- If the merge target already exists, the UI warns and then integrates the
+  source tags into that existing branch.
 
 ## Editing and task metadata
 
@@ -348,8 +423,5 @@ experience.
 
 ## Known caveats
 
-- The timer supports switching tracked tasks mid-run, but the main LiveView does
-  not fully use that capability yet.
-- Work pomodoros currently store only one zone classification.
 - `SL` / `GH` are labels and filters only; there is no live Slack or GitHub API
   integration in the app itself.

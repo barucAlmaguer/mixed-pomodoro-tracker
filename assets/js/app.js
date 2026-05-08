@@ -25,11 +25,157 @@ import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/pomodoro_tracker"
 import topbar from "../vendor/topbar"
 
+const Hooks = {
+  TimelineRangePicker: {
+    mounted() {
+      this.surface = this.el.querySelector("[data-role='surface']")
+      this.tooltip = this.el.querySelector("[data-role='tooltip']")
+      this.selection = this.el.querySelector("[data-role='selection']")
+      this.dragging = false
+      this.anchorMinute = null
+
+      this.onMouseDown = (event) => {
+        if (event.button !== 0) return
+        this.dragging = true
+        this.anchorMinute = this.minuteFromClientX(event.clientX)
+        const previewEnd = Math.min(this.endMinute(), this.anchorMinute + this.stepMinute())
+        this.renderSelection(this.anchorMinute, previewEnd)
+        this.renderTooltip(event.clientX, this.rangeLabel(this.anchorMinute, previewEnd))
+        window.addEventListener("mousemove", this.onWindowMouseMove)
+        window.addEventListener("mouseup", this.onWindowMouseUp)
+        event.preventDefault()
+      }
+
+      this.onMouseMove = (event) => {
+        if (this.dragging) return
+        const minute = this.minuteFromClientX(event.clientX)
+        this.clearSelection()
+        this.renderTooltip(event.clientX, this.minuteLabel(minute))
+      }
+
+      this.onMouseLeave = () => {
+        if (!this.dragging) {
+          this.hideTooltip()
+          this.clearSelection()
+        }
+      }
+
+      this.onWindowMouseMove = (event) => {
+        if (!this.dragging) return
+        const minute = this.minuteFromClientX(event.clientX)
+        const [startMinute, endMinute] = this.sortedRange(this.anchorMinute, minute)
+        this.renderSelection(startMinute, endMinute)
+        this.renderTooltip(event.clientX, this.rangeLabel(startMinute, endMinute))
+      }
+
+      this.onWindowMouseUp = (event) => {
+        if (!this.dragging) return
+        this.dragging = false
+        window.removeEventListener("mousemove", this.onWindowMouseMove)
+        window.removeEventListener("mouseup", this.onWindowMouseUp)
+
+        const minute = this.minuteFromClientX(event.clientX)
+        let [startMinute, endMinute] = this.sortedRange(this.anchorMinute, minute)
+
+        if (startMinute === endMinute) {
+          endMinute = Math.min(this.endMinute(), startMinute + this.stepMinute())
+        }
+
+        this.renderSelection(startMinute, endMinute)
+        this.pushEvent("timeline:range_selected", {
+          start_minute: startMinute,
+          end_minute: endMinute
+        })
+      }
+
+      this.surface.addEventListener("mousedown", this.onMouseDown)
+      this.surface.addEventListener("mousemove", this.onMouseMove)
+      this.surface.addEventListener("mouseleave", this.onMouseLeave)
+    },
+
+    destroyed() {
+      this.surface?.removeEventListener("mousedown", this.onMouseDown)
+      this.surface?.removeEventListener("mousemove", this.onMouseMove)
+      this.surface?.removeEventListener("mouseleave", this.onMouseLeave)
+      window.removeEventListener("mousemove", this.onWindowMouseMove)
+      window.removeEventListener("mouseup", this.onWindowMouseUp)
+    },
+
+    startMinute() {
+      return parseInt(this.el.dataset.startMinute || "420", 10)
+    },
+
+    endMinute() {
+      return parseInt(this.el.dataset.endMinute || "1200", 10)
+    },
+
+    stepMinute() {
+      return parseInt(this.el.dataset.stepMinute || "10", 10)
+    },
+
+    minuteFromClientX(clientX) {
+      const rect = this.surface.getBoundingClientRect()
+      const clampedX = Math.max(rect.left, Math.min(clientX, rect.right))
+      const ratio = rect.width === 0 ? 0 : (clampedX - rect.left) / rect.width
+      const raw = this.startMinute() + ratio * (this.endMinute() - this.startMinute())
+      const stepped = Math.round(raw / this.stepMinute()) * this.stepMinute()
+      return Math.max(this.startMinute(), Math.min(stepped, this.endMinute()))
+    },
+
+    sortedRange(a, b) {
+      return [Math.min(a, b), Math.max(a, b)]
+    },
+
+    renderSelection(startMinute, endMinute) {
+      if (!this.selection) return
+
+      startMinute = Math.max(this.startMinute(), Math.min(startMinute, this.endMinute()))
+      endMinute = Math.max(this.startMinute(), Math.min(endMinute, this.endMinute()))
+
+      const startPct = (startMinute - this.startMinute()) / (this.endMinute() - this.startMinute()) * 100
+      const endPct = (endMinute - this.startMinute()) / (this.endMinute() - this.startMinute()) * 100
+
+      this.selection.style.left = `${startPct}%`
+      this.selection.style.width = `${Math.max(endPct - startPct, 0)}%`
+      this.selection.classList.remove("hidden")
+    },
+
+    clearSelection() {
+      this.selection?.classList.add("hidden")
+    },
+
+    renderTooltip(clientX, text) {
+      if (!this.tooltip) return
+      const rect = this.surface.getBoundingClientRect()
+      const left = Math.max(12, Math.min(clientX - rect.left, rect.width - 12))
+      this.tooltip.textContent = text
+      this.tooltip.style.left = `${left}px`
+      this.tooltip.classList.remove("hidden")
+    },
+
+    hideTooltip() {
+      this.tooltip?.classList.add("hidden")
+    },
+
+    rangeLabel(startMinute, endMinute) {
+      return `${this.minuteLabel(startMinute)} → ${this.minuteLabel(endMinute)}`
+    },
+
+    minuteLabel(totalMinutes) {
+      const hours24 = Math.floor(totalMinutes / 60)
+      const minutes = totalMinutes % 60
+      const period = hours24 >= 12 ? "pm" : "am"
+      const hour12 = hours24 % 12 === 0 ? 12 : hours24 % 12
+      return `${hour12}:${String(minutes).padStart(2, "0")}${period}`
+    }
+  }
+}
+
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks},
+  hooks: {...colocatedHooks, ...Hooks},
 })
 
 // Show progress bar on live navigation and form submits

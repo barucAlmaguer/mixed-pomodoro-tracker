@@ -22,6 +22,7 @@ defmodule PomodoroTrackerWeb.DayLive do
      |> assign(:tag_filter, MapSet.new())
      |> assign(:new_task_form, nil)
      |> assign(:edit_form, nil)
+     |> assign(:retrospective_form, nil)
      |> assign(:break_tag_filter, nil)
      |> assign(:suggestions_collapsed, true)
      |> assign(:today_collapsed, false)
@@ -175,6 +176,130 @@ defmodule PomodoroTrackerWeb.DayLive do
 
   def handle_event("toggle:off_hour_work", _, socket) do
     {:noreply, assign(socket, :show_off_hour_work, not socket.assigns.show_off_hour_work)}
+  end
+
+  def handle_event("timeline:range_selected", %{"start_minute" => start_minute, "end_minute" => end_minute}, socket) do
+    today = Clock.today()
+
+    if Date.compare(socket.assigns.selected_date, today) == :gt do
+      {:noreply, put_flash(socket, :error, "No puedes registrar tiempo futuro")}
+    else
+      form =
+        retrospective_form_defaults(
+          socket.assigns.selected_date,
+          start_minute,
+          end_minute,
+          socket.assigns.now,
+          socket.assigns.tasks,
+          socket.assigns.day,
+          socket.assigns.sessions
+        )
+
+      {:noreply, assign(socket, :retrospective_form, form)}
+    end
+  end
+
+  def handle_event("retrospective:close", _, socket) do
+    {:noreply, assign(socket, :retrospective_form, nil)}
+  end
+
+  def handle_event("retrospective:change", %{"retro" => params}, socket) do
+    form =
+      socket.assigns.retrospective_form
+      |> Map.merge(%{
+        phase: params["phase"] || "work",
+        zone_mode: params["zone_mode"] || Map.get(socket.assigns.retrospective_form, :zone_mode, "auto"),
+        task_query: params["task_query"] || "",
+        ad_hoc_title: params["ad_hoc_title"] || "",
+        ad_hoc_zone: params["ad_hoc_zone"] || Map.get(socket.assigns.retrospective_form, :ad_hoc_zone, "personal")
+      })
+
+    {:noreply, assign(socket, :retrospective_form, form)}
+  end
+
+  def handle_event("retrospective:toggle_task", %{"id" => id}, socket) do
+    form = socket.assigns.retrospective_form
+
+    task_ids =
+      if id in form.task_ids do
+        List.delete(form.task_ids, id)
+      else
+        form.task_ids ++ [id]
+      end
+
+    {:noreply, assign(socket, :retrospective_form, %{form | task_ids: task_ids})}
+  end
+
+  def handle_event("retrospective:create_ad_hoc", _, socket) do
+    form = socket.assigns.retrospective_form
+    title = String.trim(form.ad_hoc_title || "")
+    zone = String.to_existing_atom(form.ad_hoc_zone || "personal")
+
+    if title == "" do
+      {:noreply, put_flash(socket, :error, "Ponle título a la tarea ad-hoc")}
+    else
+      id = slugify(title)
+
+      attrs = %{
+        id: id,
+        title: title,
+        zone: zone,
+        priority: "med",
+        tags: [],
+        on_done: [],
+        created_at: Date.to_iso8601(form.date)
+      }
+
+      case Vault.create_task(zone, :backlog, attrs) do
+        {:ok, _path} ->
+          tasks = Vault.list_all_tasks() |> Map.new(&{&1.id, &1})
+
+          {:noreply,
+           socket
+           |> assign(:tasks, tasks)
+           |> assign(:tag_registry, merged_tag_registry(tasks))
+           |> assign(:retrospective_form, %{
+             form
+             | ad_hoc_title: "",
+               task_query: "",
+               task_ids: Enum.uniq(form.task_ids ++ [id])
+           })}
+
+        {:error, :already_exists} ->
+          {:noreply, put_flash(socket, :error, "Ya existe una tarea con ese id")}
+
+        {:error, reason} ->
+          {:noreply, put_flash(socket, :error, "No pude crear la tarea: #{inspect(reason)}")}
+      end
+    end
+  end
+
+  def handle_event("retrospective:submit", _, socket) do
+    form = socket.assigns.retrospective_form
+    phase = String.to_existing_atom(form.phase)
+    started_at = minute_to_datetime(form.date, form.start_minute)
+    ended_at = minute_to_datetime(form.date, form.end_minute)
+    minutes = max(div(NaiveDateTime.diff(ended_at, started_at, :second), 60), 0)
+    tasks = if phase == :passive_break, do: [], else: form.task_ids
+    midpoint = midpoint_datetime(form.date, form.start_minute, form.end_minute)
+
+    entry = %{
+      phase: phase,
+      minutes: minutes,
+      started_at: started_at,
+      ended_at: ended_at,
+      tasks: tasks,
+      zones: retrospective_zones(phase, form.zone_mode, tasks, socket.assigns.tasks, midpoint)
+    }
+
+    cond do
+      minutes <= 0 ->
+        {:noreply, put_flash(socket, :error, "Selecciona un rango válido")}
+
+      true ->
+        Vault.log_session(entry, form.date)
+        {:noreply, socket |> assign(:retrospective_form, nil) |> load_vault()}
+    end
   end
 
   def handle_event("archive:show", _, socket) do
@@ -1334,6 +1459,161 @@ defmodule PomodoroTrackerWeb.DayLive do
     end
   end
 
+  def timeline_picker_bounds do
+    %{
+      start_minute: @timeline_start_min,
+      end_minute: @timeline_end_min,
+      step_minute: 10
+    }
+  end
+
+  def retrospective_form_defaults(selected_date, start_minute, end_minute, now, tasks, day, sessions) do
+    start_minute = normalize_timeline_minute(start_minute)
+    end_minute = normalize_timeline_minute(end_minute)
+    {start_minute, end_minute} = if start_minute <= end_minute, do: {start_minute, end_minute}, else: {end_minute, start_minute}
+    end_minute = min(max(end_minute, start_minute + 10), @timeline_end_min)
+    midpoint = midpoint_datetime(selected_date, start_minute, end_minute)
+
+    %{
+      date: selected_date,
+      start_minute: start_minute,
+      end_minute: end_minute,
+      start_label: minute_label(start_minute),
+      end_label: minute_label(end_minute),
+      duration_minutes: max(end_minute - start_minute, 10),
+      phase: "work",
+      zone_mode: "auto",
+      task_ids: [],
+      task_query: "",
+      ad_hoc_title: "",
+      ad_hoc_zone: Atom.to_string(default_zone(midpoint)),
+      default_zone_label: Atom.to_string(default_zone(midpoint)),
+      choices:
+        retrospective_task_choices(
+          tasks,
+          selected_date,
+          day,
+          sessions,
+          now
+        )
+    }
+  end
+
+  def retrospective_task_choices(tasks, selected_date, day, sessions, _now) do
+    done_ids = MapSet.new(day.done || [])
+    order_ids = MapSet.new(day.order || [])
+
+    touched_ids =
+      sessions
+      |> Enum.flat_map(&(&1.tasks || []))
+      |> MapSet.new()
+
+    tasks
+    |> Map.values()
+    |> Enum.map(fn task ->
+      %{
+        id: task.id,
+        title: task.title,
+        zone: task.zone,
+        kind: retrospective_kind_label(task),
+        recurrence: if(task.kind == :templates, do: recurrence_compact(task.recurrence), else: nil),
+        priority: task.priority || "med",
+        done_today?: MapSet.member?(done_ids, task.id),
+        touched_today?: MapSet.member?(touched_ids, task.id),
+        planned_today?: MapSet.member?(order_ids, task.id),
+        selected_date: selected_date
+      }
+    end)
+    |> Enum.sort_by(fn choice ->
+      {
+        retrospective_choice_rank(choice),
+        priority_rank(choice.priority),
+        sortable_title(choice.title)
+      }
+    end)
+  end
+
+  def retrospective_filtered_choices(form, tasks, selected_date, day, sessions, now) do
+    needle = form.task_query |> to_string() |> String.trim() |> String.downcase()
+
+    retrospective_task_choices(tasks, selected_date, day, sessions, now)
+    |> Enum.filter(fn choice ->
+      needle == "" or
+        String.contains?(String.downcase(choice.title || ""), needle) or
+        String.contains?(String.downcase(choice.id), needle)
+    end)
+  end
+
+  defp retrospective_choice_rank(%{done_today?: true}), do: 0
+  defp retrospective_choice_rank(%{touched_today?: true}), do: 1
+  defp retrospective_choice_rank(%{planned_today?: true}), do: 2
+  defp retrospective_choice_rank(%{kind: "recurrente"}), do: 3
+  defp retrospective_choice_rank(_), do: 4
+
+  defp retrospective_kind_label(%{kind: :templates, recurrence: nil}), do: "manual"
+  defp retrospective_kind_label(%{kind: :templates}), do: "recurrente"
+  defp retrospective_kind_label(%{from_template: from}) when is_binary(from), do: "instancia"
+  defp retrospective_kind_label(_), do: "one-off"
+
+  defp retrospective_zones(:active_break, _zone_mode, tasks, _task_map, _midpoint)
+       when tasks == [] do
+    []
+  end
+
+  defp retrospective_zones(:active_break, _zone_mode, _tasks, _task_map, _midpoint), do: [:personal]
+  defp retrospective_zones(:passive_break, _zone_mode, _tasks, _task_map, _midpoint), do: []
+
+  defp retrospective_zones(:work, "work", _tasks, _task_map, _midpoint), do: [:work]
+  defp retrospective_zones(:work, "personal", _tasks, _task_map, _midpoint), do: [:personal]
+  defp retrospective_zones(:work, "mixed", _tasks, _task_map, _midpoint), do: [:work, :personal]
+
+  defp retrospective_zones(:work, _zone_mode, tasks, task_map, midpoint) do
+    derived =
+      tasks
+      |> Enum.flat_map(fn id ->
+        case task_map[id] do
+          %{zone: zone} when zone in [:work, :personal] -> [zone]
+          _ -> []
+        end
+      end)
+      |> Enum.uniq()
+
+    if derived == [], do: [default_zone(midpoint)], else: derived
+  end
+
+  defp midpoint_datetime(date, start_minute, end_minute) do
+    minute_to_datetime(date, start_minute + div(max(end_minute - start_minute, 0), 2))
+  end
+
+  defp minute_to_datetime(date, total_minutes) do
+    hour = div(total_minutes, 60)
+    minute = rem(total_minutes, 60)
+    NaiveDateTime.new!(date, Time.new!(hour, minute, 0))
+  end
+
+  defp normalize_timeline_minute(value) do
+    minute =
+      case value do
+        v when is_integer(v) -> v
+        v when is_binary(v) -> String.to_integer(v)
+      end
+
+    minute
+    |> Kernel./(10)
+    |> round()
+    |> Kernel.*(10)
+    |> clamp(@timeline_start_min, @timeline_end_min)
+  end
+
+  def minute_label(total_minutes) when is_integer(total_minutes) do
+    hour24 = div(total_minutes, 60)
+    minute = rem(total_minutes, 60)
+    period = if hour24 >= 12, do: "pm", else: "am"
+    hour12 = rem(hour24, 12)
+    hour12 = if hour12 == 0, do: 12, else: hour12
+    "#{hour12}:#{String.pad_leading(Integer.to_string(minute), 2, "0")}#{period}"
+  end
+
   defp derive_started_at(nil, _minutes), do: nil
 
   defp derive_started_at(%NaiveDateTime{} = ended_at, minutes) when is_integer(minutes) do
@@ -1765,31 +2045,15 @@ defmodule PomodoroTrackerWeb.DayLive do
     today = Clock.today()
     current_ids = MapSet.new(current_day.order ++ (current_day.done || []))
 
-    1..@unfinished_window_days
-    |> Enum.flat_map(fn days_ago ->
-      date = Date.add(today, -days_ago)
-
-      case PomodoroTracker.Vault.load_day(date) do
-        {:ok, day} ->
-          done_set = MapSet.new(day.done || [])
-
-          day.order
-          |> Enum.reject(&MapSet.member?(done_set, &1))
-          |> Enum.map(fn id -> {id, date} end)
-
-        _ ->
-          []
-      end
+    tasks
+    |> task_history_index()
+    |> Enum.filter(fn {id, %{state: state, date: date}} ->
+      state == :unfinished and
+        Date.compare(date, today) == :lt and
+        Date.compare(date, Date.add(today, -@unfinished_window_days)) != :lt and
+        not MapSet.member?(current_ids, id)
     end)
-    |> Enum.reduce(%{}, fn {id, date}, acc ->
-      Map.update(acc, id, date, fn prev ->
-        if Date.compare(date, prev) == :gt, do: date, else: prev
-      end)
-    end)
-    |> Enum.filter(fn {id, _} ->
-      Map.has_key?(tasks, id) and not MapSet.member?(current_ids, id)
-    end)
-    |> Enum.map(fn {id, date} -> {date, Map.fetch!(tasks, id)} end)
+    |> Enum.map(fn {id, %{date: date}} -> {date, Map.fetch!(tasks, id)} end)
     |> Enum.sort_by(fn {date, _} -> date end, {:desc, Date})
   end
 

@@ -354,13 +354,24 @@ Remaining refinements:
 
 ### 10. Add a habit tracker view built from templates and tags
 
-Desired behavior:
+Current baseline:
 
-- Add a dedicated `Habit Tracker` view for templates marked as habits.
-- The view should not hardcode specific habits like "hacer ejercicio".
-- Instead, it should derive useful groupings from the templates' tags.
+- There is now a dedicated `/habits` route.
+- The view is tag-driven rather than hardcoded to specific habit names.
+- It supports:
+  - parent-tag aggregation such as `ejercicio`
+  - child-tag drill-down such as `ejercicio>cuello`
+  - a `daily / weekly` mode switch
+  - monthly daily heatmaps
+  - yearly weekly summaries
+  - adding child tags under the currently selected branch
+  - renaming displayed tag subtrees in the current zone
+  - deleting displayed tag subtrees in the current zone
+  - viewing direct exact-tag tasks per branch
+  - creating template tasks directly from a branch card
+- Habit aggregation currently derives from historical `done` state in day files.
 
-Examples of desired drill-down:
+Examples of supported drill-down:
 
 - `ejercicios de cuello`
 - `ejercicios de vista/ojos`
@@ -377,25 +388,21 @@ Grouping model:
   - a subset such as `ejercicio>cuello`
   - combinations of related tags
 
-Implementation direction:
-
-- Build the habit tracker on top of:
-  - templates marked as `habit: true`
-  - recurrence/schedule metadata when relevant
-  - hierarchical tag grouping
-  - actual completion/history data from day instances and interval/session logs
-
 Open design questions:
 
+- Decide whether the current tag-driven model is sufficient on its own, or if
+  templates still need an explicit `habit: true` marker later.
 - Define whether habit success is measured by:
   - task completed on scheduled day
   - any effort logged
   - pomodoro time
   - a custom completion rule
-- Decide whether the habit tracker is:
-  - its own route
-  - a subsection of `Plan`
-  - both summary and detailed views
+- Decide whether combined multi-tag habit views should become first-class
+  instead of only parent/child branch views.
+- Decide whether branch-level task lists should later support inline editing,
+  not only creation and visibility.
+- Decide whether habits should later expose add-to-today / finish actions
+  directly from `/habits`.
 
 ### 11. Add day navigation with readonly historical review
 
@@ -430,7 +437,7 @@ Current baseline:
 
 - `/` is now the execution surface.
 - `/planner` now owns backlog, templates, and archive.
-- A minimal `Execute/Plan` navigation already exists.
+- A minimal `Execute/Plan/Habits/Tags` navigation already exists.
 
 Remaining product work:
 
@@ -444,20 +451,20 @@ Remaining product work:
   - templates
   - backlog
   - archive
-  - later: historical review, settings, habits
+  - later: historical review, settings
 - avoid reintroducing full planning/inventory surfaces back into `Execute`
 
 ### 13. Extend navigation beyond Execute and Plan
 
 Current baseline:
 
-- The app already supports fast switching between `Execute` and `Plan`.
+- The app already supports fast switching between `Execute`, `Plan`, and
+  `Habits`.
 
 Remaining behavior:
 
 - Extend navigation to future views such as:
   - `Settings`
-  - `Habit Tracker`
   - possibly historical review if it becomes its own surface
 - Decide final navigation treatment across desktop/mobile.
 - Decide whether `Settings` is a route, modal, panel, or planner subsection.
@@ -495,7 +502,10 @@ Add coverage for:
   - per-day work vs personal time
   - mixed-zone pomodoros
   - task-level effort summaries
-- Make due-date and lead-time behavior more explicit in the UI.
+- Continue refining due-date and lead-time behavior in the UI, but keep the
+  separation explicit:
+  - backlog horizons by real due date
+  - suggestion sections by visible lead window
 - Decide whether recurrence should eventually backfill missed cycles / overdue
   scheduled tasks, instead of only popping on the cycle's computed start date.
 

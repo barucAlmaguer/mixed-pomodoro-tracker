@@ -391,6 +391,7 @@ defmodule PomodoroTrackerWeb.PlannerLiveTest do
     today = Clock.today()
     current_week_end = Date.add(today, 7 - Date.day_of_week(today))
     next_week_due = Date.add(current_week_end, 1)
+    lead_days = Date.diff(next_week_due, today)
 
     {:ok, _} =
       Vault.create_task(:personal, :templates, %{
@@ -403,7 +404,7 @@ defmodule PomodoroTrackerWeb.PlannerLiveTest do
           unit: "months",
           anchor_date: Date.to_iso8601(next_week_due),
           anchor_mode: "calendar",
-          lead: %{value: 4, unit: "days"}
+          lead: %{value: lead_days, unit: "days"}
         }
       })
 
