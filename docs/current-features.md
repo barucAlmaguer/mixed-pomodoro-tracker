@@ -282,8 +282,8 @@ is now only a secondary helper because direct per-day historical review exists.
   six persistent tabs: `Hoy`, `Escalera`, `Metas`, `Ejercicios`, `Rutinas`, and
   `Movilidad`.
 - It describes the plan through six functional goals (F1–F6), 12 primary
-  exercises, 12 substitutions, technique links, a two-view body map, and a
-  three-session A/B weekly projection.
+  exercises, 12 substitutions, technique links, a wooden 3D mannequin with
+  flat front/back muscle overlays, and a three-session A/B weekly projection.
 - `Hoy` supports a three-state muscle filter: avoid, prioritize, neutral. It
   filters exercise suggestions and uses the last seven days of recorded
   strength activity for muscle recency.
@@ -294,6 +294,10 @@ is now only a secondary helper because direct per-day historical review exists.
 - Mobility tests and movement-progression levels persist in
   `personal/pomodoro-tracker/settings/fuerza-papa.yaml`; sessions remain task
   and day-plan data, not browser-local storage.
+- The orbitable mannequin communicates posture and movement. Flat translucent
+  muscle overlays follow its real proportions on the front and back, remain the
+  clickable filter surface, and rotate with it instead of creating a separate
+  anatomy panel.
 
 ## Planning screen (`/planner`)
 

@@ -361,7 +361,11 @@ defmodule PomodoroTrackerWeb.StrengthLive do
             ▶ Ver video de técnica
           </a>
         </div>
-        <.body_map active={@exercise.muscles} />
+        <.body_map
+          id={"strength-exercise-#{@exercise.id}"}
+          active={@exercise.muscles}
+          pose={exercise_pose(@exercise.id)}
+        />
         <div class="flex flex-wrap gap-2">
           <span
             :for={muscle <- @exercise.muscles}
@@ -383,147 +387,83 @@ defmodule PomodoroTrackerWeb.StrengthLive do
     """
   end
 
+  attr :id, :string, required: true
   attr :mode, :atom, default: :binary
   attr :active, :list, default: []
   attr :levels, :map, default: %{}
   attr :colors, :map, default: %{}
   attr :joints, :list, default: []
   attr :event, :string, default: nil
+  attr :pose, :string, default: "neutral"
+  attr :class, :string, default: nil
 
   defp body_map(assigns) do
-    parts = [
-      {"shoulders", 45, 55},
-      {"chest", 50, 82},
-      {"arms", 27, 100},
-      {"grip", 18, 138},
-      {"core", 73, 118},
-      {"obliques", 92, 120},
-      {"quads", 55, 167},
-      {"glutes", 83, 164},
-      {"hams", 82, 191},
-      {"erectors", 73, 101},
-      {"upperback", 74, 72},
-      {"traps", 72, 58}
-    ]
-
-    assigns = assign(assigns, :parts, parts)
-
     ~H"""
-    <div class="my-3 rounded-2xl border border-sky-200 bg-sky-50 p-3">
-      <div class="grid grid-cols-2 gap-3 text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-        <div>
-          <svg
-            viewBox="0 0 120 230"
-            class="mx-auto h-56 max-w-full"
-            aria-label="Figura humana de frente"
-          >
-            <circle cx="60" cy="23" r="17" fill="#e3edf3" stroke="#b8cbd7" /><path
-              d="M42 44 Q60 36 78 44 L92 104 L78 157 L85 220 H65 L60 166 L55 220 H35 L42 157 L28 104Z"
-              fill="#edf3f7"
-              stroke="#b8cbd7"
-            />
-            <ellipse
-              :for={{id, x, y} <- @parts}
-              cx={x}
-              cy={y}
-              rx="11"
-              ry="13"
-              style={"fill: #{map_fill(@mode, id, @active, @levels, @colors)}; transition: fill .2s"}
-              phx-click={if(@mode == :joints, do: nil, else: @event)}
-              phx-value-muscle={id}
-              class={if(@event && @mode != :joints, do: "cursor-pointer", else: "")}
-            />
-            <circle
-              :for={joint <- @joints}
-              cx={joint_x(joint, :front)}
-              cy={joint_y(joint, :front)}
-              r="6"
-              fill="#2b7db8"
-              phx-click={@event}
-              phx-value-joint={joint}
-              class={if(@event, do: "cursor-pointer", else: "")}
-            />
-          </svg>
-          <span>Frente</span>
-        </div>
-        <div>
-          <svg
-            viewBox="0 0 120 230"
-            class="mx-auto h-56 max-w-full"
-            aria-label="Figura humana de espalda"
-          >
-            <circle cx="60" cy="23" r="17" fill="#e3edf3" stroke="#b8cbd7" /><path
-              d="M42 44 Q60 36 78 44 L92 104 L78 157 L85 220 H65 L60 166 L55 220 H35 L42 157 L28 104Z"
-              fill="#edf3f7"
-              stroke="#b8cbd7"
-            />
-            <ellipse
-              :for={{id, x, y} <- @parts}
-              cx={120 - x}
-              cy={y}
-              rx="11"
-              ry="13"
-              style={"fill: #{map_fill(@mode, id, @active, @levels, @colors)}; transition: fill .2s"}
-              phx-click={if(@mode == :joints, do: nil, else: @event)}
-              phx-value-muscle={id}
-              class={if(@event && @mode != :joints, do: "cursor-pointer", else: "")}
-            />
-            <circle
-              :for={joint <- Enum.filter(@joints, &(&1 != "tspine"))}
-              cx={joint_x(joint, :back)}
-              cy={joint_y(joint, :back)}
-              r="6"
-              fill="#2b7db8"
-              phx-click={@event}
-              phx-value-joint={joint}
-              class={if(@event, do: "cursor-pointer", else: "")}
-            /><circle
-              :if={"tspine" in @joints}
-              cx="60"
-              cy="85"
-              r="6"
-              fill="#2b7db8"
-              phx-click={@event}
-              phx-value-joint="tspine"
-              class={if(@event, do: "cursor-pointer", else: "")}
-            />
-          </svg>
-          <span>Espalda</span>
-        </div>
+    <div
+      id={@id}
+      phx-hook="StrengthBody"
+      phx-update="ignore"
+      data-mode={@mode}
+      data-active={Jason.encode!(@active)}
+      data-levels={Jason.encode!(@levels)}
+      data-colors={Jason.encode!(@colors)}
+      data-joints={Jason.encode!(@joints)}
+      data-pose={@pose}
+      data-body-event={@event}
+      data-visual-model="mannequin-overlay"
+      class={[
+        "strength-body my-4 overflow-hidden rounded-2xl border border-sky-400/20 bg-[#07111c]",
+        @class
+      ]}
+      aria-label="Maniquí 3D interactivo"
+    >
+      <div data-role="canvas" class="h-96 min-h-[22rem] w-full touch-none"></div>
+      <div class="flex items-center justify-between gap-3 border-t border-sky-300/10 bg-slate-950/60 px-3 py-2">
+        <p data-role="label" class="text-xs text-slate-400">
+          Arrastra para rotar · gira para ver frente y espalda
+        </p>
+        <span class="rounded-full bg-sky-300/10 px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-sky-200">
+          3D
+        </span>
       </div>
-      <p class="mt-1 text-center text-xs text-slate-500">
-        {case @mode do
-          :heat -> "menos"
-          :direct -> "azul libre · rojo evitar · verde prioridad"
-          :joints -> "articulaciones"
-          _ -> "● trabaja aquí"
-        end}<span
-          :if={@mode == :heat}
-          class="mx-2 inline-block h-2 w-20 rounded-full bg-gradient-to-r from-green-500 via-amber-400 to-red-500"
-        ></span>{if @mode == :heat, do: "más series/semana", else: ""}
-      </p>
     </div>
     """
   end
 
-  defp map_fill(:binary, id, active, _levels, _colors),
-    do: if(id in active, do: "#2b7db8", else: "#d5e1ea")
+  defp goal_pose("jug"), do: "carry"
+  defp goal_pose("pour"), do: "press"
+  defp goal_pose("floor"), do: "squat"
+  defp goal_pose("desk"), do: "neutral"
+  defp goal_pose("play"), do: "squat"
+  defp goal_pose("baby"), do: "carry"
+  defp goal_pose(_), do: "neutral"
 
-  defp map_fill(:direct, id, _active, _levels, colors), do: Map.get(colors, id, "#9ec6e0")
-  defp map_fill(:joints, _id, _active, _levels, _colors), do: "#edf3f7"
-  defp map_fill(:heat, id, _active, levels, _colors), do: heat(Map.get(levels, id, 0))
-  defp heat(value) when value <= 0, do: "#d5e1ea"
-  defp heat(value) when value < 0.5, do: "#66b867"
-  defp heat(value) when value < 0.8, do: "#e9b41f"
-  defp heat(_), do: "#d6402c"
-  defp joint_x("shoulder", _), do: 40
-  defp joint_x("wrist", _), do: 23
-  defp joint_x("hip", _), do: 45
-  defp joint_x("ankle", _), do: 43
-  defp joint_x(_, _), do: 60
-  defp joint_y("shoulder", _), do: 55
-  defp joint_y("wrist", _), do: 142
-  defp joint_y("hip", _), do: 157
-  defp joint_y("ankle", _), do: 211
-  defp joint_y(_, _), do: 85
+  defp exercise_pose(id) when id in ["goblet", "bulgarian", "stepup"], do: "squat"
+  defp exercise_pose(id) when id in ["rdl", "bridge", "birddog"], do: "hinge"
+  defp exercise_pose(id) when id in ["ohp", "cleanpress", "waiter"], do: "press"
+  defp exercise_pose(id) when id in ["pushup", "floorpress", "plank", "deadbug"], do: "pushup"
+  defp exercise_pose(id) when id in ["farmer", "suitcase", "shrug", "hammercurl"], do: "carry"
+  defp exercise_pose(_), do: "neutral"
+
+  defp drill_pose(id) when id in ["wgs", "deepsquat", "anklerock"], do: "squat"
+  defp drill_pose(id) when id in ["hipflexor", "hamstring", "standhinge"], do: "hinge"
+
+  defp drill_pose(id) when id in ["doorpec", "childreach", "armwrist", "wristflow"],
+    do: "mobility"
+
+  defp drill_pose(_), do: "neutral"
+
+  defp pattern_pose("squat"), do: "squat"
+  defp pattern_pose("hinge"), do: "hinge"
+  defp pattern_pose("carry"), do: "carry"
+  defp pattern_pose("push"), do: "pushup"
+  defp pattern_pose(_), do: "neutral"
+
+  defp pattern_active("squat"), do: ["quads", "glutes", "core"]
+  defp pattern_active("hinge"), do: ["hams", "glutes", "erectors", "grip"]
+  defp pattern_active("pull"), do: ["upperback", "traps", "arms", "grip"]
+  defp pattern_active("carry"), do: ["grip", "traps", "core", "obliques"]
+  defp pattern_active("push"), do: ["chest", "arms", "shoulders", "core"]
+  defp pattern_active("core"), do: ["core", "obliques", "shoulders"]
+  defp pattern_active(_), do: []
 end

@@ -100,6 +100,17 @@ defmodule PomodoroTrackerWeb.StrengthLiveTest do
     refute html =~ "Dead bug</button>"
   end
 
+  test "el mapa corporal superpone músculos planos al maniquí 3D", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/fuerza")
+
+    view |> element("button[phx-click='strength:show_body']") |> render_click()
+
+    assert has_element?(view, "#strength-filter[phx-hook='StrengthBody']")
+    assert has_element?(view, "#strength-filter [data-role='canvas']")
+    assert has_element?(view, "#strength-filter[data-visual-model='mannequin-overlay']")
+    refute has_element?(view, "#strength-filter [data-role='muscle-planes']")
+  end
+
   test "Scenario: Revisar historial muscular reciente", %{conn: conn} do
     # Given sessions exist in the last seven days
     {:ok, _} = Strength.save_session(Clock.today(), ["core", "glutes"])

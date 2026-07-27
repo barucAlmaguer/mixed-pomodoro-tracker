@@ -514,7 +514,8 @@ Remaining refinement:
   templates that can be scheduled into `Today`.
 - Add a concise link or summary between `/fuerza` and the current day plan
   without turning the execution screen into a second workout UI.
-- Refine the body map anatomy and add visual regression coverage for the
+- Extend the wooden mannequin and its front/back muscle overlays with richer poses,
+  exercise-specific movement cues, and visual regression coverage for the
   small-screen layout.
 
 ## Next improvements after the core is stable

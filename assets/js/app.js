@@ -24,8 +24,10 @@ import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/pomodoro_tracker"
 import topbar from "../vendor/topbar"
+import {StrengthBody} from "./strength_body"
 
 const Hooks = {
+  StrengthBody,
   TimelineRangePicker: {
     mounted() {
       this.surface = this.el.querySelector("[data-role='surface']")
