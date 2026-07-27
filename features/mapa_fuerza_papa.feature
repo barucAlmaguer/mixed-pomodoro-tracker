@@ -53,3 +53,13 @@ Feature: Mapa Fuerza de Papá integrado al tracker
     Given I open the Posturas muñeco diagnostic view
     When I enter the pose editor, adjust a joint or camera, and save the posture
     Then its editable pose settings persist in the personal strength profile
+
+  Scenario: Transformar el maniquí y asentarlo en el plano de gravedad
+    Given I open the Posturas muñeco diagnostic view
+    When I enter the editor and adjust global X, Y, Z and all three rotations
+    Then I can use the plane, axes, and automatic ground contact controls
+
+  Scenario: Manipular cadenas de brazos y piernas con joints intermedios
+    Given I enter the pose editor
+    When I select shoulders, elbows, wrists, hips, knees, or ankles
+    Then the rig exposes axis-aware joint controls with separate upper and lower limb behavior

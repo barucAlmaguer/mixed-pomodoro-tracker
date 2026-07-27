@@ -10,7 +10,7 @@ defmodule PomodoroTracker.Strength do
   alias PomodoroTracker.Vault
 
   @session_tag "ejercicio>fuerza-papa"
-  @pose_joint_keys ~w(torso leftArm rightArm leftLeg rightLeg)
+  @pose_joint_keys ~w(torso leftArm rightArm leftElbow rightElbow leftLeg rightLeg leftKnee rightKnee)
 
   @muscles %{
     "grip" => "Agarre y antebrazos",
@@ -733,7 +733,7 @@ defmodule PomodoroTracker.Strength do
       settings
       |> Map.get("joints", %{})
       |> Map.take(@pose_joint_keys)
-      |> Map.new(fn {key, value} -> {key, bounded_number(value, 0.0, -3.14, 3.14)} end)
+      |> Map.new(fn {key, value} -> {key, normalize_joint(value)} end)
 
     transform = Map.get(settings, "transform", %{})
     camera = Map.get(settings, "camera", %{})
@@ -743,7 +743,11 @@ defmodule PomodoroTracker.Strength do
       "transform" => %{
         "x" => bounded_number(transform["x"], 0.0, -3.0, 3.0),
         "y" => bounded_number(transform["y"], 0.0, -3.0, 3.0),
-        "yaw" => bounded_number(transform["yaw"], 0.0, -3.14, 3.14)
+        "z" => bounded_number(transform["z"], 0.0, -3.0, 3.0),
+        "rotationX" => bounded_number(transform["rotationX"], 0.0, -3.14, 3.14),
+        "rotationY" =>
+          bounded_number(transform["rotationY"] || transform["yaw"], 0.0, -3.14, 3.14),
+        "rotationZ" => bounded_number(transform["rotationZ"], 0.0, -3.14, 3.14)
       },
       "camera" => %{
         "position" => bounded_vector(camera["position"], [0.0, -0.15, 9.0], -15.0, 15.0),
@@ -756,6 +760,19 @@ defmodule PomodoroTracker.Strength do
     do: Enum.map(values, &bounded_number(&1, 0.0, min, max))
 
   defp bounded_vector(_, fallback, _, _), do: fallback
+
+  defp normalize_joint(value) when is_number(value),
+    do: %{"x" => bounded_number(value, 0.0, -3.14, 3.14), "y" => 0.0, "z" => 0.0}
+
+  defp normalize_joint(value) when is_map(value) do
+    %{
+      "x" => bounded_number(value["x"], 0.0, -3.14, 3.14),
+      "y" => bounded_number(value["y"], 0.0, -3.14, 3.14),
+      "z" => bounded_number(value["z"], 0.0, -3.14, 3.14)
+    }
+  end
+
+  defp normalize_joint(_), do: %{"x" => 0.0, "y" => 0.0, "z" => 0.0}
 
   defp bounded_number(value, _fallback, min, max) when is_number(value),
     do: value |> max(min) |> min(max)

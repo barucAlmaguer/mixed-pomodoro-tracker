@@ -279,8 +279,8 @@ is now only a secondary helper because direct per-day historical review exists.
 ## Fuerza de Papá (`/fuerza`)
 
 - This is a personal, mobile-friendly strength and mobility plan organized in
-  six persistent tabs: `Hoy`, `Escalera`, `Metas`, `Ejercicios`, `Rutinas`, and
-  `Movilidad`.
+  seven persistent tabs: `Hoy`, `Escalera`, `Metas`, `Ejercicios`, `Rutinas`,
+  `Movilidad`, and `Posturas muñeco`.
 - It describes the plan through six functional goals (F1–F6), 12 primary
   exercises, 12 substitutions, technique links, a wooden 3D mannequin with
   flat front/back muscle overlays, and a three-session A/B weekly projection.
@@ -301,11 +301,16 @@ is now only a secondary helper because direct per-day historical review exists.
 - Its footer includes front, back, left, and right camera shortcuts, and the
   `Posturas muñeco` tab provides a dedicated visual diagnostic surface for the
   pose presets used by exercises and mobility drills.
-- Every mannequin footer can open an editor: drag a visible joint marker to
-  adjust a limb, use X/Y/yaw controls to place the body, use the normal camera
-  controls, then save. The resulting camera, transform, and joint angles live
-  in `personal/pomodoro-tracker/settings/fuerza-papa.yaml`; exercise-specific
-  settings override their shared pose preset.
+- Every mannequin footer can open an editor with an articulated arm/leg rig:
+  shoulders, elbows, wrists, hips, knees, and ankles are separately
+  selectable. Choose the camera-relative plane or X/Y/Z before dragging;
+  moving an elbow or knee keeps the lower limb in a natural hanging relation,
+  while moving a wrist or ankle changes only the distal segment. The editor
+  includes global X/Y/Z translation, all three global rotations, a subtle
+  ground plane and axes, and an `Asentar al plano` action that places the
+  lowest support joint on the floor. The resulting camera, transform, and
+  joint angles live in `personal/pomodoro-tracker/settings/fuerza-papa.yaml`;
+  exercise-specific settings override their shared pose preset.
 
 ## Planning screen (`/planner`)
 

@@ -447,6 +447,7 @@ defmodule PomodoroTrackerWeb.StrengthLive do
       data-pose-settings={Jason.encode!(@pose_settings)}
       data-body-event={@event}
       data-visual-model="mannequin-overlay"
+      data-rig="articulated-ik"
       class={[
         "strength-body my-4 overflow-hidden rounded-2xl border border-sky-400/20 bg-[#07111c]",
         @class
@@ -514,7 +515,7 @@ defmodule PomodoroTrackerWeb.StrengthLive do
               Editor de postura
             </p>
             <p data-role="editor-status" class="mt-1 text-xs text-slate-400">
-              Arrastra un punto articular para orientar una extremidad. Usa los controles para colocar el cuerpo y la cámara.
+              Selecciona un joint y arrástralo en el plano de cámara, o fija un eje. Al soltar, el rig asienta su joint de soporte más bajo sobre el plano.
             </p>
           </div>
           <button
@@ -523,6 +524,36 @@ defmodule PomodoroTrackerWeb.StrengthLive do
             class="text-xs text-slate-400 hover:text-white"
           >
             Cerrar
+          </button>
+        </div>
+        <div class="mt-3 flex flex-wrap gap-1" aria-label="Eje de manipulación">
+          <button
+            data-editor-axis="camera"
+            type="button"
+            class="rounded bg-sky-300/15 px-2 py-1 font-mono text-[10px] font-bold text-sky-200"
+          >
+            Auto plano
+          </button>
+          <button
+            data-editor-axis="x"
+            type="button"
+            class="rounded bg-red-400/15 px-2 py-1 font-mono text-[10px] font-bold text-red-200"
+          >
+            X
+          </button>
+          <button
+            data-editor-axis="y"
+            type="button"
+            class="rounded bg-emerald-400/15 px-2 py-1 font-mono text-[10px] font-bold text-emerald-200"
+          >
+            Y
+          </button>
+          <button
+            data-editor-axis="z"
+            type="button"
+            class="rounded bg-sky-400/15 px-2 py-1 font-mono text-[10px] font-bold text-sky-200"
+          >
+            Z
           </button>
         </div>
         <div class="mt-3 grid gap-3 sm:grid-cols-3">
@@ -547,8 +578,38 @@ defmodule PomodoroTrackerWeb.StrengthLive do
             />
           </label>
           <label class="text-xs text-slate-400">
-            Giro espacial<input
-              data-editor-transform="yaw"
+            Desplazar Z<input
+              data-editor-transform="z"
+              type="range"
+              min="-2"
+              max="2"
+              step="0.05"
+              class="mt-1 w-full"
+            />
+          </label>
+          <label class="text-xs text-slate-400">
+            Rotación X<input
+              data-editor-transform="rotation-x"
+              type="range"
+              min="-3.14"
+              max="3.14"
+              step="0.05"
+              class="mt-1 w-full"
+            />
+          </label>
+          <label class="text-xs text-slate-400">
+            Rotación Y<input
+              data-editor-transform="rotation-y"
+              type="range"
+              min="-3.14"
+              max="3.14"
+              step="0.05"
+              class="mt-1 w-full"
+            />
+          </label>
+          <label class="text-xs text-slate-400">
+            Rotación Z<input
+              data-editor-transform="rotation-z"
               type="range"
               min="-3.14"
               max="3.14"
@@ -557,7 +618,19 @@ defmodule PomodoroTrackerWeb.StrengthLive do
             />
           </label>
         </div>
-        <div class="mt-3 flex justify-end gap-2">
+        <div class="mt-3 flex flex-wrap gap-1 text-[10px] font-mono uppercase tracking-wider text-slate-500">
+          <span data-editor-rig="shoulder">hombro</span><span>→</span><span data-editor-rig="elbow">codo</span><span>→</span><span data-editor-rig="wrist">muñeca</span>
+          <span class="mx-2">|</span>
+          <span data-editor-rig="hip">cadera</span><span>→</span><span data-editor-rig="knee">rodilla</span><span>→</span><span data-editor-rig="ankle">tobillo</span>
+        </div>
+        <div class="mt-3 flex flex-wrap justify-end gap-2">
+          <button
+            data-editor-action="ground"
+            type="button"
+            class="rounded bg-emerald-300/15 px-3 py-1.5 text-xs font-bold text-emerald-200 hover:bg-emerald-300/25"
+          >
+            Asentar al plano
+          </button>
           <button
             data-editor-action="reset"
             type="button"

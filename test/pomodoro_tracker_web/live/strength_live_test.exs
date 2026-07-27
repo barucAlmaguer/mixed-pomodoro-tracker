@@ -221,7 +221,51 @@ defmodule PomodoroTrackerWeb.StrengthLiveTest do
     })
 
     # Then its editable pose settings persist in the personal strength profile
-    assert Strength.profile()["poses"]["squat"]["joints"]["leftArm"] == -0.7
+    assert Strength.profile()["poses"]["squat"]["joints"]["leftArm"]["x"] == -0.7
+  end
+
+  test "Scenario: Transformar el maniquí y asentarlo en el plano de gravedad", %{conn: conn} do
+    # Given I open the Posturas muñeco diagnostic view
+    {:ok, view, _html} = live(conn, "/fuerza")
+
+    view
+    |> element("button[phx-click='strength:tab'][phx-value-tab='posturas']")
+    |> render_click()
+
+    # When I enter the editor and adjust global X, Y, Z and all three rotations
+    assert has_element?(view, "#strength-posture-debug [data-editor-transform='x']")
+    assert has_element?(view, "#strength-posture-debug [data-editor-transform='y']")
+    assert has_element?(view, "#strength-posture-debug [data-editor-transform='z']")
+    assert has_element?(view, "#strength-posture-debug [data-editor-transform='rotation-x']")
+    assert has_element?(view, "#strength-posture-debug [data-editor-transform='rotation-y']")
+    assert has_element?(view, "#strength-posture-debug [data-editor-transform='rotation-z']")
+
+    # Then I can use the plane, axes, and automatic ground contact controls
+    assert has_element?(view, "#strength-posture-debug[data-rig='articulated-ik']")
+    assert has_element?(view, "#strength-posture-debug [data-editor-axis='camera']")
+    assert has_element?(view, "#strength-posture-debug [data-editor-action='ground']")
+  end
+
+  test "Scenario: Manipular cadenas de brazos y piernas con joints intermedios", %{conn: conn} do
+    # Given I enter the pose editor
+    {:ok, view, _html} = live(conn, "/fuerza")
+
+    view
+    |> element("button[phx-click='strength:tab'][phx-value-tab='posturas']")
+    |> render_click()
+
+    # When I select shoulders, elbows, wrists, hips, knees, or ankles
+    assert has_element?(view, "#strength-posture-debug [data-editor-rig='shoulder']")
+    assert has_element?(view, "#strength-posture-debug [data-editor-rig='elbow']")
+    assert has_element?(view, "#strength-posture-debug [data-editor-rig='wrist']")
+    assert has_element?(view, "#strength-posture-debug [data-editor-rig='hip']")
+    assert has_element?(view, "#strength-posture-debug [data-editor-rig='knee']")
+    assert has_element?(view, "#strength-posture-debug [data-editor-rig='ankle']")
+
+    # Then the rig exposes axis-aware joint controls with separate upper and lower limb behavior
+    assert has_element?(view, "#strength-posture-debug [data-editor-axis='x']")
+    assert has_element?(view, "#strength-posture-debug [data-editor-axis='y']")
+    assert has_element?(view, "#strength-posture-debug [data-editor-axis='z']")
   end
 
   defp make_tmp_vaults do

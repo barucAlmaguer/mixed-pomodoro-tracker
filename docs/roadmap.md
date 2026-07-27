@@ -514,9 +514,11 @@ Remaining refinement:
   templates that can be scheduled into `Today`.
 - Add a concise link or summary between `/fuerza` and the current day plan
   without turning the execution screen into a second workout UI.
-- Add inverse-kinematics and visual regression coverage to the editable wooden
-  mannequin, especially for exercise-specific movement cues and the
-  small-screen layout.
+- Add target-position inverse kinematics and visual regression coverage to the
+  editable wooden mannequin. The current rig supports three-axis rotation,
+  intermediate arm/leg joints, and automatic ground contact; a future solver
+  can make direct hand/foot placement and complex contact poses more precise,
+  especially for exercise-specific movement cues and the small-screen layout.
 
 ## Next improvements after the core is stable
 
