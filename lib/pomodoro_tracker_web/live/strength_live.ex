@@ -89,6 +89,17 @@ defmodule PomodoroTrackerWeb.StrengthLive do
     {:noreply, assign(socket, :debug_pose, pose)}
   end
 
+  def handle_event("strength:save_pose", %{"pose" => pose, "settings" => settings}, socket) do
+    case Strength.save_pose(pose, settings) do
+      :ok ->
+        {:noreply,
+         socket |> put_flash(:info, "Postura guardada en tu vault personal.") |> refresh()}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "No se pudo guardar la postura.")}
+    end
+  end
+
   def handle_event("strength:show_blocked", _, socket),
     do: {:noreply, update(socket, :show_blocked, &(not &1))}
 
@@ -171,6 +182,7 @@ defmodule PomodoroTrackerWeb.StrengthLive do
     |> assign(:sessions, Strength.list_sessions())
     |> assign(:profile, profile)
     |> assign(:snapshots, snapshots)
+    |> assign(:poses, profile["poses"] || %{})
     |> assign(:test_selection, selection)
   end
 
@@ -340,6 +352,7 @@ defmodule PomodoroTrackerWeb.StrengthLive do
 
   attr :exercise, :map, required: true
   attr :open, :boolean, required: true
+  attr :pose_settings, :map, default: %{}
 
   defp exercise_card(assigns) do
     ~H"""
@@ -382,6 +395,8 @@ defmodule PomodoroTrackerWeb.StrengthLive do
           id={"strength-exercise-#{@exercise.id}"}
           active={@exercise.muscles}
           pose={exercise_pose(@exercise.id)}
+          pose_key={"exercise-#{@exercise.id}"}
+          pose_settings={@pose_settings}
         />
         <div class="flex flex-wrap gap-2">
           <span
@@ -412,6 +427,8 @@ defmodule PomodoroTrackerWeb.StrengthLive do
   attr :joints, :list, default: []
   attr :event, :string, default: nil
   attr :pose, :string, default: "neutral"
+  attr :pose_key, :string, default: nil
+  attr :pose_settings, :map, default: %{}
   attr :class, :string, default: nil
 
   defp body_map(assigns) do
@@ -426,6 +443,8 @@ defmodule PomodoroTrackerWeb.StrengthLive do
       data-colors={Jason.encode!(@colors)}
       data-joints={Jason.encode!(@joints)}
       data-pose={@pose}
+      data-pose-key={@pose_key || @pose}
+      data-pose-settings={Jason.encode!(@pose_settings)}
       data-body-event={@event}
       data-visual-model="mannequin-overlay"
       class={[
@@ -475,9 +494,84 @@ defmodule PomodoroTrackerWeb.StrengthLive do
           >
             Der.
           </button>
+          <button
+            data-role="edit-pose"
+            type="button"
+            class="ml-1 rounded bg-amber-300/15 px-2 py-1 font-mono text-[10px] font-bold text-amber-200 hover:bg-amber-300/25"
+            title="Editar postura y cámara"
+          >
+            ✏️ Editar
+          </button>
           <span class="ml-1 rounded-full bg-sky-300/10 px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-sky-200">
             3D
           </span>
+        </div>
+      </div>
+      <div data-role="editor-panel" hidden class="border-t border-amber-300/20 bg-slate-950 px-3 py-3">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="font-mono text-xs font-bold uppercase tracking-wider text-amber-200">
+              Editor de postura
+            </p>
+            <p data-role="editor-status" class="mt-1 text-xs text-slate-400">
+              Arrastra un punto articular para orientar una extremidad. Usa los controles para colocar el cuerpo y la cámara.
+            </p>
+          </div>
+          <button
+            data-editor-action="close"
+            type="button"
+            class="text-xs text-slate-400 hover:text-white"
+          >
+            Cerrar
+          </button>
+        </div>
+        <div class="mt-3 grid gap-3 sm:grid-cols-3">
+          <label class="text-xs text-slate-400">
+            Desplazar X<input
+              data-editor-transform="x"
+              type="range"
+              min="-2"
+              max="2"
+              step="0.05"
+              class="mt-1 w-full"
+            />
+          </label>
+          <label class="text-xs text-slate-400">
+            Desplazar Y<input
+              data-editor-transform="y"
+              type="range"
+              min="-2"
+              max="2"
+              step="0.05"
+              class="mt-1 w-full"
+            />
+          </label>
+          <label class="text-xs text-slate-400">
+            Giro espacial<input
+              data-editor-transform="yaw"
+              type="range"
+              min="-3.14"
+              max="3.14"
+              step="0.05"
+              class="mt-1 w-full"
+            />
+          </label>
+        </div>
+        <div class="mt-3 flex justify-end gap-2">
+          <button
+            data-editor-action="reset"
+            type="button"
+            class="rounded px-3 py-1.5 text-xs font-bold text-slate-300 hover:bg-slate-800"
+          >
+            Restablecer
+          </button>
+          <button
+            data-editor-action="save"
+            type="button"
+            class="rounded bg-amber-300 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-amber-200"
+          >
+            Guardar postura
+          </button>
         </div>
       </div>
     </div>

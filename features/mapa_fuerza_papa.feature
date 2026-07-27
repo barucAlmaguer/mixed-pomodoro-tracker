@@ -48,3 +48,8 @@ Feature: Mapa Fuerza de Papá integrado al tracker
     Given I open the Fuerza de Papá plan
     When I show the mannequin and choose a camera shortcut or the Posturas muñeco tab
     Then I can access front, back, side, and posture diagnostic views
+
+  Scenario: Editar y guardar una postura del maniquí por actividad
+    Given I open the Posturas muñeco diagnostic view
+    When I enter the pose editor, adjust a joint or camera, and save the posture
+    Then its editable pose settings persist in the personal strength profile

@@ -10,6 +10,7 @@ defmodule PomodoroTracker.Strength do
   alias PomodoroTracker.Vault
 
   @session_tag "ejercicio>fuerza-papa"
+  @pose_joint_keys ~w(torso leftArm rightArm leftLeg rightLeg)
 
   @muscles %{
     "grip" => "Agarre y antebrazos",
@@ -663,7 +664,12 @@ defmodule PomodoroTracker.Strength do
   end
 
   def profile do
-    profile = Vault.read_setting(:personal, "fuerza-papa", %{"tests" => %{}, "levels" => %{}})
+    profile =
+      Vault.read_setting(:personal, "fuerza-papa", %{
+        "tests" => %{},
+        "levels" => %{},
+        "poses" => %{}
+      })
 
     snapshots =
       case profile["tests"] do
@@ -705,6 +711,56 @@ defmodule PomodoroTracker.Strength do
       profile |> Map.put("levels", levels) |> profile_for_storage()
     )
   end
+
+  def save_pose(pose_key, settings) when is_binary(pose_key) and is_map(settings) do
+    if String.match?(pose_key, ~r/^[a-z0-9_-]{1,80}$/) do
+      profile = profile()
+      poses = Map.put(profile["poses"] || %{}, pose_key, normalize_pose_settings(settings))
+
+      Vault.write_setting(
+        :personal,
+        "fuerza-papa",
+        profile |> Map.put("poses", poses) |> profile_for_storage()
+      )
+      |> normalize_write()
+    else
+      {:error, :invalid_pose_key}
+    end
+  end
+
+  defp normalize_pose_settings(settings) do
+    joints =
+      settings
+      |> Map.get("joints", %{})
+      |> Map.take(@pose_joint_keys)
+      |> Map.new(fn {key, value} -> {key, bounded_number(value, 0.0, -3.14, 3.14)} end)
+
+    transform = Map.get(settings, "transform", %{})
+    camera = Map.get(settings, "camera", %{})
+
+    %{
+      "joints" => joints,
+      "transform" => %{
+        "x" => bounded_number(transform["x"], 0.0, -3.0, 3.0),
+        "y" => bounded_number(transform["y"], 0.0, -3.0, 3.0),
+        "yaw" => bounded_number(transform["yaw"], 0.0, -3.14, 3.14)
+      },
+      "camera" => %{
+        "position" => bounded_vector(camera["position"], [0.0, -0.15, 9.0], -15.0, 15.0),
+        "target" => bounded_vector(camera["target"], [0.0, -0.35, 0.0], -5.0, 5.0)
+      }
+    }
+  end
+
+  defp bounded_vector(values, _fallback, min, max) when is_list(values) and length(values) == 3,
+    do: Enum.map(values, &bounded_number(&1, 0.0, min, max))
+
+  defp bounded_vector(_, fallback, _, _), do: fallback
+
+  defp bounded_number(value, _fallback, min, max) when is_number(value),
+    do: value |> max(min) |> min(max)
+
+  defp bounded_number(_, fallback, _, _), do: fallback
 
   defp normalize_write({:ok, _}), do: :ok
   defp normalize_write(:ok), do: :ok

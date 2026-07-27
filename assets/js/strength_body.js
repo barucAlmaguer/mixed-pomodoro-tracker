@@ -94,9 +94,18 @@ export const StrengthBody = {
     }
     this.cameraViewPosition = this.camera.position.clone()
     this.cameraViewTarget = this.controls.target.clone()
+    this.cameraViewAnimating = false
     this.el.querySelectorAll("[data-camera-view]").forEach((button) => {
       button.addEventListener("click", () => this.setCameraView(button.dataset.cameraView))
     })
+    this.editorPanel = this.el.querySelector("[data-role='editor-panel']")
+    this.editorStatus = this.el.querySelector("[data-role='editor-status']")
+    this.editorInputs = this.el.querySelectorAll("[data-editor-transform]")
+    this.el.querySelector("[data-role='edit-pose']")?.addEventListener("click", () => this.toggleEditor())
+    this.el.querySelectorAll("[data-editor-action]").forEach((button) => {
+      button.addEventListener("click", () => this.editorAction(button.dataset.editorAction))
+    })
+    this.editorInputs.forEach((input) => input.addEventListener("input", () => this.updateTransform(input.dataset.editorTransform, input.value)))
 
     this.scene.add(new THREE.HemisphereLight(0xffe0b2, 0x142333, 2.4))
     const key = new THREE.DirectionalLight(0xffd8a7, 3.1)
@@ -118,7 +127,7 @@ export const StrengthBody = {
     this.raycaster = new THREE.Raycaster()
     this.pointer = new THREE.Vector2()
     this.renderer.domElement.addEventListener("pointermove", (event) => this.hover(event))
-    this.renderer.domElement.addEventListener("pointerdown", (event) => { this.down = [event.clientX, event.clientY] })
+    this.renderer.domElement.addEventListener("pointerdown", (event) => this.beginPointer(event))
     this.renderer.domElement.addEventListener("pointerup", (event) => this.tap(event))
     this.resizeObserver = new ResizeObserver(() => this.resize())
     this.resizeObserver.observe(this.canvas)
@@ -130,6 +139,8 @@ export const StrengthBody = {
     const body = new THREE.Group()
     body.rotation.y = -0.16
     this.scene.add(body)
+    this.body = body
+    this.bodyBaseYaw = -0.16
     this.poseGroups = {}
     this.joints = new Map()
     this.muscles = new Map()
@@ -151,13 +162,13 @@ export const StrengthBody = {
       mesh(new THREE.SphereGeometry(radius, 20, 16), wood(color), position, parent, scale)
     const segment = (top, bottom, length, position, parent = body, color) =>
       mesh(new THREE.CylinderGeometry(top, bottom, length, 14), wood(color), position, parent)
-    const joint = (id, position, parent = body) => {
+    const joint = (id, position, parent = body, editorGroup = null) => {
       const marker = new THREE.Mesh(
         new THREE.SphereGeometry(0.12, 16, 12),
         new THREE.MeshStandardMaterial({color: palette.line, roughness: 0.25, metalness: 0.45}),
       )
       marker.position.set(...position)
-      marker.userData = {kind: "joint", id}
+      marker.userData = {kind: "joint", id, editorGroup}
       marker.visible = false
       parent.add(marker)
       this.joints.set(`${id}-${this.joints.size}`, marker)
@@ -203,11 +214,12 @@ export const StrengthBody = {
 
     const limb = (side, kind) => {
       const isArm = kind === "arm"
+      const editorGroup = `${side < 0 ? "left" : "right"}${isArm ? "Arm" : "Leg"}`
       const group = new THREE.Group()
       group.position.set(side * (isArm ? 0.69 : 0.36), isArm ? 1.0 : -0.65, 0)
       body.add(group)
-      this.poseGroups[`${side < 0 ? "left" : "right"}${isArm ? "Arm" : "Leg"}`] = group
-      joint(isArm ? "shoulder" : "hip", [0, 0, 0], group)
+      this.poseGroups[editorGroup] = group
+      joint(isArm ? "shoulder" : "hip", [0, 0, 0], group, editorGroup)
       segment(isArm ? 0.16 : 0.22, isArm ? 0.2 : 0.27, isArm ? 0.78 : 1.02, [0, isArm ? -0.5 : -0.67, 0], group)
       const lower = new THREE.Group()
       lower.position.y = isArm ? -1.02 : -1.32
@@ -215,10 +227,10 @@ export const StrengthBody = {
       sphere(isArm ? 0.17 : 0.22, [0, 0.02, 0], lower, [1, 0.86, 1], 0xa27342)
       segment(isArm ? 0.13 : 0.17, isArm ? 0.16 : 0.22, isArm ? 0.68 : 0.92, [0, isArm ? -0.42 : -0.58, 0], lower)
       if (isArm) {
-        joint("wrist", [0, -0.82, 0], lower)
+        joint("wrist", [0, -0.82, 0], lower, editorGroup)
         sphere(0.16, [0, -0.95, 0.02], lower, [0.72, 1.45, 0.72])
       } else {
-        joint("ankle", [0, -1.08, 0], lower)
+        joint("ankle", [0, -1.08, 0], lower, editorGroup)
         sphere(0.2, [0, -1.23, 0.13], lower, [0.78, 0.55, 1.4])
       }
       return {group, lower}
@@ -228,7 +240,7 @@ export const StrengthBody = {
     const rightArm = limb(1, "arm")
     const leftLeg = limb(-1, "leg")
     const rightLeg = limb(1, "leg")
-    joint("tspine", [0, 0.48, -0.45], torso)
+    joint("tspine", [0, 0.48, -0.45], torso, "torso")
 
     // Flat translucent planes follow the mannequin's real groups. Front planes
     // become visible from the front; posterior planes reveal themselves on rotation.
@@ -271,9 +283,11 @@ export const StrengthBody = {
       colors: parse(this.el.dataset.colors, {}),
       joints: parse(this.el.dataset.joints, []),
       pose: this.el.dataset.pose || "neutral",
+      poseKey: this.el.dataset.poseKey || this.el.dataset.pose || "neutral",
+      poseSettings: parse(this.el.dataset.poseSettings, {}),
       event: this.el.dataset.bodyEvent || "",
     }
-    this.targetPose = poseFor(this.state.pose)
+    if (!this.editMode) this.applyPoseSettings(this.state.poseSettings)
     this.muscles.forEach((plane) => {
       const {id} = plane.userData
       let color = "#506579"
@@ -290,7 +304,7 @@ export const StrengthBody = {
     })
     this.joints.forEach((marker) => {
       const selected = this.state.joints.length === 0 || this.state.joints.includes(marker.userData.id)
-      marker.visible = this.state.mode === "joints"
+      marker.visible = this.state.mode === "joints" || this.editMode
       marker.material.color.set(selected ? palette.cyan : palette.line)
       marker.material.emissive.set(selected ? palette.cyan : 0x000000)
       marker.scale.setScalar(selected ? 1.18 : 0.78)
@@ -306,7 +320,7 @@ export const StrengthBody = {
   },
 
   pick(event) {
-    const candidates = this.state.mode === "joints" ? [...this.joints.values()] : [...this.muscles.values()]
+    const candidates = (this.state.mode === "joints" || this.editMode) ? [...this.joints.values()] : [...this.muscles.values()]
     const rect = this.renderer.domElement.getBoundingClientRect()
     this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
     this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
@@ -315,6 +329,7 @@ export const StrengthBody = {
   },
 
   hover(event) {
+    if (this.editorDrag) return this.dragJoint(event)
     const object = this.pick(event)
     this.renderer.domElement.style.cursor = object ? "pointer" : "grab"
     if (object) {
@@ -324,6 +339,11 @@ export const StrengthBody = {
   },
 
   tap(event) {
+    if (this.editorDrag) {
+      this.editorDrag = null
+      this.controls.enabled = true
+      return
+    }
     if (!this.down || Math.hypot(event.clientX - this.down[0], event.clientY - this.down[1]) > 5) return
     const object = this.pick(event)
     if (!object || !this.state.event) return
@@ -336,10 +356,95 @@ export const StrengthBody = {
     if (!view) return
     this.cameraViewPosition.set(...view.position)
     this.cameraViewTarget.set(...view.target)
+    this.cameraViewAnimating = true
     this.el.querySelectorAll("[data-camera-view]").forEach((button) => {
       button.setAttribute("aria-pressed", String(button.dataset.cameraView === name))
     })
     this.label.textContent = `${view.label} · toca una capa para filtrar`
+  },
+
+  applyPoseSettings(settings = {}) {
+    const defaults = {joints: {}, transform: {x: 0, y: 0, yaw: 0}, camera: null}
+    this.editorSettings = {
+      ...defaults,
+      ...settings,
+      joints: {...defaults.joints, ...(settings.joints || {})},
+      transform: {...defaults.transform, ...(settings.transform || {})},
+    }
+    this.targetPose = {...poseFor(this.state.pose), ...this.editorSettings.joints}
+    this.body.position.set(Number(this.editorSettings.transform.x) || 0, Number(this.editorSettings.transform.y) || 0, 0)
+    this.body.rotation.y = this.bodyBaseYaw + (Number(this.editorSettings.transform.yaw) || 0)
+    if (this.editorSettings.camera?.position?.length === 3 && this.editorSettings.camera?.target?.length === 3) {
+      this.camera.position.set(...this.editorSettings.camera.position)
+      this.controls.target.set(...this.editorSettings.camera.target)
+      this.cameraViewAnimating = false
+    }
+    this.syncEditorInputs()
+  },
+
+  toggleEditor() {
+    this.editMode = !this.editMode
+    this.editorPanel.hidden = !this.editMode
+    this.joints.forEach((marker) => {
+      marker.visible = this.editMode || this.state.mode === "joints"
+      if (this.editMode) {
+        marker.material.color.set(0xfbbf24)
+        marker.material.emissive.set(0x5b3a00)
+        marker.scale.setScalar(1.65)
+      }
+    })
+    this.editorStatus.textContent = this.editMode
+      ? "Arrastra los puntos azules de hombros, muñecas, cadera, tobillos o espalda. La cámara actual y estos ajustes se guardan juntos."
+      : "Editor cerrado."
+    this.label.textContent = this.editMode ? "Editor activo · arrastra un punto articular" : "Arrastra para rotar · gira para ver frente y espalda"
+    if (!this.editMode) this.sync()
+  },
+
+  editorAction(action) {
+    if (action === "close") return this.toggleEditor()
+    if (action === "reset") {
+      this.applyPoseSettings({})
+      this.editorStatus.textContent = "Postura restablecida localmente. Guarda para conservar el cambio."
+      return
+    }
+    if (action === "save") {
+      const settings = {
+        joints: this.editorSettings.joints,
+        transform: this.editorSettings.transform,
+        camera: {position: this.camera.position.toArray(), target: this.controls.target.toArray()},
+      }
+      this.pushEvent("strength:save_pose", {pose: this.state.poseKey, settings})
+      this.editorStatus.textContent = "Guardando postura en tu vault personal…"
+    }
+  },
+
+  updateTransform(key, value) {
+    this.editorSettings.transform[key] = Number(value)
+    this.applyPoseSettings({...this.editorSettings, camera: null})
+  },
+
+  syncEditorInputs() {
+    this.editorInputs?.forEach((input) => { input.value = this.editorSettings.transform[input.dataset.editorTransform] || 0 })
+  },
+
+  beginPointer(event) {
+    this.down = [event.clientX, event.clientY]
+    if (!this.editMode) return
+    const object = this.pick(event)
+    if (!object?.userData.editorGroup) return
+    this.editorDrag = {group: object.userData.editorGroup, x: event.clientX, y: event.clientY}
+    this.controls.enabled = false
+    this.label.textContent = `Editando: ${object.userData.id}`
+  },
+
+  dragJoint(event) {
+    const drag = this.editorDrag
+    const delta = (event.clientY - drag.y) * 0.012
+    drag.y = event.clientY
+    const base = this.editorSettings.joints[drag.group] ?? poseFor(this.state.pose)[drag.group] ?? 0
+    this.editorSettings.joints[drag.group] = THREE.MathUtils.clamp(base + delta, -3.14, 3.14)
+    this.targetPose = {...poseFor(this.state.pose), ...this.editorSettings.joints}
+    this.label.textContent = `Editando ${drag.group} · suelta para conservar`
   },
 
   animate() {
@@ -348,9 +453,12 @@ export const StrengthBody = {
       const group = this.poseGroups[name]
       if (group) group.rotation.x = THREE.MathUtils.lerp(group.rotation.x, target, 0.085)
     })
-    if (this.cameraViewPosition) {
+    if (this.cameraViewAnimating) {
       this.camera.position.lerp(this.cameraViewPosition, 0.14)
       this.controls.target.lerp(this.cameraViewTarget, 0.14)
+      if (this.camera.position.distanceTo(this.cameraViewPosition) < 0.02 && this.controls.target.distanceTo(this.cameraViewTarget) < 0.02) {
+        this.cameraViewAnimating = false
+      }
     }
     this.controls.update()
     this.renderer.render(this.scene, this.camera)

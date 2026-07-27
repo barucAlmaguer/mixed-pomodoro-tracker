@@ -514,8 +514,8 @@ Remaining refinement:
   templates that can be scheduled into `Today`.
 - Add a concise link or summary between `/fuerza` and the current day plan
   without turning the execution screen into a second workout UI.
-- Extend the wooden mannequin and its front/back muscle overlays with richer poses,
-  exercise-specific movement cues, and visual regression coverage for the
+- Add inverse-kinematics and visual regression coverage to the editable wooden
+  mannequin, especially for exercise-specific movement cues and the
   small-screen layout.
 
 ## Next improvements after the core is stable

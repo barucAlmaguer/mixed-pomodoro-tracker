@@ -195,6 +195,35 @@ defmodule PomodoroTrackerWeb.StrengthLiveTest do
     assert has_element?(view, "#strength-postures")
   end
 
+  test "Scenario: Editar y guardar una postura del maniquí por actividad", %{conn: conn} do
+    # Given I open the Posturas muñeco diagnostic view
+    {:ok, view, _html} = live(conn, "/fuerza")
+
+    view
+    |> element("button[phx-click='strength:tab'][phx-value-tab='posturas']")
+    |> render_click()
+
+    # When I enter the pose editor, adjust a joint or camera, and save the posture
+    view
+    |> element("button[phx-click='strength:debug_pose'][phx-value-pose='squat']")
+    |> render_click()
+
+    assert has_element?(view, "#strength-posture-debug [data-role='edit-pose']")
+    assert has_element?(view, "#strength-posture-debug [data-role='editor-panel']")
+
+    render_hook(view, "strength:save_pose", %{
+      "pose" => "squat",
+      "settings" => %{
+        "joints" => %{"leftArm" => -0.7, "torso" => 0.3},
+        "transform" => %{"x" => 0.1, "y" => -0.2, "yaw" => 0.0},
+        "camera" => %{"position" => [0.0, -0.2, 8.0], "target" => [0.0, -0.4, 0.0]}
+      }
+    })
+
+    # Then its editable pose settings persist in the personal strength profile
+    assert Strength.profile()["poses"]["squat"]["joints"]["leftArm"] == -0.7
+  end
+
   defp make_tmp_vaults do
     base = Path.join(System.tmp_dir!(), "pomo-strength-#{System.unique_integer([:positive])}")
     work = Path.join(base, "work")

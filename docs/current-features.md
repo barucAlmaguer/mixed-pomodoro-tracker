@@ -301,6 +301,11 @@ is now only a secondary helper because direct per-day historical review exists.
 - Its footer includes front, back, left, and right camera shortcuts, and the
   `Posturas muñeco` tab provides a dedicated visual diagnostic surface for the
   pose presets used by exercises and mobility drills.
+- Every mannequin footer can open an editor: drag a visible joint marker to
+  adjust a limb, use X/Y/yaw controls to place the body, use the normal camera
+  controls, then save. The resulting camera, transform, and joint angles live
+  in `personal/pomodoro-tracker/settings/fuerza-papa.yaml`; exercise-specific
+  settings override their shared pose preset.
 
 ## Planning screen (`/planner`)
 

@@ -67,7 +67,12 @@
         <div class="mt-4 rounded-xl bg-slate-800/70 p-3 text-sm">
           <b class="text-sky-300">{label}</b><span class="text-slate-400"> · {description}</span>
         </div>
-        <.body_map id="strength-posture-debug" pose={@debug_pose} />
+        <.body_map
+          id="strength-posture-debug"
+          pose={@debug_pose}
+          pose_key={@debug_pose}
+          pose_settings={@poses[@debug_pose] || %{}}
+        />
       </article>
     </section>
 
@@ -140,6 +145,7 @@
         :for={ex <- Enum.reject(Strength.exercises(), &(&1.routine == "X"))}
         exercise={ex}
         open={@open_id == ex.id}
+        pose_settings={@poses["exercise-#{ex.id}"] || @poses[exercise_pose(ex.id)] || %{}}
       />
       <p class="pt-3 text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">
         Comodines — sustitutos y variedad
@@ -148,6 +154,7 @@
         :for={ex <- Enum.filter(Strength.exercises(), &(&1.routine == "X"))}
         exercise={ex}
         open={@open_id == ex.id}
+        pose_settings={@poses["exercise-#{ex.id}"] || @poses[exercise_pose(ex.id)] || %{}}
       />
     </section>
 
@@ -304,10 +311,13 @@
             </button>
             <span class={routine_badge(item.exercise.routine)}>
               {routine_label(item.exercise.routine)}
-            </span><span
+            </span>
+            <span
               :if={item.hits > 0}
               class="ml-2 font-mono text-xs text-emerald-300"
-            >✓ {item.hits} prioridad</span>
+            >
+              ✓ {item.hits} prioridad
+            </span>
             <div
               :if={@open_id == "today-#{item.exercise.id}"}
               class="mt-2 rounded-lg bg-slate-800 p-3 text-xs leading-5 text-slate-300"
@@ -407,12 +417,15 @@
               </span>
               <span class="flex-1 text-slate-300">
                 {Enum.map_join(session.muscles, ", ", &muscle_name/1)}
-              </span><button
+              </span>
+              <button
                 phx-click="strength:delete_session"
                 phx-value-id={session.id}
                 aria-label="borrar sesión"
                 class="text-slate-500 hover:text-red-300"
-              >×</button>
+              >
+                ×
+              </button>
             </div>
           </div>
         </div>
