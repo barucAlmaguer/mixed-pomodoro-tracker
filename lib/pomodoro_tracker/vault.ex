@@ -199,6 +199,28 @@ defmodule PomodoroTracker.Vault do
     Path.join(dir(zone, :settings), "tags.yaml")
   end
 
+  @doc "Reads a named YAML setting from a vault, returning a caller-provided default on failure."
+  def read_setting(zone, name, default \\ %{})
+      when zone in [:work, :personal] and is_binary(name) do
+    path = Path.join(dir(zone, :settings), "#{name}.yaml")
+
+    with {:ok, raw} <- File.read(path),
+         {:ok, value} when is_map(value) <- YamlElixir.read_from_string(raw) do
+      value
+    else
+      _ -> default
+    end
+  end
+
+  @doc "Writes a named YAML setting into a vault's settings directory."
+  def write_setting(zone, name, value)
+      when zone in [:work, :personal] and is_binary(name) and is_map(value) do
+    path = Path.join(dir(zone, :settings), "#{name}.yaml")
+    File.mkdir_p!(Path.dirname(path))
+    File.write!(path, to_yaml(value))
+    :ok
+  end
+
   def list_registered_tags(zone) when zone in [:work, :personal] do
     path = tag_registry_path(zone)
     File.mkdir_p!(Path.dirname(path))

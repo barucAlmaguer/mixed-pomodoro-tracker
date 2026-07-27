@@ -10,7 +10,7 @@ Hammerspoon / menubar / floating-panel integration is currently disabled. The su
 - Slack/GitHub filter badges in the top bar (tag filters, not live integrations)
 - 1 or 2 active tasks at a time
 - Pomodoro usage auto-logged per task for traceability
-- `/` is the execution surface, `/planner` is the planning surface, `/habits` is the tag-aggregated habit tracker, and `/tags` is the taxonomy manager
+- `/` is the execution surface, `/planner` is the planning surface, `/habits` is the tag-aggregated habit tracker, `/fuerza` is the strength-and-mobility plan, and `/tags` is the taxonomy manager
 - `/?date=YYYY-MM-DD` opens a readonly historical day review
 - The top chrome now includes a minimal interval-summary bar plus live
   `work/personal` totals for the selected day
@@ -94,6 +94,7 @@ The app creates `pomodoro-tracker/` subfolders inside each vault on first run if
 5. **Review** — use `/?date=YYYY-MM-DD` or the header arrows from `/` to inspect previous days in readonly mode and carry unfinished tasks forward.
 6. **Habit tracking** — open `/habits` to see monthly or yearly heatmaps aggregated by tag families such as `ejercicio` → `ejercicio>cuello`, inspect direct tasks per branch, create new recurrent/manual templates from that branch, and clean up mistagged tags.
 7. **Tag cleanup** — open `/tags` to rename, merge, or delete taxonomy branches across the vault-backed task files.
+8. **Strength + mobility** — open `/fuerza` for the Fuerza de Papá plan: functional goals, exercise technique, weekly load, pain/priority filtering, mobility drills, functional tests, and movement progressions. Logged sessions are completed personal tasks tagged under `ejercicio>fuerza-papa`, so they also appear in `/habits`.
 
 Pomodoro counts accumulate on the task per day (`3🍅`, `5🍅`, …). A task doesn't have to finish in one pomodoro.
 

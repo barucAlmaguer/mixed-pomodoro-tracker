@@ -20,6 +20,7 @@ defmodule PomodoroTrackerWeb.Router do
     live "/", DayLive, :index
     live "/planner", RecurrentPlannerLive, :index
     live "/habits", HabitTrackerLive, :index
+    live "/fuerza", StrengthLive, :index
     live "/tags", TagManagerLive, :index
   end
 

@@ -9,6 +9,7 @@ supposed to do.
 - `/` is the main supported app surface.
 - `/planner` is the supported planning surface.
 - `/habits` is the supported habit-tracking surface.
+- `/fuerza` is the supported strength-and-mobility planning surface.
 - `/tags` is the supported tag-management surface.
 - `/api/state` exposes a read-only JSON snapshot of timer + today + next due
   task.
@@ -16,7 +17,7 @@ supposed to do.
 - `/` supports historical day navigation through `?date=YYYY-MM-DD`.
 - There is now explicit product-level navigation between `Execute` and `Plan`.
 - There is now explicit product-level navigation between `Execute`, `Plan`,
-  `Habits`, and `Tags`.
+  `Habits`, `Fuerza`, and `Tags`.
 - There is still no first-class navigation model yet for settings or other
   future views.
 
@@ -274,6 +275,25 @@ is now only a secondary helper because direct per-day historical review exists.
   - manual
   - instancia
   - one-off
+
+## Fuerza de Papá (`/fuerza`)
+
+- This is a personal, mobile-friendly strength and mobility plan organized in
+  six persistent tabs: `Hoy`, `Escalera`, `Metas`, `Ejercicios`, `Rutinas`, and
+  `Movilidad`.
+- It describes the plan through six functional goals (F1–F6), 12 primary
+  exercises, 12 substitutions, technique links, a two-view body map, and a
+  three-session A/B weekly projection.
+- `Hoy` supports a three-state muscle filter: avoid, prioritize, neutral. It
+  filters exercise suggestions and uses the last seven days of recorded
+  strength activity for muscle recency.
+- Saving a strength session creates or merges one concrete personal backlog
+  task for its date, tags it `ejercicio>fuerza-papa` plus one nested muscle tag
+  per selected muscle, and marks it done in that day plan. This is why the
+  existing `/habits?zone=personal&tag=ejercicio` heatmaps include it.
+- Mobility tests and movement-progression levels persist in
+  `personal/pomodoro-tracker/settings/fuerza-papa.yaml`; sessions remain task
+  and day-plan data, not browser-local storage.
 
 ## Planning screen (`/planner`)
 

@@ -204,6 +204,19 @@ defmodule PomodoroTrackerWeb.Layouts do
         Habits
       </.link>
       <.link
+        id={"#{@id}-strength"}
+        navigate={~p"/fuerza"}
+        class={[
+          "px-3 py-1.5 rounded-full text-xs uppercase tracking-[0.2em] transition",
+          if(@current == :strength,
+            do: "bg-white text-slate-950",
+            else: "text-white/70 hover:text-white hover:bg-white/10"
+          )
+        ]}
+      >
+        Fuerza
+      </.link>
+      <.link
         id={"#{@id}-tags"}
         navigate={~p"/tags"}
         class={[

@@ -496,6 +496,27 @@ Add coverage for:
 - navigation to future views beyond execute/plan
 - richer `/planner` behavior as it grows beyond templates/backlog/archive
 
+### 16. Evolve Fuerza de Papá without splitting the personal activity model
+
+Current baseline:
+
+- `/fuerza` provides the functional strength, mobility, checks, and
+  progression-plan MVP as a LiveView-native route.
+- Strength sessions are normal completed personal tasks under the nested
+  `ejercicio>fuerza-papa` taxonomy, so the habit tracker remains the one
+  activity history.
+- Functional checks and progression levels live in the personal vault's
+  `settings/fuerza-papa.yaml` file.
+
+Remaining refinement:
+
+- Decide whether individual exercises should eventually become recurring
+  templates that can be scheduled into `Today`.
+- Add a concise link or summary between `/fuerza` and the current day plan
+  without turning the execution screen into a second workout UI.
+- Refine the body map anatomy and add visual regression coverage for the
+  small-screen layout.
+
 ## Next improvements after the core is stable
 
 - Richer reports from the session log:

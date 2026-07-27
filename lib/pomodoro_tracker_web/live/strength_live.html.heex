@@ -1,0 +1,555 @@
+<div class="min-h-screen bg-slate-950 text-slate-100">
+  <PomodoroTrackerWeb.Layouts.flash_group flash={@flash} />
+  <main class="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+    <div class="flex justify-center">
+      <PomodoroTrackerWeb.Layouts.product_nav id="strength-nav" current={:strength} />
+    </div>
+    <header class="mt-8 border-l-4 border-sky-400 pl-4">
+      <p class="text-xs font-semibold uppercase tracking-[0.22em] text-sky-300">
+        Plan v1.2 · fuerza + movilidad · 3 días
+      </p>
+      <h1 class="mt-3 text-4xl font-black uppercase leading-none tracking-tight sm:text-5xl">
+        Fuerza de papá,<br /><span class="text-sky-400">medida en garrafones</span>
+      </h1>
+      <p class="mt-4 max-w-2xl text-sm leading-6 text-slate-300">
+        Tu unidad funcional es <strong class="text-white">1 garrafón ≈ 20 kg</strong>: cargar agua, jugar en el piso y sostener un bebé. Cada ejercicio alimenta al menos una función de vida.
+      </p>
+    </header>
+
+    <nav
+      id="strength-tabs"
+      role="tablist"
+      class="mt-7 flex gap-1 overflow-x-auto rounded-xl bg-slate-800 p-1"
+      aria-label="Vistas del plan"
+    >
+      <button
+        :for={{id, label} <- tabs()}
+        id={"strength-tab-#{id}"}
+        role="tab"
+        aria-selected={@tab == id}
+        phx-click="strength:tab"
+        phx-value-tab={id}
+        class={[
+          "shrink-0 rounded-lg px-3 py-2 text-xs font-bold transition",
+          if(@tab == id, do: "bg-sky-600 text-white", else: "text-slate-300 hover:bg-slate-700")
+        ]}
+      >
+        {label}
+      </button>
+    </nav>
+
+    <section :if={@tab == "metas"} id="strength-goals" class="mt-5 space-y-3">
+      <article
+        :for={goal <- Strength.functions()}
+        class={[
+          "overflow-hidden rounded-2xl border bg-slate-900",
+          if(@open_id == goal.id, do: "border-sky-400", else: "border-slate-700")
+        ]}
+      >
+        <button
+          class="flex w-full items-start gap-3 p-4 text-left"
+          phx-click="strength:toggle"
+          phx-value-id={goal.id}
+          aria-expanded={@open_id == goal.id}
+        >
+          <span class="rounded-md border border-sky-400 px-2 py-1 font-mono text-xs font-bold text-sky-300">
+            {goal.tag}
+          </span>
+          <span class="min-w-0 flex-1">
+            <strong class="block text-base">{goal.title}</strong><span class="mt-1 block text-sm text-slate-400"><b class="text-amber-300">Hoy:</b> {goal.now} <span class="px-1">→</span> <b class="text-emerald-300">Meta:</b> {goal.goal}</span>
+          </span><span class="text-xl text-slate-400">{if @open_id == goal.id, do: "−", else: "+"}</span>
+        </button>
+        <div :if={@open_id == goal.id} class="border-t border-dashed border-slate-700 p-4">
+          <p class="text-sm leading-6 text-slate-300">{goal.why}</p>
+          <.body_map active={goal.muscles} />
+          <p class="text-xs font-semibold uppercase tracking-widest text-slate-500">
+            Músculos que lo hacen posible
+          </p>
+          <div class="mt-2 flex flex-wrap gap-2">
+            <span
+              :for={muscle <- goal.muscles}
+              class="rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-300"
+            >
+              {muscle_name(muscle)}
+            </span>
+          </div>
+          <p class="mt-4 text-xs font-semibold uppercase tracking-widest text-slate-500">
+            Ejercicios que lo construyen
+          </p>
+          <div class="mt-2 space-y-2 text-sm">
+            <p :for={id <- goal.exercises}>
+              <span class="text-sky-400">•</span> {exercise_name(id)}
+              <span class={routine_badge(exercise(id).routine)}>
+                {routine_label(exercise(id).routine)}
+              </span><span
+                :if={exercise(id)[:new]}
+                class="ml-1 rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900"
+              >ajuste nuevo</span>
+            </p>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section :if={@tab == "ejercicios"} id="strength-exercises" class="mt-5 space-y-3">
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+        Plan · Rutinas A y B
+      </p>
+      <.exercise_card
+        :for={ex <- Enum.reject(Strength.exercises(), &(&1.routine == "X"))}
+        exercise={ex}
+        open={@open_id == ex.id}
+      />
+      <p class="pt-3 text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">
+        Comodines — sustitutos y variedad
+      </p>
+      <.exercise_card
+        :for={ex <- Enum.filter(Strength.exercises(), &(&1.routine == "X"))}
+        exercise={ex}
+        open={@open_id == ex.id}
+      />
+    </section>
+
+    <section :if={@tab == "rutinas"} id="strength-routines" class="mt-5 space-y-4">
+      <% loads = weekly_loads(@week, @days) %>
+      <% schedule = if @week == 1, do: ["A", "B", "A"], else: ["B", "A", "B"] %>
+      <% ranked = Enum.sort_by(loads, fn {_muscle, sets} -> -sets end) %>
+      <div class="rounded-2xl border border-slate-700 bg-slate-900 p-4">
+        <p class="text-xs font-semibold uppercase tracking-widest text-slate-500">
+          Alternancia semanal
+        </p>
+        <div class="mt-3 flex gap-2">
+          <button
+            :for={week <- [1, 2]}
+            phx-click="strength:week"
+            phx-value-week={week}
+            class={[
+              "rounded-lg px-3 py-2 font-mono text-xs font-bold",
+              if(@week == week, do: "bg-sky-600 text-white", else: "bg-slate-800 text-slate-300")
+            ]}
+          >
+            {if week == 1, do: "A·B·A", else: "B·A·B"}
+          </button>
+        </div>
+        <div class="mt-4 grid grid-cols-3 gap-2">
+          <button
+            :for={{day, index} <- Enum.with_index(["Lun", "Mié", "Vie"])}
+            phx-click="strength:day"
+            phx-value-index={index}
+            aria-pressed={Enum.at(@days, index)}
+            class={[
+              "rounded-xl border p-3 text-center",
+              if(Enum.at(@days, index),
+                do: "border-sky-400 bg-sky-950 text-white",
+                else: "border-slate-700 bg-slate-800 text-slate-500"
+              )
+            ]}
+          >
+            <b class="block">{day}</b><span class="font-mono text-xs">Rutina {Enum.at(schedule, index)} {if Enum.at(@days,index), do: "✓", else: "—"}</span>
+          </button>
+        </div>
+      </div>
+      <div class="rounded-2xl border border-slate-700 bg-slate-900 p-4">
+        <.body_map
+          mode={:heat}
+          levels={Map.new(loads, fn {id, sets} -> {id, min(1, sets / 18)} end)}
+        />
+        <p class="text-center text-sm text-slate-400">
+          {if Enum.any?(@days),
+            do: "Carga proyectada con #{Enum.count(@days, & &1)} sesiones esta semana",
+            else: "Semana vacía: así se ve saltarse el gym 🥶"}
+        </p>
+      </div>
+      <div :if={ranked != []} class="rounded-2xl border border-slate-700 bg-slate-900 p-4">
+        <p class="text-xs font-semibold uppercase tracking-widest text-slate-500">
+          Series por músculo / semana
+        </p>
+        <div class="mt-4 space-y-3">
+          <div :for={{muscle, sets} <- ranked} class="flex items-center gap-3">
+            <span class="w-32 text-xs text-slate-300">{muscle_name(muscle)}</span><span class="h-2 flex-1 overflow-hidden rounded-full bg-slate-700"><span
+              class="block h-full rounded-full bg-gradient-to-r from-emerald-500 via-amber-400 to-red-500"
+              style={"width: #{sets / max(3, elem(hd(ranked), 1)) * 100}%"}
+            ></span></span><span class="w-6 text-right font-mono text-xs text-sky-300">{sets}</span>
+          </div>
+        </div>
+        <p class="mt-4 text-xs leading-5 text-slate-400">
+          Referencia: 6–10 series/semana por músculo es zona de progreso para principiantes.
+        </p>
+      </div>
+      <article
+        :for={routine <- ["A", "B"]}
+        class="rounded-2xl border border-slate-700 bg-slate-900 p-4"
+      >
+        <h2 class="text-lg font-bold">
+          Rutina {routine}
+          <span class="font-mono text-xs font-normal text-slate-500">
+            · ~40 min · {Enum.filter(["Lun", "Mié", "Vie"], fn _ -> true end)
+            |> Enum.zip(schedule)
+            |> Enum.filter(fn {_d, r} -> r == routine end)
+            |> Enum.map_join(" y ", &elem(&1, 0))}
+          </span>
+        </h2>
+        <div class="mt-3 space-y-2">
+          <div
+            :for={ex <- routine_exercises(routine)}
+            class="flex flex-wrap items-center gap-2 text-sm"
+          >
+            <span>{ex.name}</span><span class="font-mono text-xs text-emerald-300">{ex.sets}</span><span class="ml-auto font-mono text-xs text-sky-300">{linked_functions(ex.id) |> Enum.map_join(" ", & &1.tag)}</span>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section :if={@tab == "hoy"} id="strength-today" class="mt-5 space-y-4">
+      <% available = available_exercises(@marks) %><% allowed =
+        Enum.reject(available, &(&1.blocked != [])) %><% blocked =
+        Enum.filter(available, &(&1.blocked != [])) %>
+      <article class="rounded-2xl border border-slate-700 bg-slate-900 p-4">
+        <p class="text-xs font-semibold uppercase tracking-widest text-slate-500">
+          ¿Qué evitas o priorizas hoy?
+        </p>
+        <p class="mt-2 text-xs leading-5 text-slate-400">
+          1 toque = <b class="text-red-300">✕ evitar</b>
+          · 2 = <b class="text-emerald-300">✓ priorizar</b>
+          · 3 = neutro. El punto amarillo señala trabajo hace menos de 48 h.
+        </p>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <button
+            :for={{id, name} <- Strength.muscles()}
+            phx-click="strength:cycle_mark"
+            phx-value-muscle={id}
+            class={muscle_chip_class(@marks[id])}
+          >
+            <span class="inline-block w-3">{mark_symbol(@marks[id])}</span>{name}<span
+              :if={recent?(@sessions, id)}
+              title="trabajado hace menos de 48 h"
+              class="ml-1 inline-block size-1.5 rounded-full bg-amber-400"
+            ></span>
+          </button>
+        </div>
+        <button
+          phx-click="strength:show_body"
+          class="mt-4 font-mono text-xs font-bold text-sky-300"
+        >
+          {if @show_body, do: "▾ Ocultar muñequito", else: "▸ Ver en el muñequito"}
+        </button>
+        <.body_map
+          :if={@show_body}
+          mode={:direct}
+          colors={Map.new(Strength.muscles(), fn {id, _} -> {id, mark_color(@marks[id])} end)}
+          event="strength:cycle_mark"
+        />
+      </article>
+      <article class="rounded-2xl border border-slate-700 bg-slate-900 p-4">
+        <p class="text-xs font-semibold uppercase tracking-widest text-slate-500">
+          Ejercicios para hoy ({length(allowed)}/{length(available)})
+        </p>
+        <div class="mt-3 space-y-3">
+          <div :for={item <- allowed}>
+            <button
+              phx-click="strength:toggle"
+              phx-value-id={"today-#{item.exercise.id}"}
+              class="text-left text-sm font-semibold"
+            >
+              <span class="font-mono text-sky-300">
+                {if @open_id == "today-#{item.exercise.id}", do: "▾", else: "▸"}
+              </span> {item.exercise.name}
+            </button><span class={routine_badge(item.exercise.routine)}>{routine_label(item.exercise.routine)}</span><span
+              :if={item.hits > 0}
+              class="ml-2 font-mono text-xs text-emerald-300"
+            >✓ {item.hits} prioridad</span>
+            <div
+              :if={@open_id == "today-#{item.exercise.id}"}
+              class="mt-2 rounded-lg bg-slate-800 p-3 text-xs leading-5 text-slate-300"
+            >
+              {Enum.join(item.exercise.how, " · ")}<a
+                class="ml-3 font-semibold text-sky-300"
+                href={youtube(item.exercise.name)}
+                target="_blank"
+                rel="noreferrer"
+              >▶ Ver video de técnica</a><span
+                :if={item.exercise[:substitute]}
+                class="ml-2 text-slate-400"
+              >
+                · sustituye a {exercise_name(item.exercise.substitute)}
+              </span>
+            </div>
+          </div>
+          <p :if={allowed == []} class="text-sm text-slate-400">
+            Con esos filtros no queda nada: hoy toca caminar y dormir bien, que también es entrenar 😴
+          </p>
+        </div>
+        <button
+          :if={blocked != []}
+          phx-click="strength:show_blocked"
+          class="mt-4 font-mono text-xs font-bold text-red-300"
+        >
+          {if @show_blocked, do: "▾", else: "▸"} Mejor no hoy ({length(blocked)})
+        </button>
+        <div :if={@show_blocked} class="mt-2 space-y-1">
+          <p :for={item <- blocked} class="text-xs text-slate-500 line-through">
+            {item.exercise.name} · ✕ {Enum.map_join(item.blocked, ", ", &muscle_name/1)}
+          </p>
+        </div>
+      </article>
+      <article class="rounded-2xl border border-slate-700 bg-slate-900 p-4">
+        <p class="text-xs font-semibold uppercase tracking-widest text-slate-500">
+          Registrar entrenamiento
+        </p>
+        <div class="mt-3 flex gap-2">
+          <button
+            :for={{label, offset} <- [{"Hoy", 0}, {"Ayer", 1}]}
+            phx-click="strength:log_day"
+            phx-value-offset={offset}
+            class={[
+              "rounded-lg px-3 py-2 font-mono text-xs font-bold",
+              if(@log_day == offset,
+                do: "bg-sky-600 text-white",
+                else: "bg-slate-800 text-slate-300"
+              )
+            ]}
+          >
+            {label}
+          </button>
+        </div>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <button
+            :for={{id, name} <- Strength.muscles()}
+            phx-click="strength:log_muscle"
+            phx-value-muscle={id}
+            class={
+              muscle_chip_class(if(MapSet.member?(@log_muscles, id), do: :selected, else: nil))
+            }
+          >
+            ✓ {name}
+          </button>
+        </div>
+        <button
+          disabled={MapSet.size(@log_muscles) == 0}
+          phx-click="strength:save_session"
+          class="mt-4 w-full rounded-xl bg-sky-600 py-3 text-sm font-bold text-white disabled:bg-slate-700 disabled:text-slate-400"
+        >
+          Guardar sesión
+        </button>
+        <p class="mt-2 text-center text-xs text-slate-500">
+          Se guarda en tu cuenta; solo tú lo ves.
+        </p>
+      </article>
+      <article class="rounded-2xl border border-slate-700 bg-slate-900 p-4">
+        <p class="text-xs font-semibold uppercase tracking-widest text-slate-500">
+          Músculos usados · últimos 7 días
+        </p>
+        <p :if={@sessions == []} class="mt-3 text-sm text-slate-400">
+          Aún no hay sesiones registradas. Registra la de ayer arriba y este mapa cobra vida.
+        </p>
+        <div :if={@sessions != []}>
+          <.body_map mode={:heat} levels={recent_levels(@sessions)} />
+          <div class="space-y-2">
+            <div :for={session <- @sessions} class="flex items-center gap-2 text-xs">
+              <span class="w-20 font-mono font-semibold text-sky-300">
+                {date_label(parse_date(session.date))}
+              </span><span class="flex-1 text-slate-300">{Enum.map_join(session.muscles, ", ", &muscle_name/1)}</span><button
+                phx-click="strength:delete_session"
+                phx-value-id={session.id}
+                aria-label="borrar sesión"
+                class="text-slate-500 hover:text-red-300"
+              >×</button>
+            </div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section :if={@tab == "movilidad"} id="strength-mobility" class="mt-5 space-y-4">
+      <article class="rounded-2xl border border-slate-700 bg-slate-900 p-4">
+        <p class="text-xs font-semibold uppercase tracking-widest text-slate-500">
+          Articulaciones · toca para filtrar drills
+        </p>
+        <.body_map
+          mode={:joints}
+          joints={if(@joint_filter, do: [@joint_filter], else: Map.keys(Strength.joints()))}
+          event="strength:joint"
+        />
+        <div class="flex flex-wrap gap-2">
+          <button
+            :for={{id, name} <- Strength.joints()}
+            phx-click="strength:joint"
+            phx-value-joint={id}
+            class={[
+              "rounded-full px-3 py-1 text-xs font-semibold",
+              if(@joint_filter == id,
+                do: "bg-sky-200 text-sky-950",
+                else: "bg-slate-800 text-slate-300"
+              )
+            ]}
+          >
+            {name}
+          </button>
+        </div>
+      </article>
+      <article
+        :for={{phase, title} <- phases()}
+        class="rounded-2xl border border-slate-700 bg-slate-900 p-4"
+      >
+        <% drills =
+          Enum.filter(Strength.drills(), fn drill ->
+            drill.phase == phase and (is_nil(@joint_filter) or @joint_filter in drill.joints)
+          end) %><div :if={drills != []}><p class="text-xs font-semibold uppercase tracking-widest text-slate-500">{title}</p><div class="mt-3 space-y-3"><div :for={
+              drill <- drills
+            }><button
+                phx-click="strength:toggle"
+                phx-value-id={"drill-#{drill.id}"}
+                class="text-left text-sm font-semibold"
+              ><span class="font-mono text-sky-300">{if @open_id == "drill-#{drill.id}", do: "▾", else: "▸"}</span> {drill.name}</button><span class="ml-2 font-mono text-xs text-emerald-300">{drill.dose}</span><span class="ml-2 font-mono text-[10px] text-sky-300">{Enum.map_join(drill.joints, " · ", &Strength.joints()[&1])}</span><div
+                :if={@open_id == "drill-#{drill.id}"}
+                class="mt-2 rounded-lg bg-slate-800 p-3 text-xs text-slate-300"
+              >{Enum.join(drill.how, " · ")} <a
+                  class="ml-2 font-semibold text-sky-300"
+                  href={youtube(drill.name)}
+                  target="_blank"
+                  rel="noreferrer"
+                >▶ Ver video de técnica</a></div></div></div></div>
+      </article>
+      <article class="rounded-2xl border border-slate-700 bg-slate-900 p-4">
+        <p class="text-xs font-semibold uppercase tracking-widest text-slate-500">
+          Tests funcionales · chequea cada 2–4 semanas
+        </p>
+        <div class="mt-4 space-y-4">
+          <div :for={test <- Strength.tests()}>
+            <p class="text-sm font-semibold">
+              {test.name} <span class="ml-1 font-mono text-xs text-sky-300">{test.link}</span>
+            </p>
+            <div class="mt-2 grid grid-cols-3 gap-2">
+              <button
+                :for={{label, level} <- Enum.with_index(test.levels)}
+                phx-click="strength:test"
+                phx-value-id={test.id}
+                phx-value-level={level}
+                class={[
+                  "rounded-lg border px-2 py-2 text-xs font-semibold",
+                  test_level_class(@test_selection[test.id], level)
+                ]}
+              >
+                {label}
+              </button>
+            </div>
+          </div>
+        </div>
+        <button
+          disabled={@test_selection == %{}}
+          phx-click="strength:save_tests"
+          class="mt-5 w-full rounded-xl bg-sky-600 py-3 text-sm font-bold disabled:bg-slate-700"
+        >
+          Guardar chequeo de hoy
+        </button>
+        <div :if={@snapshots != []} class="mt-4">
+          <p class="text-xs font-semibold uppercase tracking-widest text-slate-500">Historial</p>
+          <div class="mt-2 space-y-1">
+            <div :for={{snapshot, index} <- Enum.with_index(@snapshots)} class="font-mono text-xs">
+              <span class="inline-block w-24 text-sky-300">
+                {date_label(parse_date(snapshot["date"]))}
+              </span><span>{test_score(snapshot["results"] || %{})}/10</span><% previous =
+                Enum.at(@snapshots, index + 1) %><span
+                :if={previous}
+                class={
+                  if(
+                    test_score(snapshot["results"] || %{}) >=
+                      test_score(previous["results"] || %{}),
+                    do: "ml-2 text-emerald-300",
+                    else: "ml-2 text-red-300"
+                  )
+                }
+              >{score_delta(snapshot, previous)}</span>
+            </div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section :if={@tab == "escalera"} id="strength-ladder" class="mt-5 space-y-4">
+      <% levels = @profile["levels"] || %{} %><% latest_results =
+        (@snapshots |> List.first() || %{})["results"] || %{} %>
+      <article class="rounded-2xl border border-slate-700 bg-slate-900 p-4">
+        <p class="text-xs font-semibold uppercase tracking-widest text-slate-500">
+          Tu cuerpo como árbol de habilidades
+        </p>
+        <p class="mt-2 text-sm leading-6 text-slate-400">
+          No mides kilos: mides qué versión del movimiento dominas. Toca un patrón y marca tu etapa actual.
+        </p>
+        <div class="mt-4 space-y-3">
+          <button
+            :for={pattern <- Strength.patterns()}
+            phx-click="strength:pattern"
+            phx-value-id={pattern.id}
+            class="block w-full text-left"
+          >
+            <span class="flex items-baseline gap-2 text-sm">
+              <b>{pattern.name}</b><span class="text-xs text-slate-500">→ {pattern.summit}</span><span class="ml-auto font-mono text-xs text-sky-300">{if is_nil(levels[pattern.id]), do: "¿?", else: "#{levels[pattern.id] + 1}/#{length(pattern.stages)}"}</span>
+            </span><span class="mt-1 block h-2 overflow-hidden rounded-full bg-slate-700"><span
+              class="block h-full bg-sky-500"
+              style={"width: #{if is_nil(levels[pattern.id]), do: 0, else: (levels[pattern.id] + 1) / length(pattern.stages) * 100}%"}
+            ></span></span>
+          </button>
+        </div>
+      </article>
+      <article
+        :for={pattern <- Strength.patterns()}
+        :if={@open_pattern == pattern.id}
+        class="rounded-2xl border border-sky-500 bg-slate-900 p-4"
+      >
+        <h2 class="text-lg font-bold">
+          {pattern.name}
+          <span class="font-mono text-xs font-normal text-slate-500">toca tu etapa actual</span>
+        </h2>
+        <div class="mt-4 space-y-3">
+          <div
+            :for={{stage, index} <- Enum.with_index(pattern.stages)}
+            class="relative flex gap-3"
+          >
+            <span class={stage_marker_class(levels[pattern.id], index)}>
+              {stage_marker(levels[pattern.id], index)}
+            </span><button
+              phx-click="strength:stage"
+              phx-value-pattern={pattern.id}
+              phx-value-stage={index}
+              class={[
+                "flex-1 text-left",
+                if(!is_nil(levels[pattern.id]) and index > levels[pattern.id] + 1,
+                  do: "opacity-50",
+                  else: ""
+                )
+              ]}
+            > <b class="text-sm">{stage.name}</b><span
+              :if={levels[pattern.id] == index}
+              class="ml-2 rounded bg-sky-600 px-1.5 py-0.5 font-mono text-[10px] font-bold"
+            >ESTÁS AQUÍ</span><span
+              :if={levels[pattern.id] == index - 1}
+              class="ml-2 rounded bg-sky-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-sky-900"
+            >SIGUIENTE</span><p
+              :if={levels[pattern.id] in [index, index - 1]}
+              class="mt-1 text-xs text-slate-400"
+            >{if levels[pattern.id] == index, do: "Sube cuando logres: ", else: "Meta: "}<b class="text-emerald-300">{stage.unlock}</b></p><p
+              :if={stage.gate && !gate_ok?(stage.gate, latest_results)}
+              class="mt-1 text-xs text-red-300"
+            >🔒 Requiere: {gate_label(stage.gate)}</p><p
+              :if={stage.gate && gate_ok?(stage.gate, latest_results)}
+              class="mt-1 text-xs text-emerald-300"
+            >✓ Requisito de movilidad cumplido</p></button>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <footer class="mt-8 rounded-2xl border border-amber-300/30 bg-amber-100/10 p-4 text-sm leading-6 text-amber-100">
+      <p class="text-xs font-semibold uppercase tracking-widest text-amber-300">
+        Fine-tuning v1 → v1.1
+      </p>
+      <p class="mt-2">
+        F4 añadió band pull-apart a la rutina A; F6 añadió suitcase carry a la B. Tu vida define el plan, no al revés.
+      </p>
+      <p class="mt-4 text-center font-mono text-xs text-slate-400">
+        Sin dolor = luz verde · Tronidos sin dolor = normal · Dolor = ajustamos
+      </p>
+    </footer>
+  </main>
+</div>
