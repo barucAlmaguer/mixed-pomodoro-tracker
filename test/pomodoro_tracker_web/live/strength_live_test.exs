@@ -176,6 +176,25 @@ defmodule PomodoroTrackerWeb.StrengthLiveTest do
     assert render(view) =~ "ESTÁS AQUÍ"
   end
 
+  test "Scenario: Inspeccionar anatomía y posturas del maniquí sin arrastrarlo", %{conn: conn} do
+    # Given I open the Fuerza de Papá plan
+    {:ok, view, _html} = live(conn, "/fuerza")
+
+    # When I show the mannequin and choose a camera shortcut or the Posturas muñeco tab
+    view |> element("button[phx-click='strength:show_body']") |> render_click()
+
+    assert has_element?(view, "#strength-filter [data-camera-view='front']")
+    assert has_element?(view, "#strength-filter [data-camera-view='back']")
+    assert has_element?(view, "#strength-filter [data-camera-view='side']")
+
+    view
+    |> element("button[phx-click='strength:tab'][phx-value-tab='posturas']")
+    |> render_click()
+
+    # Then I can access front, back, side, and posture diagnostic views
+    assert has_element?(view, "#strength-postures")
+  end
+
   defp make_tmp_vaults do
     base = Path.join(System.tmp_dir!(), "pomo-strength-#{System.unique_integer([:positive])}")
     work = Path.join(base, "work")

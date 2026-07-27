@@ -85,6 +85,18 @@ export const StrengthBody = {
     this.controls.minDistance = 4.8
     this.controls.maxDistance = 12
     this.controls.maxPolarAngle = Math.PI * 0.72
+    this.cameraViews = {
+      front: {position: [0, -0.15, 9], target: [0, -0.35, 0], label: "Vista frontal"},
+      back: {position: [0, -0.15, -9], target: [0, -0.35, 0], label: "Vista trasera"},
+      side: {position: [-9, -0.15, 0], target: [0, -0.35, 0], label: "Vista lateral"},
+      left: {position: [-9, -0.15, 0], target: [0, -0.35, 0], label: "Vista izquierda"},
+      right: {position: [9, -0.15, 0], target: [0, -0.35, 0], label: "Vista derecha"},
+    }
+    this.cameraViewPosition = this.camera.position.clone()
+    this.cameraViewTarget = this.controls.target.clone()
+    this.el.querySelectorAll("[data-camera-view]").forEach((button) => {
+      button.addEventListener("click", () => this.setCameraView(button.dataset.cameraView))
+    })
 
     this.scene.add(new THREE.HemisphereLight(0xffe0b2, 0x142333, 2.4))
     const key = new THREE.DirectionalLight(0xffd8a7, 3.1)
@@ -269,7 +281,11 @@ export const StrengthBody = {
       if (this.state.mode === "heat") color = heat(this.state.levels[id])
       if (this.state.mode === "direct") color = this.state.colors[id] || "#9ec6e0"
       plane.material.color.set(color)
-      plane.material.opacity = this.state.mode === "joints" ? 0 : (this.state.active.includes(id) ? 0.74 : 0.42)
+      const isColored =
+        (this.state.mode === "binary" && this.state.active.includes(id)) ||
+        (this.state.mode === "direct" && this.state.active.includes(id)) ||
+        (this.state.mode === "heat" && Boolean(this.state.levels[id]))
+      plane.material.opacity = this.state.mode === "joints" ? 0 : (isColored ? 0.92 : 0.58)
       plane.visible = this.state.mode !== "joints"
     })
     this.joints.forEach((marker) => {
@@ -315,12 +331,27 @@ export const StrengthBody = {
     this.pushEvent(this.state.event, {[key]: object.userData.id})
   },
 
+  setCameraView(name) {
+    const view = this.cameraViews[name]
+    if (!view) return
+    this.cameraViewPosition.set(...view.position)
+    this.cameraViewTarget.set(...view.target)
+    this.el.querySelectorAll("[data-camera-view]").forEach((button) => {
+      button.setAttribute("aria-pressed", String(button.dataset.cameraView === name))
+    })
+    this.label.textContent = `${view.label} · toca una capa para filtrar`
+  },
+
   animate() {
     this.animationFrame = requestAnimationFrame(() => this.animate())
     if (this.targetPose) Object.entries(this.targetPose).forEach(([name, target]) => {
       const group = this.poseGroups[name]
       if (group) group.rotation.x = THREE.MathUtils.lerp(group.rotation.x, target, 0.085)
     })
+    if (this.cameraViewPosition) {
+      this.camera.position.lerp(this.cameraViewPosition, 0.14)
+      this.controls.target.lerp(this.cameraViewTarget, 0.14)
+    }
     this.controls.update()
     this.renderer.render(this.scene, this.camera)
   },

@@ -43,3 +43,8 @@ Feature: Mapa Fuerza de Papá integrado al tracker
     Given I open a movement pattern
     When I mark my current stage
     Then the stage persists and shows criteria, next step, and mobility gates
+
+  Scenario: Inspeccionar anatomía y posturas del maniquí sin arrastrarlo
+    Given I open the Fuerza de Papá plan
+    When I show the mannequin and choose a camera shortcut or the Posturas muñeco tab
+    Then I can access front, back, side, and posture diagnostic views

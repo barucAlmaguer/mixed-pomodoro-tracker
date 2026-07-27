@@ -11,7 +11,17 @@ defmodule PomodoroTrackerWeb.StrengthLive do
     {"metas", "Metas"},
     {"ejercicios", "Ejercicios"},
     {"rutinas", "Rutinas"},
-    {"movilidad", "Movilidad"}
+    {"movilidad", "Movilidad"},
+    {"posturas", "Posturas muñeco"}
+  ]
+  @postures [
+    {"neutral", "Neutral", "Referencia erguida para comparar cada ajuste."},
+    {"carry", "Carga", "Carga bilateral y caminar con peso."},
+    {"squat", "Sentadilla", "Cadera atrás, rodillas flexionadas."},
+    {"hinge", "Bisagra", "Patrón de peso muerto y puente."},
+    {"press", "Press", "Brazos por encima de la cabeza."},
+    {"pushup", "Suelo", "Base para lagartijas, plancha y trabajo horizontal."},
+    {"mobility", "Movilidad", "Postura asimétrica para drills articulares."}
   ]
   @phases [
     {"warm", "Antes de entrenar · 5 min · dinámico"},
@@ -21,6 +31,7 @@ defmodule PomodoroTrackerWeb.StrengthLive do
 
   defp tabs, do: @tabs
   defp phases, do: @phases
+  defp postures, do: @postures
 
   @impl true
   def mount(_params, _session, socket) do
@@ -36,6 +47,7 @@ defmodule PomodoroTrackerWeb.StrengthLive do
      |> assign(:days, [true, true, true])
      |> assign(:marks, %{})
      |> assign(:show_body, false)
+     |> assign(:debug_pose, "neutral")
      |> assign(:show_blocked, false)
      |> assign(:log_day, 0)
      |> assign(:log_muscles, MapSet.new())
@@ -50,7 +62,7 @@ defmodule PomodoroTrackerWeb.StrengthLive do
 
   @impl true
   def handle_event("strength:tab", %{"tab" => tab}, socket)
-      when tab in ~w(hoy escalera metas ejercicios rutinas movilidad) do
+      when tab in ~w(hoy escalera metas ejercicios rutinas movilidad posturas) do
     {:noreply, socket |> assign(:tab, tab) |> assign(:open_id, nil)}
   end
 
@@ -71,6 +83,11 @@ defmodule PomodoroTrackerWeb.StrengthLive do
 
   def handle_event("strength:show_body", _, socket),
     do: {:noreply, update(socket, :show_body, &(not &1))}
+
+  def handle_event("strength:debug_pose", %{"pose" => pose}, socket)
+      when pose in ~w(neutral carry squat hinge press pushup mobility) do
+    {:noreply, assign(socket, :debug_pose, pose)}
+  end
 
   def handle_event("strength:show_blocked", _, socket),
     do: {:noreply, update(socket, :show_blocked, &(not &1))}
@@ -418,13 +435,50 @@ defmodule PomodoroTrackerWeb.StrengthLive do
       aria-label="Maniquí 3D interactivo"
     >
       <div data-role="canvas" class="h-96 min-h-[22rem] w-full touch-none"></div>
-      <div class="flex items-center justify-between gap-3 border-t border-sky-300/10 bg-slate-950/60 px-3 py-2">
+      <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-sky-300/10 bg-slate-950/60 px-3 py-2">
         <p data-role="label" class="text-xs text-slate-400">
           Arrastra para rotar · gira para ver frente y espalda
         </p>
-        <span class="rounded-full bg-sky-300/10 px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-sky-200">
-          3D
-        </span>
+        <div class="flex items-center gap-1" aria-label="Atajos de cámara">
+          <button
+            data-camera-view="front"
+            type="button"
+            class="rounded bg-sky-300/10 px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-sky-200 hover:bg-sky-300/20"
+          >
+            Frente
+          </button>
+          <button
+            data-camera-view="back"
+            type="button"
+            class="rounded bg-sky-300/10 px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-sky-200 hover:bg-sky-300/20"
+          >
+            Espalda
+          </button>
+          <button
+            data-camera-view="side"
+            type="button"
+            class="rounded bg-sky-300/10 px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-sky-200 hover:bg-sky-300/20"
+          >
+            Lateral
+          </button>
+          <button
+            data-camera-view="left"
+            type="button"
+            class="rounded bg-sky-300/10 px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-sky-200 hover:bg-sky-300/20"
+          >
+            Izq.
+          </button>
+          <button
+            data-camera-view="right"
+            type="button"
+            class="rounded bg-sky-300/10 px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-sky-200 hover:bg-sky-300/20"
+          >
+            Der.
+          </button>
+          <span class="ml-1 rounded-full bg-sky-300/10 px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-sky-200">
+            3D
+          </span>
+        </div>
       </div>
     </div>
     """
