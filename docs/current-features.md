@@ -293,9 +293,11 @@ is now only a secondary helper because direct per-day historical review exists.
   selecting completed exercises (with their effort maps summed and normalized
   in a live mannequin preview) or manual muscles for unlisted work. Its date
   controls can target any past day, and saving again for a day updates the same
-  accumulated session rather than locking the user to one submission. It stores
-  the selected exercise ids alongside the resulting muscle set. This is why the
-  existing `/habits?zone=personal&tag=ejercicio` heatmaps include it.
+  accumulated session rather than locking the user to one submission. Opening
+  a date with an existing session rehydrates its completed exercise selection
+  and effort map before further work is added. It stores the selected exercise
+  ids alongside the resulting muscle set. This is why the existing
+  `/habits?zone=personal&tag=ejercicio` heatmaps include it.
 - Mobility tests and movement-progression levels persist in
   `personal/pomodoro-tracker/settings/fuerza-papa.yaml`; sessions remain task
   and day-plan data, not browser-local storage.

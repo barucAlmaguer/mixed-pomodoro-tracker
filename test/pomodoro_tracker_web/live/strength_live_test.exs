@@ -126,6 +126,23 @@ defmodule PomodoroTrackerWeb.StrengthLiveTest do
     assert Enum.sort(session.muscles) == ["core", "glutes"]
   end
 
+  test "Scenario: Mostrar la carga ya registrada del día seleccionado", %{conn: conn} do
+    # Given a strength session already exists for the selected day
+    {:ok, _} =
+      Strength.save_session(Clock.today(), ["quads", "glutes", "core", "grip"], ["goblet"])
+
+    # When I open its training recorder
+    {:ok, view, _html} = live(conn, "/fuerza")
+
+    # Then its completed exercises and accumulated mannequin heatmap are shown before I add more work
+    assert has_element?(view, "button[phx-value-id='goblet'][aria-pressed='true']")
+    assert has_element?(view, "#strength-session-heatmap[data-mode='heat']")
+    heatmap_html = view |> element("#strength-session-heatmap") |> render()
+    assert heatmap_html =~ ~s(&quot;quads&quot;:1.0)
+    assert heatmap_html =~ ~s(&quot;glutes&quot;:0.65)
+    assert render(view) =~ "Actualizar entrenamiento"
+  end
+
   test "Scenario: Consultar metas y ejercicios funcionales", %{conn: conn} do
     # Given I am in Metas or Ejercicios
     {:ok, view, _html} = live(conn, "/fuerza")

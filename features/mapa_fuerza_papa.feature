@@ -19,6 +19,11 @@ Feature: Mapa Fuerza de Papá integrado al tracker
     When I move to a previous day and save more than one training update
     Then its visible date changes and the day keeps one accumulated strength session
 
+  Scenario: Mostrar la carga ya registrada del día seleccionado
+    Given a strength session already exists for the selected day
+    When I open its training recorder
+    Then its completed exercises and accumulated mannequin heatmap are shown before I add more work
+
   Scenario: Consultar metas y ejercicios funcionales
     Given I am in Metas or Ejercicios
     When I open a card

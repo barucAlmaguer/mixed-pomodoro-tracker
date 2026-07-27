@@ -509,7 +509,8 @@ Current baseline:
   a set of completed exercises; future work should preserve that transparent,
   vault-backed model if it adds set/repetition detail. It can also navigate and
   update one accumulated session for any past day, avoiding artificial limits
-  on later training additions.
+  on later training additions, and restores that saved load while the user is
+  deciding whether to add more.
 - Functional checks and progression levels live in the personal vault's
   `settings/fuerza-papa.yaml` file.
 

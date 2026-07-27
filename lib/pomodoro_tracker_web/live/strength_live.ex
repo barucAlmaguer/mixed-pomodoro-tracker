@@ -56,11 +56,13 @@ defmodule PomodoroTrackerWeb.StrengthLive do
      |> assign(:joint_filter, nil)
      |> assign(:test_selection, %{})
      |> assign(:open_pattern, nil)
-     |> refresh()}
+     |> refresh()
+     |> hydrate_log_session()}
   end
 
   @impl true
-  def handle_info(:vault_changed, socket), do: {:noreply, refresh(socket)}
+  def handle_info(:vault_changed, socket),
+    do: {:noreply, socket |> refresh() |> hydrate_log_session()}
 
   @impl true
   def handle_event("strength:tab", %{"tab" => tab}, socket)
@@ -169,7 +171,8 @@ defmodule PomodoroTrackerWeb.StrengthLive do
          |> assign(:log_exercises, MapSet.new())
          |> assign(:log_effort, %{})
          |> put_flash(:info, "Sesión guardada como hábito de ejercicio.")
-         |> refresh()}
+         |> refresh()
+         |> hydrate_log_session()}
 
       _ ->
         {:noreply, put_flash(socket, :error, "No se pudo guardar la sesión.")}
@@ -242,9 +245,7 @@ defmodule PomodoroTrackerWeb.StrengthLive do
   defp set_log_date(socket, day) do
     socket
     |> assign(:log_day, min(day, 0))
-    |> assign(:log_muscles, MapSet.new())
-    |> assign(:log_exercises, MapSet.new())
-    |> assign(:log_effort, %{})
+    |> hydrate_log_session()
   end
 
   defp log_date(day_offset), do: Date.add(Clock.today(), day_offset)
@@ -292,6 +293,38 @@ defmodule PomodoroTrackerWeb.StrengthLive do
   defp session_for_log_date?(sessions, day_offset) do
     date = log_date(day_offset) |> Date.to_iso8601()
     Enum.any?(sessions, &(&1.date == date))
+  end
+
+  defp hydrate_log_session(socket) do
+    session =
+      Enum.find(socket.assigns.sessions || [], fn session ->
+        session.date == socket.assigns.log_day |> log_date() |> Date.to_iso8601()
+      end)
+
+    if session do
+      exercises = MapSet.new(session.exercises)
+
+      exercise_muscles =
+        Strength.exercises()
+        |> Enum.filter(&MapSet.member?(exercises, &1.id))
+        |> Enum.flat_map(&Map.keys(&1.effort))
+        |> MapSet.new()
+
+      manual_muscles =
+        session.muscles
+        |> Enum.reject(&MapSet.member?(exercise_muscles, &1))
+        |> MapSet.new()
+
+      socket
+      |> assign(:log_exercises, exercises)
+      |> assign(:log_muscles, manual_muscles)
+      |> refresh_log_effort()
+    else
+      socket
+      |> assign(:log_exercises, MapSet.new())
+      |> assign(:log_muscles, MapSet.new())
+      |> assign(:log_effort, %{})
+    end
   end
 
   defp session_heatmap_key(effort), do: :erlang.phash2(effort)

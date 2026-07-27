@@ -402,6 +402,12 @@
         <p id="strength-log-date" class="mt-2 font-mono text-xs text-sky-200">
           {log_date_label(@log_day)}
         </p>
+        <p
+          :if={session_for_log_date?(@sessions, @log_day)}
+          class="mt-1 text-xs text-emerald-300"
+        >
+          Carga ya registrada: puedes añadir lo que faltó y volver a actualizarla.
+        </p>
         <div class="mt-5 flex items-center justify-between gap-3">
           <p class="text-xs font-semibold uppercase tracking-[0.16em] text-sky-300">
             1 · Ejercicios realizados
