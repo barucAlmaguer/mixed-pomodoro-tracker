@@ -51,6 +51,8 @@ defmodule PomodoroTrackerWeb.StrengthLive do
      |> assign(:show_blocked, false)
      |> assign(:log_day, 0)
      |> assign(:log_muscles, MapSet.new())
+     |> assign(:log_exercises, MapSet.new())
+     |> assign(:log_effort, %{})
      |> assign(:joint_filter, nil)
      |> assign(:test_selection, %{})
      |> assign(:open_pattern, nil)
@@ -110,25 +112,50 @@ defmodule PomodoroTrackerWeb.StrengthLive do
     muscles = socket.assigns.log_muscles
 
     {:noreply,
-     assign(
-       socket,
+     socket
+     |> assign(
        :log_muscles,
        if(MapSet.member?(muscles, muscle),
          do: MapSet.delete(muscles, muscle),
          else: MapSet.put(muscles, muscle)
        )
-     )}
+     )
+     |> refresh_log_effort()}
+  end
+
+  def handle_event("strength:log_exercise", %{"id" => id}, socket) do
+    exercise_ids = MapSet.new(Enum.map(Strength.exercises(), & &1.id))
+
+    if MapSet.member?(exercise_ids, id) do
+      exercises = socket.assigns.log_exercises
+
+      {:noreply,
+       socket
+       |> assign(
+         :log_exercises,
+         if(MapSet.member?(exercises, id),
+           do: MapSet.delete(exercises, id),
+           else: MapSet.put(exercises, id)
+         )
+       )
+       |> refresh_log_effort()}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event("strength:save_session", _, socket) do
     case Strength.save_session(
            Date.add(Clock.today(), -socket.assigns.log_day),
-           MapSet.to_list(socket.assigns.log_muscles)
+           Map.keys(socket.assigns.log_effort),
+           socket.assigns.log_exercises |> MapSet.to_list() |> Enum.sort()
          ) do
       {:ok, _} ->
         {:noreply,
          socket
          |> assign(:log_muscles, MapSet.new())
+         |> assign(:log_exercises, MapSet.new())
+         |> assign(:log_effort, %{})
          |> put_flash(:info, "Sesión guardada como hábito de ejercicio.")
          |> refresh()}
 
@@ -168,6 +195,37 @@ defmodule PomodoroTrackerWeb.StrengthLive do
     :ok = Strength.save_level(pattern, String.to_integer(stage))
     {:noreply, refresh(socket)}
   end
+
+  defp refresh_log_effort(socket) do
+    selected_exercises = socket.assigns.log_exercises
+
+    totals =
+      Strength.exercises()
+      |> Enum.filter(&MapSet.member?(selected_exercises, &1.id))
+      |> Enum.reduce(%{}, fn exercise, effort ->
+        Enum.reduce(exercise.effort, effort, fn {muscle, level}, accumulator ->
+          Map.update(accumulator, muscle, level, &(&1 + level))
+        end)
+      end)
+      |> then(fn effort ->
+        Enum.reduce(socket.assigns.log_muscles, effort, fn muscle, accumulator ->
+          Map.update(accumulator, muscle, 1.0, &max(&1, 1.0))
+        end)
+      end)
+
+    peak = totals |> Map.values() |> Enum.max(fn -> 0 end)
+
+    normalized =
+      if peak == 0 do
+        %{}
+      else
+        Map.new(totals, fn {muscle, total} -> {muscle, Float.round(total / peak, 2)} end)
+      end
+
+    assign(socket, :log_effort, normalized)
+  end
+
+  defp session_heatmap_key(effort), do: :erlang.phash2(effort)
 
   defp refresh(socket) do
     profile = Strength.profile()

@@ -9,6 +9,11 @@ Feature: Mapa Fuerza de Papá integrado al tracker
     When I save the session
     Then the activity is stored in the personal vault with its exercise tags
 
+  Scenario: Registrar la carga ponderada de varios ejercicios
+    Given I select several completed exercises for a strength session
+    When I review their accumulated effort on the mannequin
+    Then the heatmap shows the weighted muscle load and the session is stored with those muscles
+
   Scenario: Consultar metas y ejercicios funcionales
     Given I am in Metas or Ejercicios
     When I open a card

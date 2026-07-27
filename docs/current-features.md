@@ -289,7 +289,10 @@ is now only a secondary helper because direct per-day historical review exists.
   strength activity for muscle recency.
 - Saving a strength session creates or merges one concrete personal backlog
   task for its date, tags it `ejercicio>fuerza-papa` plus one nested muscle tag
-  per selected muscle, and marks it done in that day plan. This is why the
+  per derived muscle, and marks it done in that day plan. The recorder supports
+  selecting completed exercises (with their effort maps summed and normalized
+  in a live mannequin preview) or manual muscles for unlisted work; it stores
+  the selected exercise ids alongside the resulting muscle set. This is why the
   existing `/habits?zone=personal&tag=ejercicio` heatmaps include it.
 - Mobility tests and movement-progression levels persist in
   `personal/pomodoro-tracker/settings/fuerza-papa.yaml`; sessions remain task

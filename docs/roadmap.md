@@ -505,6 +505,9 @@ Current baseline:
 - Strength sessions are normal completed personal tasks under the nested
   `ejercicio>fuerza-papa` taxonomy, so the habit tracker remains the one
   activity history.
+- The session recorder can already derive and preview weighted muscle load from
+  a set of completed exercises; future work should preserve that transparent,
+  vault-backed model if it adds set/repetition detail.
 - Functional checks and progression levels live in the personal vault's
   `settings/fuerza-papa.yaml` file.
 

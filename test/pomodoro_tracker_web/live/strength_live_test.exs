@@ -55,6 +55,44 @@ defmodule PomodoroTrackerWeb.StrengthLiveTest do
     assert "ejercicio>fuerza-papa>core" in task.tags
   end
 
+  test "Scenario: Registrar la carga ponderada de varios ejercicios", %{conn: conn} do
+    # Given I select several completed exercises for a strength session
+    {:ok, view, _html} = live(conn, "/fuerza")
+
+    view
+    |> element("button[phx-click='strength:log_exercise'][phx-value-id='goblet']")
+    |> render_click()
+
+    view
+    |> element("button[phx-click='strength:log_exercise'][phx-value-id='pushup']")
+    |> render_click()
+
+    # When I review their accumulated effort on the mannequin
+    assert has_element?(view, "#strength-session-heatmap[data-mode='heat']")
+    heatmap_html = view |> element("#strength-session-heatmap") |> render()
+
+    # Then the heatmap shows the weighted muscle load and the session is stored with those muscles
+    assert heatmap_html =~ ~s(&quot;quads&quot;:1.0)
+    assert heatmap_html =~ ~s(&quot;chest&quot;:1.0)
+    assert heatmap_html =~ ~s(&quot;shoulders&quot;:0.7)
+
+    view |> element("button[phx-click='strength:save_session']") |> render_click()
+
+    [session] = Strength.list_sessions()
+
+    assert Enum.sort(session.muscles) == [
+             "arms",
+             "chest",
+             "core",
+             "glutes",
+             "grip",
+             "quads",
+             "shoulders"
+           ]
+
+    assert Enum.sort(session.exercises) == ["goblet", "pushup"]
+  end
+
   test "Scenario: Consultar metas y ejercicios funcionales", %{conn: conn} do
     # Given I am in Metas or Ejercicios
     {:ok, view, _html} = live(conn, "/fuerza")

@@ -627,18 +627,25 @@ defmodule PomodoroTracker.Strength do
       %{
         id: task.id,
         date: task.frontmatter["session_date"],
-        muscles: task.frontmatter["strength_muscles"] || []
+        muscles: task.frontmatter["strength_muscles"] || [],
+        exercises: task.frontmatter["strength_exercises"] || []
       }
     end)
     |> Enum.filter(&is_binary(&1.date))
     |> Enum.sort_by(& &1.date, :desc)
   end
 
-  def save_session(%Date{} = date, muscles) do
+  def save_session(%Date{} = date, muscles, exercises \\ []) do
     muscles = Enum.filter(Enum.uniq(muscles), &Map.has_key?(@muscles, &1))
+    exercise_ids = MapSet.new(Enum.map(@exercises, & &1.id))
+    exercises = Enum.filter(Enum.uniq(exercises), &MapSet.member?(exercise_ids, &1))
     id = "fuerza-papa-" <> (date |> Date.to_iso8601() |> String.replace("-", ""))
     existing = Enum.find(Vault.list_tasks(:personal, :backlog), &(&1.id == id))
     merged = Enum.uniq(((existing && existing.frontmatter["strength_muscles"]) || []) ++ muscles)
+
+    merged_exercises =
+      Enum.uniq(((existing && existing.frontmatter["strength_exercises"]) || []) ++ exercises)
+
     tags = [@session_tag | Enum.map(merged, &"#{@session_tag}>#{&1}")]
 
     result =
@@ -646,6 +653,7 @@ defmodule PomodoroTracker.Strength do
         Vault.update_task(existing.path, %{
           tags: tags,
           strength_muscles: merged,
+          strength_exercises: merged_exercises,
           strength_session: true,
           session_date: Date.to_iso8601(date)
         })
@@ -656,6 +664,7 @@ defmodule PomodoroTracker.Strength do
           tags: tags,
           strength_session: true,
           strength_muscles: merged,
+          strength_exercises: merged_exercises,
           session_date: Date.to_iso8601(date),
           created_at: Date.to_iso8601(date),
           body: "Entrenamiento registrado desde Fuerza de Papá."
