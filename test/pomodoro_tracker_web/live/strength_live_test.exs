@@ -93,6 +93,39 @@ defmodule PomodoroTrackerWeb.StrengthLiveTest do
     assert Enum.sort(session.exercises) == ["goblet", "pushup"]
   end
 
+  test "Scenario: Navegar y ampliar un entrenamiento de otro día", %{conn: conn} do
+    # Given I open the training recorder on today
+    {:ok, view, _html} = live(conn, "/fuerza")
+    assert render(view) =~ "Viendo hoy"
+    assert has_element?(view, "button[phx-value-action='next'][disabled]")
+
+    # When I move to a previous day and save more than one training update
+    view
+    |> element("button[phx-click='strength:log_date'][phx-value-action='previous']")
+    |> render_click()
+
+    assert render(view) =~ "Viendo ayer"
+    assert has_element?(view, "button[phx-value-action='next']:not([disabled])")
+
+    view
+    |> element("button[phx-click='strength:log_muscle'][phx-value-muscle='core']")
+    |> render_click()
+
+    view |> element("button[phx-click='strength:save_session']") |> render_click()
+    assert render(view) =~ "Actualizar entrenamiento"
+
+    view
+    |> element("button[phx-click='strength:log_muscle'][phx-value-muscle='glutes']")
+    |> render_click()
+
+    view |> element("button[phx-click='strength:save_session']") |> render_click()
+
+    # Then its visible date changes and the day keeps one accumulated strength session
+    [session] = Strength.list_sessions()
+    assert session.date == Date.add(Clock.today(), -1) |> Date.to_iso8601()
+    assert Enum.sort(session.muscles) == ["core", "glutes"]
+  end
+
   test "Scenario: Consultar metas y ejercicios funcionales", %{conn: conn} do
     # Given I am in Metas or Ejercicios
     {:ok, view, _html} = live(conn, "/fuerza")
@@ -158,6 +191,30 @@ defmodule PomodoroTrackerWeb.StrengthLiveTest do
              Map.keys(exercise.effort) |> Enum.sort() == Enum.sort(exercise.muscles) and
                Enum.all?(exercise.effort, fn {_muscle, level} -> level > 0 and level <= 1 end)
            end)
+  end
+
+  test "Scenario: Mostrar el origen efectivo de la postura del ejercicio", %{conn: conn} do
+    # Given I inspect an exercise without a specific saved pose
+    {:ok, view, _html} = live(conn, "/fuerza")
+    view |> element("button[phx-value-tab='ejercicios']") |> render_click()
+
+    view
+    |> element("button[phx-click='strength:toggle'][phx-value-id='goblet']")
+    |> render_click()
+
+    assert render(view) =~ "Postura: squat · preset base compartido"
+
+    # When I save a specific pose for that exercise
+    :ok = Strength.save_pose("exercise-goblet", %{"joints" => %{}})
+    {:ok, specific_view, _html} = live(conn, "/fuerza")
+    specific_view |> element("button[phx-value-tab='ejercicios']") |> render_click()
+
+    specific_view
+    |> element("button[phx-click='strength:toggle'][phx-value-id='goblet']")
+    |> render_click()
+
+    # Then its mannequin footer changes from the shared preset label to the exercise-specific label
+    assert render(specific_view) =~ "Postura: Goblet squat · ajuste específico"
   end
 
   test "el mapa corporal superpone músculos planos al maniquí 3D", %{conn: conn} do

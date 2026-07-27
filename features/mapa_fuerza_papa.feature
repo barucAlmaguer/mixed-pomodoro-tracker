@@ -14,6 +14,11 @@ Feature: Mapa Fuerza de Papá integrado al tracker
     When I review their accumulated effort on the mannequin
     Then the heatmap shows the weighted muscle load and the session is stored with those muscles
 
+  Scenario: Navegar y ampliar un entrenamiento de otro día
+    Given I open the training recorder on today
+    When I move to a previous day and save more than one training update
+    Then its visible date changes and the day keeps one accumulated strength session
+
   Scenario: Consultar metas y ejercicios funcionales
     Given I am in Metas or Ejercicios
     When I open a card
@@ -73,3 +78,8 @@ Feature: Mapa Fuerza de Papá integrado al tracker
     Given I open the Ejercicios view
     When I inspect an exercise mannequin
     Then its active muscles use the green, yellow, and red effort scale according to their relative contribution
+
+  Scenario: Mostrar el origen efectivo de la postura del ejercicio
+    Given I inspect an exercise without a specific saved pose
+    When I save a specific pose for that exercise
+    Then its mannequin footer changes from the shared preset label to the exercise-specific label

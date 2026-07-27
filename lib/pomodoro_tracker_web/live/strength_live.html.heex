@@ -145,7 +145,7 @@
         :for={ex <- Enum.reject(Strength.exercises(), &(&1.routine == "X"))}
         exercise={ex}
         open={@open_id == ex.id}
-        pose_settings={@poses["exercise-#{ex.id}"] || @poses[exercise_pose(ex.id)] || %{}}
+        poses={@poses}
       />
       <p class="pt-3 text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">
         Comodines — sustitutos y variedad
@@ -154,7 +154,7 @@
         :for={ex <- Enum.filter(Strength.exercises(), &(&1.routine == "X"))}
         exercise={ex}
         open={@open_id == ex.id}
-        pose_settings={@poses["exercise-#{ex.id}"] || @poses[exercise_pose(ex.id)] || %{}}
+        poses={@poses}
       />
     </section>
 
@@ -360,22 +360,48 @@
         <p class="mt-2 text-sm leading-6 text-slate-400">
           Elige lo que hiciste y revisa la carga acumulada antes de guardarla. Los ejercicios calculan sus músculos; los chips manuales sirven para algo fuera del plan.
         </p>
-        <div class="mt-3 flex gap-2">
+        <div class="mt-3 flex items-center gap-1" aria-label="Fecha del entrenamiento">
           <button
-            :for={{label, offset} <- [{"Hoy", 0}, {"Ayer", 1}]}
-            phx-click="strength:log_day"
-            phx-value-offset={offset}
-            class={[
-              "rounded-lg px-3 py-2 font-mono text-xs font-bold",
-              if(@log_day == offset,
-                do: "bg-sky-600 text-white",
-                else: "bg-slate-800 text-slate-300"
-              )
-            ]}
+            phx-click="strength:log_date"
+            phx-value-action="previous"
+            class="rounded-lg bg-slate-800 px-3 py-2 font-mono text-xs font-bold text-slate-200 hover:bg-slate-700"
+            aria-label="Ver día anterior"
+            title="Día anterior"
           >
-            {label}
+            ←
+          </button>
+          <button
+            phx-click="strength:log_date"
+            phx-value-action="today"
+            disabled={@log_day == 0}
+            class="rounded-lg bg-sky-600 px-3 py-2 font-mono text-xs font-bold text-white disabled:bg-slate-800 disabled:text-slate-500"
+          >
+            Hoy
+          </button>
+          <button
+            phx-click="strength:log_date"
+            phx-value-action="next"
+            disabled={@log_day == 0}
+            class="rounded-lg bg-slate-800 px-3 py-2 font-mono text-xs font-bold text-slate-200 hover:bg-slate-700 disabled:text-slate-600"
+            aria-label="Ver día siguiente"
+            title="Día siguiente"
+          >
+            →
+          </button>
+          <button
+            phx-click="strength:log_date"
+            phx-value-action="latest"
+            disabled={@log_day == 0}
+            class="rounded-lg bg-slate-800 px-3 py-2 font-mono text-xs font-bold text-slate-200 hover:bg-slate-700 disabled:text-slate-600"
+            aria-label="Volver a hoy"
+            title="Volver a hoy"
+          >
+            →→
           </button>
         </div>
+        <p id="strength-log-date" class="mt-2 font-mono text-xs text-sky-200">
+          {log_date_label(@log_day)}
+        </p>
         <div class="mt-5 flex items-center justify-between gap-3">
           <p class="text-xs font-semibold uppercase tracking-[0.16em] text-sky-300">
             1 · Ejercicios realizados
@@ -458,7 +484,9 @@
           phx-click="strength:save_session"
           class="mt-4 w-full rounded-xl bg-sky-600 py-3 text-sm font-bold text-white disabled:bg-slate-700 disabled:text-slate-400"
         >
-          3 · Guardar sesión ({map_size(@log_effort)} músculos)
+          {if session_for_log_date?(@sessions, @log_day),
+            do: "3 · Actualizar entrenamiento",
+            else: "3 · Guardar sesión"} ({map_size(@log_effort)} músculos)
         </button>
         <p class="mt-2 text-center text-xs text-slate-500">
           Se guarda en tu cuenta; solo tú lo ves.

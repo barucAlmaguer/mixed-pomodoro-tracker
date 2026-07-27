@@ -291,7 +291,9 @@ is now only a secondary helper because direct per-day historical review exists.
   task for its date, tags it `ejercicio>fuerza-papa` plus one nested muscle tag
   per derived muscle, and marks it done in that day plan. The recorder supports
   selecting completed exercises (with their effort maps summed and normalized
-  in a live mannequin preview) or manual muscles for unlisted work; it stores
+  in a live mannequin preview) or manual muscles for unlisted work. Its date
+  controls can target any past day, and saving again for a day updates the same
+  accumulated session rather than locking the user to one submission. It stores
   the selected exercise ids alongside the resulting muscle set. This is why the
   existing `/habits?zone=personal&tag=ejercicio` heatmaps include it.
 - Mobility tests and movement-progression levels persist in
@@ -308,6 +310,9 @@ is now only a secondary helper because direct per-day historical review exists.
 - Its footer includes front, back, left, and right camera shortcuts, and the
   `Posturas muñeco` tab provides a dedicated visual diagnostic surface for the
   pose presets used by exercises and mobility drills.
+- Open exercise mannequins disclose their effective pose source in that footer:
+  an exercise-specific saved adjustment takes precedence over a shared family
+  preset, which takes precedence over the built-in base pose.
 - Every mannequin footer can open an editor with an articulated arm/leg rig:
   shoulders, elbows, wrists, hips, knees, and ankles are separately
   selectable. Choose the camera-relative plane or X/Y/Z before dragging;

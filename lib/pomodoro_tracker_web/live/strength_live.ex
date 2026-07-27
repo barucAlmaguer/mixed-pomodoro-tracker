@@ -105,8 +105,20 @@ defmodule PomodoroTrackerWeb.StrengthLive do
   def handle_event("strength:show_blocked", _, socket),
     do: {:noreply, update(socket, :show_blocked, &(not &1))}
 
-  def handle_event("strength:log_day", %{"offset" => offset}, socket),
-    do: {:noreply, assign(socket, :log_day, String.to_integer(offset))}
+  def handle_event("strength:log_date", %{"action" => "previous"}, socket),
+    do: {:noreply, shift_log_date(socket, -1)}
+
+  def handle_event("strength:log_date", %{"action" => "next"}, socket) do
+    if socket.assigns.log_day < 0 do
+      {:noreply, shift_log_date(socket, 1)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("strength:log_date", %{"action" => action}, socket)
+      when action in ["today", "latest"],
+      do: {:noreply, set_log_date(socket, 0)}
 
   def handle_event("strength:log_muscle", %{"muscle" => muscle}, socket) do
     muscles = socket.assigns.log_muscles
@@ -146,7 +158,7 @@ defmodule PomodoroTrackerWeb.StrengthLive do
 
   def handle_event("strength:save_session", _, socket) do
     case Strength.save_session(
-           Date.add(Clock.today(), -socket.assigns.log_day),
+           log_date(socket.assigns.log_day),
            Map.keys(socket.assigns.log_effort),
            socket.assigns.log_exercises |> MapSet.to_list() |> Enum.sort()
          ) do
@@ -223,6 +235,63 @@ defmodule PomodoroTrackerWeb.StrengthLive do
       end
 
     assign(socket, :log_effort, normalized)
+  end
+
+  defp shift_log_date(socket, delta), do: set_log_date(socket, socket.assigns.log_day + delta)
+
+  defp set_log_date(socket, day) do
+    socket
+    |> assign(:log_day, min(day, 0))
+    |> assign(:log_muscles, MapSet.new())
+    |> assign(:log_exercises, MapSet.new())
+    |> assign(:log_effort, %{})
+  end
+
+  defp log_date(day_offset), do: Date.add(Clock.today(), day_offset)
+
+  defp log_date_label(0), do: "Viendo hoy"
+
+  defp log_date_label(-1),
+    do: "Viendo ayer (#{spanish_date(log_date(-1))})"
+
+  defp log_date_label(day_offset), do: "Viendo #{spanish_date(log_date(day_offset))}"
+
+  defp spanish_date(date) do
+    weekday =
+      %{
+        1 => "lunes",
+        2 => "martes",
+        3 => "miércoles",
+        4 => "jueves",
+        5 => "viernes",
+        6 => "sábado",
+        7 => "domingo"
+      }
+      |> Map.fetch!(Date.day_of_week(date))
+
+    month =
+      %{
+        1 => "ene",
+        2 => "feb",
+        3 => "mar",
+        4 => "abr",
+        5 => "may",
+        6 => "jun",
+        7 => "jul",
+        8 => "ago",
+        9 => "sep",
+        10 => "oct",
+        11 => "nov",
+        12 => "dic"
+      }
+      |> Map.fetch!(date.month)
+
+    "#{weekday} #{date.day}-#{month}-#{date.year}"
+  end
+
+  defp session_for_log_date?(sessions, day_offset) do
+    date = log_date(day_offset) |> Date.to_iso8601()
+    Enum.any?(sessions, &(&1.date == date))
   end
 
   defp session_heatmap_key(effort), do: :erlang.phash2(effort)
@@ -423,10 +492,11 @@ defmodule PomodoroTrackerWeb.StrengthLive do
 
   attr :exercise, :map, required: true
   attr :open, :boolean, required: true
-  attr :pose_settings, :map, default: %{}
+  attr :poses, :map, default: %{}
 
   defp exercise_card(assigns) do
     ~H"""
+    <% pose_source = exercise_pose_source(@exercise, @poses) %>
     <article class={[
       "overflow-hidden rounded-2xl border bg-slate-900",
       if(@open, do: "border-sky-400", else: "border-slate-700")
@@ -469,7 +539,9 @@ defmodule PomodoroTrackerWeb.StrengthLive do
           levels={@exercise.effort}
           pose={exercise_pose(@exercise.id)}
           pose_key={"exercise-#{@exercise.id}"}
-          pose_settings={@pose_settings}
+          pose_settings={pose_source.settings}
+          pose_label={pose_source.label}
+          pose_origin={pose_source.origin}
         />
         <div class="flex flex-wrap items-center gap-2">
           <span
@@ -505,6 +577,8 @@ defmodule PomodoroTrackerWeb.StrengthLive do
   attr :pose, :string, default: "neutral"
   attr :pose_key, :string, default: nil
   attr :pose_settings, :map, default: %{}
+  attr :pose_label, :string, default: nil
+  attr :pose_origin, :string, default: nil
   attr :class, :string, default: nil
 
   defp body_map(assigns) do
@@ -532,9 +606,14 @@ defmodule PomodoroTrackerWeb.StrengthLive do
     >
       <div data-role="canvas" class="h-96 min-h-[22rem] w-full touch-none"></div>
       <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-sky-300/10 bg-slate-950/60 px-3 py-2">
-        <p data-role="label" class="text-xs text-slate-400">
-          Arrastra para rotar · gira para ver frente y espalda
-        </p>
+        <div class="min-w-0">
+          <p data-role="label" class="text-xs text-slate-400">
+            Arrastra para rotar · gira para ver frente y espalda
+          </p>
+          <p :if={@pose_label} data-role="pose-source" class="mt-0.5 text-[11px] text-sky-200">
+            Postura: {@pose_label} · {@pose_origin}
+          </p>
+        </div>
         <div class="flex items-center gap-1" aria-label="Atajos de cámara">
           <button
             data-camera-view="front"
@@ -741,6 +820,22 @@ defmodule PomodoroTrackerWeb.StrengthLive do
   defp exercise_pose(id) when id in ["pushup", "floorpress", "plank", "deadbug"], do: "pushup"
   defp exercise_pose(id) when id in ["farmer", "suitcase", "shrug", "hammercurl"], do: "carry"
   defp exercise_pose(_), do: "neutral"
+
+  defp exercise_pose_source(exercise, poses) do
+    specific_key = "exercise-#{exercise.id}"
+    family = exercise_pose(exercise.id)
+
+    cond do
+      is_map(poses[specific_key]) ->
+        %{label: exercise.name, origin: "ajuste específico", settings: poses[specific_key]}
+
+      is_map(poses[family]) ->
+        %{label: family, origin: "preset compartido", settings: poses[family]}
+
+      true ->
+        %{label: family, origin: "preset base compartido", settings: %{}}
+    end
+  end
 
   defp drill_pose(id) when id in ["wgs", "deepsquat", "anklerock"], do: "squat"
   defp drill_pose(id) when id in ["hipflexor", "hamstring", "standhinge"], do: "hinge"
