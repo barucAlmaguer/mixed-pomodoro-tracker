@@ -511,6 +511,9 @@ Current baseline:
   update one accumulated session for any past day, avoiding artificial limits
   on later training additions, and restores that saved load while the user is
   deciding whether to add more.
+- The mannequin can now show visual weight and support props. Future props
+  should remain exercise-scoped visual cues unless the underlying training model
+  explicitly gains equipment or load tracking.
 - Functional checks and progression levels live in the personal vault's
   `settings/fuerza-papa.yaml` file.
 

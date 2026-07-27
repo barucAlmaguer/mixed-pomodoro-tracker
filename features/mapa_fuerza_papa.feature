@@ -88,3 +88,8 @@ Feature: Mapa Fuerza de Papá integrado al tracker
     Given I inspect an exercise without a specific saved pose
     When I save a specific pose for that exercise
     Then its mannequin footer changes from the shared preset label to the exercise-specific label
+
+  Scenario: Visualizar props y postura específica de un ejercicio
+    Given I open an exercise that uses weight or a support
+    When I inspect its mannequin
+    Then its visual pose and dumbbell or block props explain the exercise at a glance

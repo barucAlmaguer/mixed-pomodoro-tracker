@@ -31,6 +31,29 @@ const poseFor = (name) => ({
   press: {torso: -0.08, leftArm: -2.48, rightArm: -2.48, leftLeg: 0, rightLeg: 0},
   pushup: {torso: 1.42, leftArm: -0.72, rightArm: -0.72, leftLeg: -0.18, rightLeg: -0.18},
   mobility: {torso: 0.22, leftArm: -0.85, rightArm: -0.18, leftLeg: 0.12, rightLeg: -0.25},
+  goblet: {torso: 0.28, leftArm: -0.5, rightArm: -0.5, leftLeg: 0.72, rightLeg: 0.72},
+  farmer: {torso: -0.08, leftArm: 0.12, rightArm: -0.12, leftLeg: 0.04, rightLeg: -0.04},
+  suitcase: {torso: -0.06, leftArm: 0.08, rightArm: -0.18, leftLeg: 0.06, rightLeg: -0.04},
+  rdl: {torso: 0.72, leftArm: 0.18, rightArm: 0.18, leftLeg: 0.32, rightLeg: 0.32},
+  bulgarian: {torso: 0.32, leftArm: -0.16, rightArm: -0.16, leftLeg: 0.78, rightLeg: -0.54, leftKnee: 0.55, rightKnee: 0.92},
+  row: {torso: 0.62, leftArm: 0.24, rightArm: -0.92, rightElbow: 0.96, leftLeg: 0.2, rightLeg: 0.2},
+  pullapart: {torso: -0.04, leftArm: {z: -1.42}, rightArm: {z: 1.42}, leftElbow: -0.16, rightElbow: -0.16},
+  ohp: {torso: -0.08, leftArm: -2.48, rightArm: -2.48, leftLeg: 0, rightLeg: 0},
+  cleanpress: {torso: -0.04, leftArm: -2.32, rightArm: -2.32, leftElbow: 0.18, rightElbow: 0.18},
+  deadbug: {torso: 1.55, leftArm: -1.65, rightArm: -0.16, leftLeg: 1.2, rightLeg: -0.46, leftKnee: -0.62, rightKnee: 0.48},
+  plank: {torso: 1.42, leftArm: -0.9, rightArm: -0.9, leftElbow: 0.3, rightElbow: 0.3, leftLeg: -0.18, rightLeg: -0.18},
+  floorpress: {torso: 1.42, leftArm: -1.85, rightArm: -1.85, leftLeg: -0.18, rightLeg: -0.18},
+  lateralraise: {torso: -0.04, leftArm: {z: -1.34}, rightArm: {z: 1.34}},
+  bandrow: {torso: 0.48, leftArm: -0.72, rightArm: -0.72, leftElbow: 0.78, rightElbow: 0.78, leftLeg: 1.18, rightLeg: 1.18},
+  facepull: {torso: -0.02, leftArm: -1.14, rightArm: -1.14, leftElbow: 1.38, rightElbow: 1.38},
+  reversefly: {torso: 0.74, leftArm: {z: -1.08}, rightArm: {z: 1.08}, leftLeg: 0.25, rightLeg: 0.25},
+  shrug: {torso: -0.08, leftArm: 0.12, rightArm: -0.12},
+  hammercurl: {torso: -0.04, leftArm: -0.14, rightArm: -0.14, leftElbow: -1.18, rightElbow: -1.18},
+  waiter: {torso: -0.06, leftArm: 0.1, rightArm: -2.5, rightElbow: 0.08},
+  stepup: {torso: 0.16, leftArm: 0.08, rightArm: -0.08, leftLeg: 0.68, rightLeg: -0.3, leftKnee: 0.46, rightKnee: 0.22},
+  bridge: {torso: 1.42, leftArm: 0.2, rightArm: -0.2, leftLeg: 1.02, rightLeg: 1.02, leftKnee: -0.98, rightKnee: -0.98},
+  pallof: {torso: -0.04, leftArm: -1.1, rightArm: -1.1, leftElbow: 0.58, rightElbow: 0.58},
+  birddog: {torso: 1.42, leftArm: -1.25, rightArm: 0.3, leftLeg: 0.82, rightLeg: -0.72, leftKnee: -0.38, rightKnee: 0.24},
 }[name] || poseFor("neutral"))
 
 const jointKeys = ["torso", "leftArm", "rightArm", "leftElbow", "rightElbow", "leftLeg", "rightLeg", "leftKnee", "rightKnee"]
@@ -274,6 +297,47 @@ export const StrengthBody = {
     const rightLeg = limb(1, "leg")
     joint("tspine", [0, 0.48, -0.45], torso, "torso")
 
+    this.propObjects = {dumbbells: {}, blocks: {}}
+    const dumbbell = (parent, position) => {
+      const group = new THREE.Group()
+      const handleMaterial = new THREE.MeshStandardMaterial({color: 0x1b2637, roughness: 0.24, metalness: 0.78})
+      const plateMaterial = new THREE.MeshStandardMaterial({color: 0x2563eb, roughness: 0.24, metalness: 0.46, emissive: 0x071226, emissiveIntensity: 0.38})
+      const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.62, 12), handleMaterial)
+      handle.rotation.z = Math.PI / 2
+      group.add(handle)
+      ;[-0.39, 0.39].forEach((x) => {
+        const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.12, 16), plateMaterial)
+        plate.rotation.z = Math.PI / 2
+        plate.position.x = x
+        group.add(plate)
+      })
+      group.position.set(...position)
+      group.visible = false
+      group.userData = {plateMaterial}
+      parent.add(group)
+      return group
+    }
+    this.propObjects.dumbbells.left = dumbbell(leftArm.lower, [0, -0.92, 0.12])
+    this.propObjects.dumbbells.right = dumbbell(rightArm.lower, [0, -0.92, 0.12])
+    this.propObjects.dumbbells.front = dumbbell(torso, [0, 0.28, 0.66])
+
+    const block = (position) => {
+      const group = new THREE.Group()
+      const material = new THREE.MeshStandardMaterial({color: 0x1e4c66, roughness: 0.52, metalness: 0.18, emissive: 0x061827, emissiveIntensity: 0.3})
+      const topMaterial = new THREE.MeshStandardMaterial({color: 0x4f9bc0, roughness: 0.42, metalness: 0.1})
+      const base = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.46, 0.68), material)
+      const top = new THREE.Mesh(new THREE.BoxGeometry(0.98, 0.055, 0.74), topMaterial)
+      top.position.y = 0.255
+      group.add(base, top)
+      group.position.set(...position)
+      group.visible = false
+      this.scene.add(group)
+      return group
+    }
+    this.propObjects.blocks.rear = block([0.62, this.groundY + 0.25, -0.36])
+    this.propObjects.blocks.front = block([0, this.groundY + 0.25, 0.7])
+    this.propObjects.blocks.side = block([-0.95, this.groundY + 0.25, 0.08])
+
     // Flat translucent planes follow the mannequin's real groups. Front planes
     // become visible from the front; posterior planes reveal themselves on rotation.
     muscle("chest", trapezoid(0.35, 0.3, 0.42), [-0.21, 0.45, 0.43], torso)
@@ -317,9 +381,11 @@ export const StrengthBody = {
       pose: this.el.dataset.pose || "neutral",
       poseKey: this.el.dataset.poseKey || this.el.dataset.pose || "neutral",
       poseSettings: parse(this.el.dataset.poseSettings, {}),
+      props: parse(this.el.dataset.props, []),
       event: this.el.dataset.bodyEvent || "",
     }
     if (!this.editMode) this.applyPoseSettings(this.state.poseSettings)
+    this.syncProps()
     this.muscles.forEach((plane) => {
       const {id} = plane.userData
       let color = "#506579"
@@ -340,6 +406,35 @@ export const StrengthBody = {
       marker.material.color.set(this.editMode ? 0xfbbf24 : (selected ? palette.cyan : palette.line))
       marker.material.emissive.set(this.editMode ? 0x5b3a00 : (selected ? palette.cyan : 0x000000))
       marker.scale.setScalar(this.editMode ? 1.65 : (selected ? 1.18 : 0.78))
+    })
+  },
+
+  syncProps() {
+    if (!this.propObjects) return
+    Object.values(this.propObjects.dumbbells).forEach((prop) => { prop.visible = false })
+    Object.values(this.propObjects.blocks).forEach((prop) => { prop.visible = false })
+    const weights = {
+      light: {color: 0x7dd3fc, scale: 0.76},
+      medium: {color: 0x2563eb, scale: 1},
+      heavy: {color: 0x7c3aed, scale: 1.28},
+    }
+    this.state.props.forEach((prop) => {
+      if (prop.kind === "dumbbell") {
+        const hands = prop.hand === "both" ? ["left", "right"] : [prop.hand]
+        const weight = weights[prop.weight] || weights.medium
+        hands.forEach((hand) => {
+          const dumbbell = this.propObjects.dumbbells[hand]
+          if (!dumbbell) return
+          dumbbell.visible = true
+          dumbbell.scale.setScalar(weight.scale)
+          dumbbell.userData.plateMaterial.color.setHex(weight.color)
+          dumbbell.userData.plateMaterial.emissive.setHex(weight.color)
+        })
+      }
+      if (prop.kind === "block") {
+        const block = this.propObjects.blocks[prop.position]
+        if (block) block.visible = true
+      }
     })
   },
 

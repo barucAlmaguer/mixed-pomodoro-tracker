@@ -234,6 +234,30 @@ defmodule PomodoroTrackerWeb.StrengthLiveTest do
     assert render(specific_view) =~ "Postura: Goblet squat · ajuste específico"
   end
 
+  test "Scenario: Visualizar props y postura específica de un ejercicio", %{conn: conn} do
+    # Given I open an exercise that uses weight or a support
+    {:ok, view, _html} = live(conn, "/fuerza")
+    view |> element("button[phx-value-tab='ejercicios']") |> render_click()
+
+    # When I inspect its mannequin
+    view
+    |> element("button[phx-click='strength:toggle'][phx-value-id='goblet']")
+    |> render_click()
+
+    # Then its visual pose and dumbbell or block props explain the exercise at a glance
+    assert has_element?(view, "#strength-exercise-goblet[data-pose='goblet']")
+    goblet_html = view |> element("#strength-exercise-goblet") |> render()
+    assert goblet_html =~ ~s(&quot;kind&quot;:&quot;dumbbell&quot;)
+    assert goblet_html =~ ~s(&quot;weight&quot;:&quot;medium&quot;)
+
+    view
+    |> element("button[phx-click='strength:toggle'][phx-value-id='bulgarian']")
+    |> render_click()
+
+    bulgarian_html = view |> element("#strength-exercise-bulgarian") |> render()
+    assert bulgarian_html =~ ~s(&quot;kind&quot;:&quot;block&quot;)
+  end
+
   test "el mapa corporal superpone músculos planos al maniquí 3D", %{conn: conn} do
     {:ok, view, _html} = live(conn, "/fuerza")
 

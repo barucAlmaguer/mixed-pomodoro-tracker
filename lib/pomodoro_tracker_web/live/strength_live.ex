@@ -530,6 +530,7 @@ defmodule PomodoroTrackerWeb.StrengthLive do
   defp exercise_card(assigns) do
     ~H"""
     <% pose_source = exercise_pose_source(@exercise, @poses) %>
+    <% visual = exercise_visual(@exercise.id) %>
     <article class={[
       "overflow-hidden rounded-2xl border bg-slate-900",
       if(@open, do: "border-sky-400", else: "border-slate-700")
@@ -570,11 +571,13 @@ defmodule PomodoroTrackerWeb.StrengthLive do
           mode={:heat}
           active={Map.keys(@exercise.effort)}
           levels={@exercise.effort}
-          pose={exercise_pose(@exercise.id)}
+          pose={visual.pose}
           pose_key={"exercise-#{@exercise.id}"}
           pose_settings={pose_source.settings}
           pose_label={pose_source.label}
           pose_origin={pose_source.origin}
+          props={visual.props}
+          prop_label={visual.label}
         />
         <div class="flex flex-wrap items-center gap-2">
           <span
@@ -612,6 +615,8 @@ defmodule PomodoroTrackerWeb.StrengthLive do
   attr :pose_settings, :map, default: %{}
   attr :pose_label, :string, default: nil
   attr :pose_origin, :string, default: nil
+  attr :props, :list, default: []
+  attr :prop_label, :string, default: nil
   attr :class, :string, default: nil
 
   defp body_map(assigns) do
@@ -628,6 +633,7 @@ defmodule PomodoroTrackerWeb.StrengthLive do
       data-pose={@pose}
       data-pose-key={@pose_key || @pose}
       data-pose-settings={Jason.encode!(@pose_settings)}
+      data-props={Jason.encode!(@props)}
       data-body-event={@event}
       data-visual-model="mannequin-overlay"
       data-rig="articulated-ik"
@@ -645,6 +651,9 @@ defmodule PomodoroTrackerWeb.StrengthLive do
           </p>
           <p :if={@pose_label} data-role="pose-source" class="mt-0.5 text-[11px] text-sky-200">
             Postura: {@pose_label} · {@pose_origin}
+          </p>
+          <p :if={@prop_label} data-role="prop-source" class="mt-0.5 text-[11px] text-violet-200">
+            Props: {@prop_label}
           </p>
         </div>
         <div class="flex items-center gap-1" aria-label="Atajos de cámara">
@@ -869,6 +878,69 @@ defmodule PomodoroTrackerWeb.StrengthLive do
         %{label: family, origin: "preset base compartido", settings: %{}}
     end
   end
+
+  defp exercise_visual("farmer"),
+    do: visual("farmer", [dumbbells("both", "heavy")], "2 mancuernas pesadas")
+
+  defp exercise_visual("suitcase"),
+    do: visual("suitcase", [dumbbells("right", "heavy")], "1 mancuerna pesada")
+
+  defp exercise_visual("rdl"),
+    do: visual("rdl", [dumbbells("both", "heavy")], "2 mancuernas pesadas")
+
+  defp exercise_visual("goblet"),
+    do: visual("goblet", [dumbbells("front", "medium")], "mancuerna mediana al pecho")
+
+  defp exercise_visual("bulgarian"),
+    do: visual("bulgarian", [block("rear")], "bloque de apoyo para pierna trasera")
+
+  defp exercise_visual("row"),
+    do: visual("row", [dumbbells("right", "medium"), block("side")], "mancuerna mediana + apoyo")
+
+  defp exercise_visual("pullapart"), do: visual("pullapart", [], nil)
+
+  defp exercise_visual("ohp"),
+    do: visual("ohp", [dumbbells("both", "medium")], "2 mancuernas medianas")
+
+  defp exercise_visual("cleanpress"),
+    do: visual("cleanpress", [dumbbells("both", "medium")], "2 mancuernas medianas")
+
+  defp exercise_visual("pushup"),
+    do: visual("pushup", [dumbbells("both", "light")], "2 mancuernas ligeras como asas")
+
+  defp exercise_visual("deadbug"), do: visual("deadbug", [], nil)
+  defp exercise_visual("plank"), do: visual("plank", [], nil)
+
+  defp exercise_visual("floorpress"),
+    do: visual("floorpress", [dumbbells("both", "medium")], "2 mancuernas medianas")
+
+  defp exercise_visual("lateralraise"),
+    do: visual("lateralraise", [dumbbells("both", "light")], "2 mancuernas ligeras")
+
+  defp exercise_visual("bandrow"), do: visual("bandrow", [], nil)
+  defp exercise_visual("facepull"), do: visual("facepull", [], nil)
+
+  defp exercise_visual("reversefly"),
+    do: visual("reversefly", [dumbbells("both", "light")], "2 mancuernas ligeras")
+
+  defp exercise_visual("shrug"),
+    do: visual("shrug", [dumbbells("both", "heavy")], "2 mancuernas pesadas")
+
+  defp exercise_visual("hammercurl"),
+    do: visual("hammercurl", [dumbbells("both", "light")], "2 mancuernas ligeras")
+
+  defp exercise_visual("waiter"),
+    do: visual("waiter", [dumbbells("right", "medium")], "mancuerna mediana arriba")
+
+  defp exercise_visual("stepup"), do: visual("stepup", [block("front")], "escalón de apoyo")
+  defp exercise_visual("bridge"), do: visual("bridge", [], nil)
+  defp exercise_visual("pallof"), do: visual("pallof", [], nil)
+  defp exercise_visual("birddog"), do: visual("birddog", [], nil)
+  defp exercise_visual(id), do: visual(exercise_pose(id), [], nil)
+
+  defp visual(pose, props, label), do: %{pose: pose, props: props, label: label}
+  defp dumbbells(hand, weight), do: %{kind: "dumbbell", hand: hand, weight: weight}
+  defp block(position), do: %{kind: "block", position: position}
 
   defp drill_pose(id) when id in ["wgs", "deepsquat", "anklerock"], do: "squat"
   defp drill_pose(id) when id in ["hipflexor", "hamstring", "standhinge"], do: "hinge"

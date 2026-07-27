@@ -305,6 +305,10 @@ is now only a secondary helper because direct per-day historical review exists.
   muscle overlays follow its real proportions on the front and back, remain the
   clickable filter surface, and rotate with it instead of creating a separate
   anatomy panel.
+- Exercise cards use movement-specific visual poses and contextual props:
+  cyan, blue, and purple dumbbells communicate light, medium, and heavy loads;
+  blocks communicate rear-foot, step, or hand-support surfaces. They are visual
+  cues only and do not change the recorded session load.
 - In exercise cards, those overlays use a relative effort scale: red is the
   principal contributor, yellow is medium contribution, and green is support.
   The proportions are exercise-specific estimates based on movement mechanics;
