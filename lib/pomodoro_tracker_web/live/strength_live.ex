@@ -297,6 +297,19 @@ defmodule PomodoroTrackerWeb.StrengthLive do
   defp mark_color(:focus), do: "#2e9e5b"
   defp mark_color(_), do: "#9ec6e0"
 
+  defp effort_label(level) when level >= 0.8, do: "principal"
+  defp effort_label(level) when level >= 0.5, do: "medio"
+  defp effort_label(_level), do: "apoyo"
+
+  defp effort_chip_class(level) when level >= 0.8,
+    do: "rounded-full bg-red-400/15 px-3 py-1 text-xs text-red-200"
+
+  defp effort_chip_class(level) when level >= 0.5,
+    do: "rounded-full bg-amber-300/15 px-3 py-1 text-xs text-amber-100"
+
+  defp effort_chip_class(_level),
+    do: "rounded-full bg-emerald-300/15 px-3 py-1 text-xs text-emerald-100"
+
   defp muscle_chip_class(:avoid),
     do:
       "rounded-full border border-red-400 bg-red-950/50 px-3 py-1.5 text-xs font-semibold text-red-200"
@@ -393,19 +406,24 @@ defmodule PomodoroTrackerWeb.StrengthLive do
         </div>
         <.body_map
           id={"strength-exercise-#{@exercise.id}"}
-          active={@exercise.muscles}
+          mode={:heat}
+          active={Map.keys(@exercise.effort)}
+          levels={@exercise.effort}
           pose={exercise_pose(@exercise.id)}
           pose_key={"exercise-#{@exercise.id}"}
           pose_settings={@pose_settings}
         />
-        <div class="flex flex-wrap gap-2">
+        <div class="flex flex-wrap items-center gap-2">
           <span
             :for={muscle <- @exercise.muscles}
-            class="rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-300"
+            class={effort_chip_class(@exercise.effort[muscle])}
           >
-            {muscle_name(muscle)}
+            {muscle_name(muscle)} · {effort_label(@exercise.effort[muscle])}
           </span>
         </div>
+        <p class="mt-2 text-xs text-slate-500">
+          Color = contribución relativa estimada dentro de este ejercicio: verde menor, amarillo media, rojo principal.
+        </p>
         <p :if={linked_functions(@exercise.id) != []} class="mt-3 text-xs text-slate-400">
           <span :for={goal <- linked_functions(@exercise.id)} class="mr-2">
             <b class="text-sky-300">{goal.tag}</b> {goal.title}

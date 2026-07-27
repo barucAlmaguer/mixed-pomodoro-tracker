@@ -298,6 +298,10 @@ is now only a secondary helper because direct per-day historical review exists.
   muscle overlays follow its real proportions on the front and back, remain the
   clickable filter surface, and rotate with it instead of creating a separate
   anatomy panel.
+- In exercise cards, those overlays use a relative effort scale: red is the
+  principal contributor, yellow is medium contribution, and green is support.
+  The proportions are exercise-specific estimates based on movement mechanics;
+  they are a comparison within an exercise, not a clinical load measurement.
 - Its footer includes front, back, left, and right camera shortcuts, and the
   `Posturas muñeco` tab provides a dedicated visual diagnostic surface for the
   pose presets used by exercises and mobility drills.

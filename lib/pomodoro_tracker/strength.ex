@@ -33,6 +33,7 @@ defmodule PomodoroTracker.Strength do
       name: "Farmer carry (2 manos)",
       routine: "A",
       muscles: ["grip", "traps", "core", "erectors"],
+      effort: %{"grip" => 1.0, "traps" => 0.75, "core" => 0.6, "erectors" => 0.55},
       sets: "3×30–40 pasos",
       note: "Caminar cargando peso: la base de toda carga en la vida real.",
       how: [
@@ -47,6 +48,7 @@ defmodule PomodoroTracker.Strength do
       routine: "B",
       new: true,
       muscles: ["obliques", "grip", "traps", "core"],
+      effort: %{"obliques" => 1.0, "grip" => 0.85, "traps" => 0.6, "core" => 0.75},
       sets: "3×30 pasos /lado",
       note: "Cargar de un solo lado sin ladearte: bebé o garrafón.",
       how: ["Una mancuerna a un costado", "camina recto", "el core resiste la caída lateral"]
@@ -56,6 +58,7 @@ defmodule PomodoroTracker.Strength do
       name: "Peso muerto rumano",
       routine: "B",
       muscles: ["hams", "glutes", "erectors", "grip"],
+      effort: %{"hams" => 1.0, "glutes" => 0.85, "erectors" => 0.65, "grip" => 0.45},
       sets: "3×10–12",
       note: "Enseña a levantar del piso con cadera, no con espalda.",
       how: [
@@ -69,6 +72,7 @@ defmodule PomodoroTracker.Strength do
       name: "Goblet squat",
       routine: "A",
       muscles: ["quads", "glutes", "core", "grip"],
+      effort: %{"quads" => 1.0, "glutes" => 0.65, "core" => 0.5, "grip" => 0.35},
       sets: "3×10–15",
       note: "Patrón de agacharse con carga al frente.",
       how: ["Mancuerna al pecho", "talones plantados", "pecho erguido"]
@@ -78,6 +82,7 @@ defmodule PomodoroTracker.Strength do
       name: "Sentadilla búlgara / zancadas",
       routine: "B",
       muscles: ["quads", "glutes", "core"],
+      effort: %{"quads" => 1.0, "glutes" => 0.8, "core" => 0.45},
       sets: "3×8–10 /pierna",
       note: "Fuerza de una sola pierna para levantarte del piso.",
       how: ["Empeine trasero en silla", "baja vertical", "sube con el talón"]
@@ -87,6 +92,7 @@ defmodule PomodoroTracker.Strength do
       name: "Remo a una mano",
       routine: "A",
       muscles: ["upperback", "traps", "arms", "grip"],
+      effort: %{"upperback" => 1.0, "traps" => 0.7, "arms" => 0.65, "grip" => 0.45},
       sets: "3×10–12 /lado",
       note: "Espalda fuerte que sostiene la postura.",
       how: ["Apóyate en banco o silla", "jala hacia la cadera", "baja controlado"]
@@ -97,6 +103,7 @@ defmodule PomodoroTracker.Strength do
       routine: "A",
       new: true,
       muscles: ["upperback", "traps", "shoulders"],
+      effort: %{"upperback" => 1.0, "traps" => 0.7, "shoulders" => 0.65},
       sets: "3×15–20",
       note: "Resistencia postural: antídoto al escritorio.",
       how: ["Banda al frente", "sepárala hasta el pecho", "junta omóplatos"]
@@ -106,6 +113,7 @@ defmodule PomodoroTracker.Strength do
       name: "Press de hombro",
       routine: "B",
       muscles: ["shoulders", "arms", "core"],
+      effort: %{"shoulders" => 1.0, "arms" => 0.75, "core" => 0.45},
       sets: "3×8–12",
       note: "Llevar peso arriba con control.",
       how: ["Mancuernas a los hombros", "empuja vertical", "core apretado"]
@@ -115,6 +123,7 @@ defmodule PomodoroTracker.Strength do
       name: "Curl + press",
       routine: "B",
       muscles: ["arms", "shoulders", "core", "grip"],
+      effort: %{"arms" => 0.95, "shoulders" => 1.0, "core" => 0.5, "grip" => 0.65},
       sets: "3×8",
       note: "Del piso al hombro en un movimiento.",
       how: ["Curl de bíceps", "press arriba sin pausa", "baja en dos tiempos"]
@@ -124,6 +133,7 @@ defmodule PomodoroTracker.Strength do
       name: "Lagartijas en mancuernas",
       routine: "A",
       muscles: ["chest", "arms", "shoulders", "core"],
+      effort: %{"chest" => 1.0, "arms" => 0.85, "shoulders" => 0.7, "core" => 0.45},
       sets: "3× al fallo −2",
       note: "Empujar tu cuerpo: piso y juego.",
       how: ["Muñecas neutras", "cuerpo en línea", "pecho entre las manos"]
@@ -133,6 +143,7 @@ defmodule PomodoroTracker.Strength do
       name: "Dead bug",
       routine: "B",
       muscles: ["core"],
+      effort: %{"core" => 1.0},
       sets: "3×8 /lado",
       note: "Core estable sin molestar la espalda baja.",
       how: ["Boca arriba a 90°", "extiende brazo y pierna opuestos", "espalda baja pegada"]
@@ -142,6 +153,7 @@ defmodule PomodoroTracker.Strength do
       name: "Plancha + plancha lateral",
       routine: "A",
       muscles: ["core", "obliques", "shoulders"],
+      effort: %{"core" => 0.9, "obliques" => 0.75, "shoulders" => 0.5},
       sets: "3×20–40 s",
       note: "La base para cargar durante mucho tiempo.",
       how: ["Antebrazos al piso", "cuerpo en línea", "aprieta abdomen y glúteos"]
@@ -152,6 +164,7 @@ defmodule PomodoroTracker.Strength do
       routine: "X",
       substitute: "pushup",
       muscles: ["chest", "arms", "shoulders"],
+      effort: %{"chest" => 1.0, "arms" => 0.85, "shoulders" => 0.55},
       sets: "3×8–12",
       note: "Pecho con rango amable para el hombro.",
       how: ["Acostado", "codos a 45°", "baja hasta el piso"]
@@ -162,6 +175,7 @@ defmodule PomodoroTracker.Strength do
       routine: "X",
       substitute: "ohp",
       muscles: ["shoulders"],
+      effort: %{"shoulders" => 1.0},
       sets: "3×12–15",
       note: "Hombro aislado con poco peso.",
       how: ["Mancuernas a los costados", "sube a la horizontal", "baja lento"]
@@ -172,6 +186,7 @@ defmodule PomodoroTracker.Strength do
       routine: "X",
       substitute: "row",
       muscles: ["upperback", "traps", "arms"],
+      effort: %{"upperback" => 1.0, "traps" => 0.7, "arms" => 0.6},
       sets: "3×12–15",
       note: "Espalda alta sin cargar la lumbar.",
       how: ["Banda en los pies", "jala al abdomen", "pausa omóplatos"]
@@ -182,6 +197,7 @@ defmodule PomodoroTracker.Strength do
       routine: "X",
       substitute: "pullapart",
       muscles: ["upperback", "shoulders", "traps"],
+      effort: %{"upperback" => 0.9, "shoulders" => 1.0, "traps" => 0.7},
       sets: "3×15",
       note: "El amigo de la postura de oficina.",
       how: ["Banda a la cara", "jala abriendo codos", "pausa atrás"]
@@ -192,6 +208,7 @@ defmodule PomodoroTracker.Strength do
       routine: "X",
       substitute: "pullapart",
       muscles: ["upperback", "shoulders"],
+      effort: %{"upperback" => 0.8, "shoulders" => 1.0},
       sets: "3×12–15",
       note: "Deltoide posterior con mancuernas ligeras.",
       how: ["Inclínate recto", "abre como alas", "baja controlado"]
@@ -202,6 +219,7 @@ defmodule PomodoroTracker.Strength do
       routine: "X",
       substitute: "farmer",
       muscles: ["traps", "grip"],
+      effort: %{"traps" => 1.0, "grip" => 0.45},
       sets: "3×12–15",
       note: "Trapecio para que el hombro no cuelgue al cargar.",
       how: ["Mancuernas a los costados", "sube hombros", "baja lento"]
@@ -212,6 +230,7 @@ defmodule PomodoroTracker.Strength do
       routine: "X",
       substitute: "cleanpress",
       muscles: ["arms", "grip"],
+      effort: %{"arms" => 1.0, "grip" => 0.65},
       sets: "3×10–12",
       note: "Bíceps y antebrazo: agarre de papá.",
       how: ["Palmas enfrentadas", "sube sin balanceo", "baja en 2–3 s"]
@@ -222,6 +241,7 @@ defmodule PomodoroTracker.Strength do
       routine: "X",
       substitute: "farmer",
       muscles: ["shoulders", "core", "grip"],
+      effort: %{"shoulders" => 1.0, "core" => 0.7, "grip" => 0.65},
       sets: "3×20 pasos /lado",
       note: "Estabilidad de hombro cargando arriba.",
       how: ["Brazo extendido", "camina recto", "cambia lado"]
@@ -232,6 +252,7 @@ defmodule PomodoroTracker.Strength do
       routine: "X",
       substitute: "bulgarian",
       muscles: ["quads", "glutes", "core"],
+      effort: %{"quads" => 1.0, "glutes" => 0.75, "core" => 0.4},
       sets: "3×8–10 /pierna",
       note: "Subir a un banco, amable con rodillas.",
       how: ["Pie completo al banco", "empuja talón", "baja controlado"]
@@ -242,6 +263,7 @@ defmodule PomodoroTracker.Strength do
       routine: "X",
       substitute: "rdl",
       muscles: ["glutes", "hams", "core"],
+      effort: %{"glutes" => 1.0, "hams" => 0.65, "core" => 0.35},
       sets: "3×12–15",
       note: "Glúteos sin cargar la espalda.",
       how: ["Boca arriba", "sube cadera", "pausa 2 s"]
@@ -252,6 +274,7 @@ defmodule PomodoroTracker.Strength do
       routine: "X",
       substitute: "deadbug",
       muscles: ["obliques", "core"],
+      effort: %{"obliques" => 1.0, "core" => 0.85},
       sets: "3×10 /lado",
       note: "Anti-rotación para no ladearte.",
       how: ["Banda al costado", "extiende brazos", "resiste sin girar"]
@@ -262,6 +285,7 @@ defmodule PomodoroTracker.Strength do
       routine: "X",
       substitute: "plank",
       muscles: ["core", "erectors", "glutes"],
+      effort: %{"core" => 0.85, "erectors" => 0.8, "glutes" => 0.65},
       sets: "3×8 /lado",
       note: "Espalda baja fuerte y segura.",
       how: ["Cuatro puntos", "extiende opuestos", "cadera nivelada"]

@@ -63,3 +63,8 @@ Feature: Mapa Fuerza de Papá integrado al tracker
     Given I enter the pose editor
     When I select shoulders, elbows, wrists, hips, knees, or ankles
     Then the rig exposes axis-aware joint controls with separate upper and lower limb behavior
+
+  Scenario: Ver la contribución muscular proporcional de cada ejercicio
+    Given I open the Ejercicios view
+    When I inspect an exercise mannequin
+    Then its active muscles use the green, yellow, and red effort scale according to their relative contribution

@@ -94,7 +94,7 @@ The app creates `pomodoro-tracker/` subfolders inside each vault on first run if
 5. **Review** — use `/?date=YYYY-MM-DD` or the header arrows from `/` to inspect previous days in readonly mode and carry unfinished tasks forward.
 6. **Habit tracking** — open `/habits` to see monthly or yearly heatmaps aggregated by tag families such as `ejercicio` → `ejercicio>cuello`, inspect direct tasks per branch, create new recurrent/manual templates from that branch, and clean up mistagged tags.
 7. **Tag cleanup** — open `/tags` to rename, merge, or delete taxonomy branches across the vault-backed task files.
-8. **Strength + mobility** — open `/fuerza` for the Fuerza de Papá plan: functional goals, exercise technique, weekly load, pain/priority filtering, mobility drills, functional tests, movement progressions, and an editable wooden mannequin with an articulated pose rig. Logged sessions are completed personal tasks tagged under `ejercicio>fuerza-papa`, so they also appear in `/habits`.
+8. **Strength + mobility** — open `/fuerza` for the Fuerza de Papá plan: functional goals, exercise technique, weekly load, pain/priority filtering, mobility drills, functional tests, movement progressions, and an editable wooden mannequin with an articulated pose rig. Exercise mannequins use a green/yellow/red relative-effort map instead of a binary muscle highlight. Logged sessions are completed personal tasks tagged under `ejercicio>fuerza-papa`, so they also appear in `/habits`.
 
 Pomodoro counts accumulate on the task per day (`3🍅`, `5🍅`, …). A task doesn't have to finish in one pomodoro.
 

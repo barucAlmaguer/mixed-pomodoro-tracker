@@ -100,6 +100,28 @@ defmodule PomodoroTrackerWeb.StrengthLiveTest do
     refute html =~ "Dead bug</button>"
   end
 
+  test "Scenario: Ver la contribución muscular proporcional de cada ejercicio", %{conn: conn} do
+    # Given I open the Ejercicios view
+    {:ok, view, _html} = live(conn, "/fuerza")
+    view |> element("button[phx-value-tab='ejercicios']") |> render_click()
+
+    # When I inspect an exercise mannequin
+    view
+    |> element("button[phx-click='strength:toggle'][phx-value-id='goblet']")
+    |> render_click()
+
+    # Then its active muscles use the green, yellow, and red effort scale according to their relative contribution
+    assert has_element?(view, "#strength-exercise-goblet[data-mode='heat']")
+    mannequin_html = view |> element("#strength-exercise-goblet") |> render()
+    assert mannequin_html =~ ~s(&quot;quads&quot;:1.0)
+    assert mannequin_html =~ ~s(&quot;glutes&quot;:0.65)
+
+    assert Enum.all?(Strength.exercises(), fn exercise ->
+             Map.keys(exercise.effort) |> Enum.sort() == Enum.sort(exercise.muscles) and
+               Enum.all?(exercise.effort, fn {_muscle, level} -> level > 0 and level <= 1 end)
+           end)
+  end
+
   test "el mapa corporal superpone músculos planos al maniquí 3D", %{conn: conn} do
     {:ok, view, _html} = live(conn, "/fuerza")
 
