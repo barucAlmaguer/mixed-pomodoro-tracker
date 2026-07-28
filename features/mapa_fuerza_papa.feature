@@ -98,3 +98,8 @@ Feature: Mapa Fuerza de Papá integrado al tracker
     Given I open an exercise that uses weight or a support
     When I inspect its mannequin
     Then its visual pose and dumbbell or block props explain the exercise at a glance
+
+  Scenario: Filtrar ejercicios y previsualizar la carga de hoy
+    Given I open the Ejercicios view with yesterday's session recorded
+    When I select target muscles and add exercises to today's routine cart
+    Then only matching exercises remain visible and the preview mannequin combines today's planned effort with yesterday's load

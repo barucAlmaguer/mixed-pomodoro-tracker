@@ -138,24 +138,180 @@
     </section>
 
     <section :if={@tab == "ejercicios"} id="strength-exercises" class="mt-5 space-y-3">
-      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-        Plan · Rutinas A y B
-      </p>
+      <% visible_exercises = filter_exercises(Strength.exercises(), @exercise_filter) %>
+      <% planned_effort = planned_effort(@planned_exercises) %>
+      <% preview_effort = preview_effort(@planned_exercises, @sessions, @preview_yesterday) %>
+      <article
+        id="strength-exercise-planner"
+        class="overflow-hidden rounded-2xl border border-sky-400/30 bg-slate-900"
+      >
+        <div class="flex items-center justify-between gap-3 bg-sky-400/[0.07] px-4 py-3">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-sky-300">
+              Diseña tu sesión
+            </p>
+            <p class="mt-1 text-sm font-bold text-slate-100">Filtro + carrito muscular</p>
+          </div>
+          <button
+            phx-click="strength:show_exercise_planner"
+            aria-expanded={@show_exercise_planner}
+            class="rounded-lg border border-sky-300/20 bg-slate-950/50 px-2.5 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-sky-200 hover:bg-sky-300/10"
+          >
+            {if @show_exercise_planner, do: "▾ Ocultar", else: "▸ Mostrar"}
+          </button>
+        </div>
+        <div :if={@show_exercise_planner} class="p-4">
+          <p class="max-w-2xl text-xs leading-5 text-slate-400">
+            Toca músculos en el primer maniquí para filtrar. Añade ejercicios al carrito en las tarjetas y lee el segundo antes de empezar: rojo es carga principal, amarillo media y verde apoyo.
+          </p>
+          <div class="mt-4 grid gap-4 md:grid-cols-2">
+            <section class="rounded-xl border border-slate-700 bg-slate-950/35 p-3">
+              <div class="flex items-baseline justify-between gap-3">
+                <div>
+                  <p class="text-xs font-bold uppercase tracking-[0.16em] text-sky-200">
+                    1 · Filtra por músculo
+                  </p>
+                  <p class="mt-1 text-[11px] text-slate-500">
+                    Click directo en el cuerpo: prende/apaga el músculo.
+                  </p>
+                </div>
+                <span class="font-mono text-[10px] text-sky-300">
+                  {MapSet.size(@exercise_filter)} {if MapSet.size(@exercise_filter) == 1,
+                    do: "músculo seleccionado",
+                    else: "músculos seleccionados"}
+                </span>
+              </div>
+              <.body_map
+                id="strength-exercise-filter"
+                mode={:direct}
+                active={MapSet.to_list(@exercise_filter)}
+                colors={
+                  Map.new(Strength.muscles(), fn {id, _} ->
+                    {id, if(MapSet.member?(@exercise_filter, id), do: "#38bdf8", else: "#506579")}
+                  end)
+                }
+                event="strength:exercise_filter_muscle"
+                pose="neutral"
+                class="my-3"
+                canvas_class="h-72 min-h-[16rem]"
+              />
+              <div class="flex flex-wrap gap-1.5" aria-label="Atajos de filtro muscular">
+                <button
+                  :for={{id, name} <- Strength.muscles()}
+                  phx-click="strength:exercise_filter_muscle"
+                  phx-value-muscle={id}
+                  aria-pressed={MapSet.member?(@exercise_filter, id)}
+                  class={[
+                    "rounded-full border px-2 py-1 text-[10px] font-semibold transition",
+                    if(MapSet.member?(@exercise_filter, id),
+                      do: "border-sky-300 bg-sky-300 text-slate-950",
+                      else:
+                        "border-slate-700 bg-slate-900 text-slate-400 hover:border-sky-300/50 hover:text-sky-100"
+                    )
+                  ]}
+                >
+                  {name}
+                </button>
+              </div>
+              <p class="text-center text-[11px] text-slate-500">
+                {if MapSet.size(@exercise_filter) == 0,
+                  do: "Sin filtro: viendo los 24 ejercicios.",
+                  else: "Mostrando ejercicios que cubren tu selección."}
+              </p>
+            </section>
+            <section class="rounded-xl border border-emerald-400/25 bg-emerald-400/[0.035] p-3">
+              <div class="flex items-baseline justify-between gap-3">
+                <div>
+                  <p class="text-xs font-bold uppercase tracking-[0.16em] text-emerald-200">
+                    2 · Carrito de hoy
+                  </p>
+                  <p class="mt-1 text-[11px] text-slate-500">
+                    Previsualiza antes de registrar nada.
+                  </p>
+                </div>
+                <span class="font-mono text-[10px] text-emerald-300">
+                  {MapSet.size(@planned_exercises)} {if MapSet.size(@planned_exercises) == 1,
+                    do: "ejercicio",
+                    else: "ejercicios"}
+                </span>
+              </div>
+              <.body_map
+                id="strength-routine-preview"
+                mode={:heat}
+                active={Map.keys(preview_effort)}
+                levels={preview_effort}
+                pose="neutral"
+                pose_key="routine-cart"
+                class="my-3"
+                canvas_class="h-72 min-h-[16rem]"
+              />
+              <button
+                phx-click="strength:preview_yesterday"
+                phx-value-enabled={if(@preview_yesterday, do: "false", else: "true")}
+                aria-pressed={@preview_yesterday}
+                class={[
+                  "w-full rounded-lg border px-3 py-2 text-left text-xs transition",
+                  if(@preview_yesterday,
+                    do: "border-amber-300/50 bg-amber-300/10 text-amber-100",
+                    else:
+                      "border-slate-700 bg-slate-950/40 text-slate-300 hover:border-amber-300/30"
+                  )
+                ]}
+              >
+                <span class="font-bold">
+                  {if @preview_yesterday, do: "✓", else: "○"} Considerar músculos usados ayer
+                </span>
+                <span class="mt-0.5 block text-[11px] opacity-70">
+                  {if @preview_yesterday,
+                    do:
+                      "Considerando el entrenamiento de ayer: su carga se suma con peso de alerta a lo planeado.",
+                    else: "Actívalo para detectar músculo repetido antes de entrenar."}
+                </span>
+              </button>
+              <p
+                :if={map_size(planned_effort) == 0}
+                class="mt-2 text-center text-[11px] text-slate-500"
+              >
+                Añade ejercicios desde abajo para encender este mapa.
+              </p>
+            </section>
+          </div>
+        </div>
+      </article>
+      <div class="flex items-center justify-between gap-3 pt-1">
+        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+          Plan · Rutinas A y B
+        </p>
+        <span class="font-mono text-[10px] text-slate-500">
+          {length(visible_exercises)}/24 visibles
+        </span>
+      </div>
       <.exercise_card
-        :for={ex <- Enum.reject(Strength.exercises(), &(&1.routine == "X"))}
+        :for={ex <- Enum.reject(visible_exercises, &(&1.routine == "X"))}
         exercise={ex}
         open={@open_id == ex.id}
         poses={@poses}
+        planned={MapSet.member?(@planned_exercises, ex.id)}
       />
-      <p class="pt-3 text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">
+      <p
+        :if={Enum.any?(visible_exercises, &(&1.routine == "X"))}
+        class="pt-3 text-xs font-semibold uppercase tracking-[0.2em] text-amber-300"
+      >
         Comodines — sustitutos y variedad
       </p>
       <.exercise_card
-        :for={ex <- Enum.filter(Strength.exercises(), &(&1.routine == "X"))}
+        :for={ex <- Enum.filter(visible_exercises, &(&1.routine == "X"))}
         exercise={ex}
         open={@open_id == ex.id}
         poses={@poses}
+        planned={MapSet.member?(@planned_exercises, ex.id)}
       />
+      <p
+        :if={visible_exercises == []}
+        class="rounded-xl border border-slate-700 bg-slate-900 p-4 text-sm text-slate-400"
+      >
+        Ningún ejercicio del plan cubre exactamente esa selección. Apaga un músculo o combina otro filtro.
+      </p>
     </section>
 
     <section :if={@tab == "rutinas"} id="strength-routines" class="mt-5 space-y-4">
@@ -540,6 +696,9 @@
           Aún no hay sesiones registradas. Registra la de ayer arriba y este mapa cobra vida.
         </p>
         <div :if={@recent_view == "used" and @sessions != []}>
+          <p class="invisible mt-3 text-xs leading-5" aria-hidden="true">
+            Violeta = sin sesiones · índigo = poco trabajo relativo · pizarra = más atendido.
+          </p>
           <.body_map
             id="strength-history"
             mode={:heat}

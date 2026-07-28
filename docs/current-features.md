@@ -318,6 +318,13 @@ is now only a secondary helper because direct per-day historical review exists.
   principal contributor, yellow is medium contribution, and green is support.
   The proportions are exercise-specific estimates based on movement mechanics;
   they are a comparison within an exercise, not a clinical load measurement.
+- `Ejercicios` begins with a collapsible two-mannequin planning board. The
+  first mannequin is an on/off target-muscle filter (with accessible chip
+  shortcuts); the second is a temporary routine cart preview. Adding or
+  removing a card updates that preview without recording a completed session.
+  Its optional `Considerar músculos usados ayer` lens adds yesterday's load at
+  a reduced warning weight, so repeat work is promoted toward yellow/red
+  before the user starts training.
 - Its footer includes front, back, left, and right camera shortcuts, and the
   `Posturas muñeco` tab provides a dedicated visual diagnostic surface for the
   pose presets used by exercises and mobility drills.

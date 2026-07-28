@@ -47,6 +47,10 @@ defmodule PomodoroTrackerWeb.StrengthLive do
      |> assign(:days, [true, true, true])
      |> assign(:marks, %{})
      |> assign(:show_body, false)
+     |> assign(:show_exercise_planner, true)
+     |> assign(:exercise_filter, MapSet.new())
+     |> assign(:planned_exercises, MapSet.new())
+     |> assign(:preview_yesterday, false)
      |> assign(:debug_pose, "neutral")
      |> assign(:show_blocked, false)
      |> assign(:recent_view, "used")
@@ -88,6 +92,31 @@ defmodule PomodoroTrackerWeb.StrengthLive do
 
   def handle_event("strength:show_body", _, socket),
     do: {:noreply, update(socket, :show_body, &(not &1))}
+
+  def handle_event("strength:show_exercise_planner", _, socket),
+    do: {:noreply, update(socket, :show_exercise_planner, &(not &1))}
+
+  def handle_event("strength:exercise_filter_muscle", %{"muscle" => muscle}, socket) do
+    if Map.has_key?(Strength.muscles(), muscle) do
+      {:noreply, update(socket, :exercise_filter, &toggle_set(&1, muscle))}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("strength:plan_exercise", %{"id" => id}, socket) do
+    exercise_ids = MapSet.new(Enum.map(Strength.exercises(), & &1.id))
+
+    if MapSet.member?(exercise_ids, id) do
+      {:noreply, update(socket, :planned_exercises, &toggle_set(&1, id))}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_event("strength:preview_yesterday", %{"enabled" => enabled}, socket)
+      when enabled in ["true", "false"],
+      do: {:noreply, assign(socket, :preview_yesterday, enabled == "true")}
 
   def handle_event("strength:debug_pose", %{"pose" => pose}, socket)
       when pose in ~w(neutral carry squat hinge press pushup mobility) do
@@ -245,6 +274,9 @@ defmodule PomodoroTrackerWeb.StrengthLive do
     assign(socket, :log_effort, normalized)
   end
 
+  defp toggle_set(set, item),
+    do: if(MapSet.member?(set, item), do: MapSet.delete(set, item), else: MapSet.put(set, item))
+
   defp shift_log_date(socket, delta), do: set_log_date(socket, socket.assigns.log_day + delta)
 
   defp set_log_date(socket, day) do
@@ -333,6 +365,56 @@ defmodule PomodoroTrackerWeb.StrengthLive do
   end
 
   defp session_heatmap_key(effort), do: :erlang.phash2(effort)
+
+  defp planned_effort(planned_exercises),
+    do: effort_for_exercises(planned_exercises)
+
+  defp preview_effort(planned_exercises, sessions, include_yesterday?) do
+    planned = planned_effort(planned_exercises)
+
+    if include_yesterday? do
+      yesterday =
+        sessions
+        |> Enum.find(&(&1.date == Date.add(Clock.today(), -1) |> Date.to_iso8601()))
+        |> session_effort()
+
+      Map.merge(planned, yesterday, fn _muscle, planned_level, yesterday_level ->
+        min(1.0, planned_level + yesterday_level * 0.65)
+      end)
+    else
+      planned
+    end
+  end
+
+  defp effort_for_exercises(exercise_ids) do
+    Strength.exercises()
+    |> Enum.filter(&MapSet.member?(exercise_ids, &1.id))
+    |> Enum.reduce(%{}, fn exercise, totals ->
+      Enum.reduce(exercise.effort, totals, fn {muscle, level}, effort ->
+        Map.update(effort, muscle, level, &min(1.0, &1 + level))
+      end)
+    end)
+  end
+
+  defp session_effort(nil), do: %{}
+
+  defp session_effort(session) do
+    exercise_effort = effort_for_exercises(MapSet.new(session.exercises))
+
+    Enum.reduce(session.muscles, exercise_effort, fn muscle, effort ->
+      Map.put_new(effort, muscle, 1.0)
+    end)
+  end
+
+  defp filter_exercises(exercises, selected_muscles) do
+    if MapSet.size(selected_muscles) == 0 do
+      exercises
+    else
+      Enum.filter(exercises, fn exercise ->
+        Enum.any?(exercise.muscles, &MapSet.member?(selected_muscles, &1))
+      end)
+    end
+  end
 
   defp refresh(socket) do
     profile = Strength.profile()
@@ -595,30 +677,55 @@ defmodule PomodoroTrackerWeb.StrengthLive do
   attr :exercise, :map, required: true
   attr :open, :boolean, required: true
   attr :poses, :map, default: %{}
+  attr :planned, :boolean, default: false
 
   defp exercise_card(assigns) do
     ~H"""
     <% pose_source = exercise_pose_source(@exercise, @poses) %>
     <% visual = exercise_visual(@exercise.id) %>
-    <article class={[
-      "overflow-hidden rounded-2xl border bg-slate-900",
-      if(@open, do: "border-sky-400", else: "border-slate-700")
-    ]}>
-      <button
-        class="flex w-full items-center gap-2 p-4 text-left"
-        phx-click="strength:toggle"
-        phx-value-id={@exercise.id}
-        aria-expanded={@open}
-      >
-        <span class="min-w-0 flex-1 text-sm font-bold">
-          {@exercise.name}
-          <span class={routine_badge(@exercise.routine)}>{routine_label(@exercise.routine)}</span><span
-            :if={@exercise[:new]}
-            class="ml-1 rounded bg-amber-200 px-1.5 py-0.5 text-[10px] text-amber-900"
-          >nuevo</span>
-        </span>
-        <span class="text-xl text-slate-400">{if @open, do: "−", else: "+"}</span>
-      </button>
+    <article
+      id={"strength-exercise-card-#{@exercise.id}"}
+      class={[
+        "overflow-hidden rounded-2xl border bg-slate-900",
+        cond do
+          @open -> "border-sky-400"
+          @planned -> "border-emerald-400/60"
+          true -> "border-slate-700"
+        end
+      ]}
+    >
+      <div class="flex items-center gap-2 p-3 sm:p-4">
+        <button
+          class="flex min-w-0 flex-1 items-center gap-2 text-left"
+          phx-click="strength:toggle"
+          phx-value-id={@exercise.id}
+          aria-expanded={@open}
+        >
+          <span class="font-mono text-base text-sky-300">{if @open, do: "▾", else: "▸"}</span>
+          <span class="min-w-0 flex-1 text-sm font-bold">
+            {@exercise.name}
+            <span class={routine_badge(@exercise.routine)}>{routine_label(@exercise.routine)}</span><span
+              :if={@exercise[:new]}
+              class="ml-1 rounded bg-amber-200 px-1.5 py-0.5 text-[10px] text-amber-900"
+            >nuevo</span>
+          </span>
+        </button>
+        <button
+          phx-click="strength:plan_exercise"
+          phx-value-id={@exercise.id}
+          aria-pressed={@planned}
+          class={[
+            "shrink-0 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold transition",
+            if(@planned,
+              do: "border-emerald-300 bg-emerald-300 text-emerald-950",
+              else:
+                "border-slate-600 bg-slate-800 text-slate-200 hover:border-emerald-300/60 hover:text-emerald-200"
+            )
+          ]}
+        >
+          {if @planned, do: "Quitar de rutina de hoy", else: "Añadir a rutina de hoy"}
+        </button>
+      </div>
       <div :if={@open} class="border-t border-dashed border-slate-700 p-4">
         <p class="text-sm leading-6 text-slate-300">{@exercise.note}</p>
         <div class="mt-3 rounded-xl bg-slate-800 p-3">
@@ -687,6 +794,7 @@ defmodule PomodoroTrackerWeb.StrengthLive do
   attr :props, :list, default: []
   attr :prop_label, :string, default: nil
   attr :class, :string, default: nil
+  attr :canvas_class, :string, default: "h-96 min-h-[22rem]"
 
   defp body_map(assigns) do
     ~H"""
@@ -712,7 +820,7 @@ defmodule PomodoroTrackerWeb.StrengthLive do
       ]}
       aria-label="Maniquí 3D interactivo"
     >
-      <div data-role="canvas" class="h-96 min-h-[22rem] w-full touch-none"></div>
+      <div data-role="canvas" class={[@canvas_class, "w-full touch-none"]}></div>
       <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-sky-300/10 bg-slate-950/60 px-3 py-2">
         <div class="min-w-0">
           <p data-role="label" class="text-xs text-slate-400">

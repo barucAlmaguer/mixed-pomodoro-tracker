@@ -517,6 +517,10 @@ Current baseline:
 - The recent-muscle panel now exposes deficit-oriented suggestions; future
   training recommendations should build on its explicit seven-day coverage
   signal rather than infer hidden readiness scores.
+- The exercise planning cart is deliberately ephemeral: it helps choose a
+  session and spot yesterday-overlap, but saving completed work remains the
+  explicit recorder action. Future set/repetition planning must retain that
+  distinction instead of silently turning a plan into a logged workout.
 - Functional checks and progression levels live in the personal vault's
   `settings/fuerza-papa.yaml` file.
 

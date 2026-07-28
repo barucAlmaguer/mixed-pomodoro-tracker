@@ -302,6 +302,43 @@ defmodule PomodoroTrackerWeb.StrengthLiveTest do
     refute render(view) =~ "borrar sesión"
   end
 
+  test "Scenario: Filtrar ejercicios y previsualizar la carga de hoy", %{conn: conn} do
+    # Given I open the Ejercicios view with yesterday's session recorded
+    {:ok, _} = Strength.save_session(Date.add(Clock.today(), -1), ["chest"])
+    {:ok, view, _html} = live(conn, "/fuerza")
+    view |> element("button[phx-value-tab='ejercicios']") |> render_click()
+
+    # When I select target muscles and add exercises to today's routine cart
+    view
+    |> element("button[phx-click='strength:exercise_filter_muscle'][phx-value-muscle='chest']")
+    |> render_click()
+
+    assert has_element?(
+             view,
+             "#strength-exercise-filter[data-body-event='strength:exercise_filter_muscle']"
+           )
+
+    assert render(view) =~ "1 músculo seleccionado"
+    assert has_element?(view, "button[phx-click='strength:plan_exercise'][phx-value-id='pushup']")
+    refute has_element?(view, "#strength-exercise-card-goblet")
+
+    view
+    |> element("button[phx-click='strength:plan_exercise'][phx-value-id='pushup']")
+    |> render_click()
+
+    view
+    |> element("button[phx-click='strength:preview_yesterday'][phx-value-enabled='true']")
+    |> render_click()
+
+    # Then only matching exercises remain visible and the preview mannequin combines today's planned effort with yesterday's load
+    assert has_element?(view, "#strength-routine-preview[data-mode='heat']")
+    preview_html = view |> element("#strength-routine-preview") |> render()
+    assert preview_html =~ ~s(&quot;chest&quot;:1.0)
+    assert preview_html =~ ~s(&quot;shoulders&quot;:0.7)
+    assert render(view) =~ "Considerando el entrenamiento de ayer"
+    assert render(view) =~ "Quitar de rutina de hoy"
+  end
+
   test "Scenario: Filtrar y consultar drills de movilidad", %{conn: conn} do
     # Given I am in Movilidad
     {:ok, view, _html} = live(conn, "/fuerza")
