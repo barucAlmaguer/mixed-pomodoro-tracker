@@ -276,7 +276,7 @@ is now only a secondary helper because direct per-day historical review exists.
   - instancia
   - one-off
 
-## Fuerza de Papá (`/fuerza`)
+## Fuerza funcional (`/fuerza`)
 
 - This is a personal, mobile-friendly strength and mobility plan organized in
   seven persistent tabs: `Hoy`, `Escalera`, `Metas`, `Ejercicios`, `Rutinas`,

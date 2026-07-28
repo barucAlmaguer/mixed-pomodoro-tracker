@@ -1,6 +1,6 @@
 defmodule PomodoroTracker.Strength do
   @moduledoc """
-  The "Fuerza de Papá" plan and its vault-backed progress data.
+  The functional-strength plan and its vault-backed progress data.
 
   Sessions are concrete personal tasks tagged under `ejercicio>fuerza-papa` and
   completed on their recorded day. This deliberately makes the plan visible to
@@ -232,7 +232,7 @@ defmodule PomodoroTracker.Strength do
       muscles: ["arms", "grip"],
       effort: %{"arms" => 1.0, "grip" => 0.65},
       sets: "3×10–12",
-      note: "Bíceps y antebrazo: agarre de papá.",
+      note: "Bíceps y antebrazo: agarre funcional.",
       how: ["Palmas enfrentadas", "sube sin balanceo", "baja en 2–3 s"]
     },
     %{
@@ -660,14 +660,14 @@ defmodule PomodoroTracker.Strength do
       else
         Vault.create_task(:personal, :backlog, %{
           id: id,
-          title: "Fuerza de Papá · #{Date.to_iso8601(date)}",
+          title: "Entrenamiento funcional · #{Date.to_iso8601(date)}",
           tags: tags,
           strength_session: true,
           strength_muscles: merged,
           strength_exercises: merged_exercises,
           session_date: Date.to_iso8601(date),
           created_at: Date.to_iso8601(date),
-          body: "Entrenamiento registrado desde Fuerza de Papá."
+          body: "Entrenamiento registrado desde Fuerza funcional."
         })
       end
 

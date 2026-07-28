@@ -26,7 +26,7 @@ defmodule PomodoroTrackerWeb.StrengthLiveTest do
   end
 
   test "Scenario: Navegar entre las seis vistas del plan", %{conn: conn} do
-    # Given I open the Fuerza de Papá plan
+    # Given I open the functional strength plan
     {:ok, view, _html} = live(conn, "/fuerza")
 
     # When I touch a tab for Hoy, Escalera, Metas, Ejercicios, Rutinas or Movilidad
@@ -393,7 +393,7 @@ defmodule PomodoroTrackerWeb.StrengthLiveTest do
   end
 
   test "Scenario: Inspeccionar anatomía y posturas del maniquí sin arrastrarlo", %{conn: conn} do
-    # Given I open the Fuerza de Papá plan
+    # Given I open the functional strength plan
     {:ok, view, _html} = live(conn, "/fuerza")
 
     # When I show the mannequin and choose a camera shortcut or the Posturas muñeco tab

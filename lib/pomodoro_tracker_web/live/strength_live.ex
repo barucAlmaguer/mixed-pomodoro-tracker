@@ -1,5 +1,5 @@
 defmodule PomodoroTrackerWeb.StrengthLive do
-  @moduledoc "Interactive, vault-backed Fuerza de Papá plan."
+  @moduledoc "Interactive, vault-backed functional strength plan."
 
   use PomodoroTrackerWeb, :live_view
 
@@ -40,7 +40,7 @@ defmodule PomodoroTrackerWeb.StrengthLive do
 
     {:ok,
      socket
-     |> assign(:page_title, "Fuerza de Papá")
+     |> assign(:page_title, "Fuerza funcional")
      |> assign(:tab, "hoy")
      |> assign(:open_id, nil)
      |> assign(:week, 1)

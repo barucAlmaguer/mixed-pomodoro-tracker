@@ -496,7 +496,7 @@ Add coverage for:
 - navigation to future views beyond execute/plan
 - richer `/planner` behavior as it grows beyond templates/backlog/archive
 
-### 16. Evolve Fuerza de Papá without splitting the personal activity model
+### 16. Evolve functional strength without splitting the personal activity model
 
 Current baseline:
 

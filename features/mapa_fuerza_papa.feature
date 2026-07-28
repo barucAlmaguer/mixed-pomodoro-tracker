@@ -1,6 +1,6 @@
-Feature: Mapa Fuerza de Papá integrado al tracker
+Feature: Mapa de fuerza funcional integrado al tracker
   Scenario: Navegar entre las seis vistas del plan
-    Given I open the Fuerza de Papá plan
+    Given I open the functional strength plan
     When I touch a tab for Hoy, Escalera, Metas, Ejercicios, Rutinas or Movilidad
     Then the selected view is shown and plan state is preserved
 
@@ -65,7 +65,7 @@ Feature: Mapa Fuerza de Papá integrado al tracker
     Then the stage persists and shows criteria, next step, and mobility gates
 
   Scenario: Inspeccionar anatomía y posturas del maniquí sin arrastrarlo
-    Given I open the Fuerza de Papá plan
+    Given I open the functional strength plan
     When I show the mannequin and choose a camera shortcut or the Posturas muñeco tab
     Then I can access front, back, side, and posture diagnostic views
 
