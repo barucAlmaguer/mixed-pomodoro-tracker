@@ -49,6 +49,7 @@ defmodule PomodoroTrackerWeb.StrengthLive do
      |> assign(:show_body, false)
      |> assign(:debug_pose, "neutral")
      |> assign(:show_blocked, false)
+     |> assign(:recent_view, "used")
      |> assign(:log_day, 0)
      |> assign(:log_muscles, MapSet.new())
      |> assign(:log_exercises, MapSet.new())
@@ -106,6 +107,10 @@ defmodule PomodoroTrackerWeb.StrengthLive do
 
   def handle_event("strength:show_blocked", _, socket),
     do: {:noreply, update(socket, :show_blocked, &(not &1))}
+
+  def handle_event("strength:recent_view", %{"view" => view}, socket)
+      when view in ["used", "missing"],
+      do: {:noreply, assign(socket, :recent_view, view)}
 
   def handle_event("strength:log_date", %{"action" => "previous"}, socket),
     do: {:noreply, shift_log_date(socket, -1)}
@@ -410,6 +415,70 @@ defmodule PomodoroTrackerWeb.StrengthLive do
             ),
           else: acc
       end)
+
+  defp recent_counts(sessions) do
+    base = Map.new(Strength.muscles(), fn {muscle, _name} -> {muscle, 0} end)
+
+    Enum.reduce(sessions, base, fn session, counts ->
+      if Date.diff(Clock.today(), parse_date(session.date)) in 0..7 do
+        Enum.reduce(session.muscles, counts, &Map.update(&2, &1, 1, fn count -> count + 1 end))
+      else
+        counts
+      end
+    end)
+  end
+
+  defp missing_colors(sessions) do
+    counts = recent_counts(sessions)
+    max_count = counts |> Map.values() |> Enum.max(fn -> 0 end)
+
+    Map.new(counts, fn {muscle, count} ->
+      color =
+        cond do
+          count == 0 -> "#c084fc"
+          count < max_count -> "#818cf8"
+          true -> "#334155"
+        end
+
+      {muscle, color}
+    end)
+  end
+
+  defp missing_muscles(sessions) do
+    counts = recent_counts(sessions)
+    max_count = counts |> Map.values() |> Enum.max(fn -> 0 end)
+
+    Strength.muscles()
+    |> Enum.map(fn {muscle, name} ->
+      %{
+        id: muscle,
+        name: name,
+        count: counts[muscle],
+        exercises: recommended_exercises(muscle, counts, max_count)
+      }
+    end)
+    |> Enum.sort_by(&{&1.count, &1.name})
+  end
+
+  defp recommended_exercises(target, counts, max_count) do
+    Strength.exercises()
+    |> Enum.filter(&(target in &1.muscles))
+    |> Enum.sort_by(fn exercise ->
+      target_deficit = max_count - counts[target] + 1
+
+      coverage =
+        Enum.reduce(exercise.effort, 0, fn {muscle, effort}, score ->
+          score + effort * (max_count - counts[muscle] + 1)
+        end)
+
+      {-((exercise.effort[target] || 0) * target_deficit * 3 + coverage), exercise.name}
+    end)
+    |> Enum.take(3)
+  end
+
+  defp missing_count_label(0), do: "sin sesiones"
+  defp missing_count_label(1), do: "1 sesión"
+  defp missing_count_label(count), do: "#{count} sesiones"
 
   defp weekly_loads(week, days) do
     schedule = if week == 1, do: ["A", "B", "A"], else: ["B", "A", "B"]

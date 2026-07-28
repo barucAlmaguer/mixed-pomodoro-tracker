@@ -281,6 +281,27 @@ defmodule PomodoroTrackerWeb.StrengthLiveTest do
     assert render(view) =~ "Core anti-flexión"
   end
 
+  test "Scenario: Priorizar músculos faltantes según el uso reciente", %{conn: conn} do
+    # Given recent strength sessions cover only part of the body
+    {:ok, _} = Strength.save_session(Clock.today(), ["core", "glutes"])
+
+    # When I switch the recency panel to missing muscles
+    {:ok, view, _html} = live(conn, "/fuerza")
+
+    view
+    |> element("button[phx-click='strength:recent_view'][phx-value-view='missing']")
+    |> render_click()
+
+    # Then the mannequin highlights the least used muscles and lists the best exercises to cover them
+    assert has_element?(view, "#strength-missing[data-mode='direct']")
+    missing_html = view |> element("#strength-missing") |> render()
+    assert missing_html =~ "#c084fc"
+    assert render(view) =~ "Músculos faltantes · últimos 7 días"
+    assert render(view) =~ "Ejercicios que lo cubren"
+    assert render(view) =~ "Pecho"
+    refute render(view) =~ "borrar sesión"
+  end
+
   test "Scenario: Filtrar y consultar drills de movilidad", %{conn: conn} do
     # Given I am in Movilidad
     {:ok, view, _html} = live(conn, "/fuerza")

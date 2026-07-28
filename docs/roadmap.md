@@ -514,6 +514,9 @@ Current baseline:
 - The mannequin can now show visual weight and support props. Future props
   should remain exercise-scoped visual cues unless the underlying training model
   explicitly gains equipment or load tracking.
+- The recent-muscle panel now exposes deficit-oriented suggestions; future
+  training recommendations should build on its explicit seven-day coverage
+  signal rather than infer hidden readiness scores.
 - Functional checks and progression levels live in the personal vault's
   `settings/fuerza-papa.yaml` file.
 

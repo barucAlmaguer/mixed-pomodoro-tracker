@@ -287,6 +287,11 @@ is now only a secondary helper because direct per-day historical review exists.
 - `Hoy` supports a three-state muscle filter: avoid, prioritize, neutral. It
   filters exercise suggestions and uses the last seven days of recorded
   strength activity for muscle recency.
+- Its recent-muscle card can switch from `Usados` (the logged session history
+  and green/yellow/red recency map) to `Faltantes`. The latter uses a distinct
+  violet/indigo/slate map to emphasize no or relatively low recent use, and
+  replaces the session list with each muscle plus exercises ranked by deficit
+  coverage.
 - Saving a strength session creates or merges one concrete personal backlog
   task for its date, tags it `ejercicio>fuerza-papa` plus one nested muscle tag
   per derived muscle, and marks it done in that day plan. The recorder supports

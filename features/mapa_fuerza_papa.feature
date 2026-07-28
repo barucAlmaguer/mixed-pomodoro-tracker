@@ -44,6 +44,11 @@ Feature: Mapa Fuerza de Papá integrado al tracker
     When I open Hoy
     Then I see the recency map and registered sessions
 
+  Scenario: Priorizar músculos faltantes según el uso reciente
+    Given recent strength sessions cover only part of the body
+    When I switch the recency panel to missing muscles
+    Then the mannequin highlights the least used muscles and lists the best exercises to cover them
+
   Scenario: Filtrar y consultar drills de movilidad
     Given I am in Movilidad
     When I select a joint

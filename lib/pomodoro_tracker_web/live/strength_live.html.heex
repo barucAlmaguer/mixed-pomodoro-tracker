@@ -499,13 +499,47 @@
         </p>
       </article>
       <article class="rounded-2xl border border-slate-700 bg-slate-900 p-4">
-        <p class="text-xs font-semibold uppercase tracking-widest text-slate-500">
-          Músculos usados · últimos 7 días
-        </p>
-        <p :if={@sessions == []} class="mt-3 text-sm text-slate-400">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <p class="text-xs font-semibold uppercase tracking-widest text-slate-500">
+            {if @recent_view == "used",
+              do: "Músculos usados · últimos 7 días",
+              else: "Músculos faltantes · últimos 7 días"}
+          </p>
+          <div class="flex rounded-lg bg-slate-950 p-1" aria-label="Lente de carga muscular">
+            <button
+              phx-click="strength:recent_view"
+              phx-value-view="used"
+              aria-pressed={if(@recent_view == "used", do: "true", else: "false")}
+              class={[
+                "rounded-md px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-wider",
+                if(@recent_view == "used",
+                  do: "bg-sky-500 text-slate-950",
+                  else: "text-slate-400 hover:text-slate-200"
+                )
+              ]}
+            >
+              Usados
+            </button>
+            <button
+              phx-click="strength:recent_view"
+              phx-value-view="missing"
+              aria-pressed={if(@recent_view == "missing", do: "true", else: "false")}
+              class={[
+                "rounded-md px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-wider",
+                if(@recent_view == "missing",
+                  do: "bg-violet-400 text-violet-950",
+                  else: "text-slate-400 hover:text-slate-200"
+                )
+              ]}
+            >
+              Faltantes
+            </button>
+          </div>
+        </div>
+        <p :if={@recent_view == "used" and @sessions == []} class="mt-3 text-sm text-slate-400">
           Aún no hay sesiones registradas. Registra la de ayer arriba y este mapa cobra vida.
         </p>
-        <div :if={@sessions != []}>
+        <div :if={@recent_view == "used" and @sessions != []}>
           <.body_map
             id="strength-history"
             mode={:heat}
@@ -534,6 +568,56 @@
                 ×
               </button>
             </div>
+          </div>
+        </div>
+        <div :if={@recent_view == "missing"}>
+          <p class="mt-3 text-xs leading-5 text-slate-400">
+            <span class="font-semibold text-violet-300">Violeta</span>
+            = sin sesiones · <span class="font-semibold text-indigo-300">índigo</span>
+            = poco trabajo relativo · pizarra = más atendido.
+          </p>
+          <.body_map
+            id="strength-missing"
+            mode={:direct}
+            active={Map.keys(missing_colors(@sessions))}
+            colors={missing_colors(@sessions)}
+            pose="neutral"
+          />
+          <div class="space-y-3">
+            <article
+              :for={muscle <- missing_muscles(@sessions)}
+              class={[
+                "rounded-xl border px-3 py-2.5",
+                if(muscle.count == 0,
+                  do: "border-violet-400/30 bg-violet-400/5",
+                  else: "border-slate-700 bg-slate-950/30"
+                )
+              ]}
+            >
+              <div class="flex items-center justify-between gap-3">
+                <p class="text-sm font-bold text-slate-100">{muscle.name}</p>
+                <span class={[
+                  "rounded-full px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider",
+                  if(muscle.count == 0,
+                    do: "bg-violet-400/20 text-violet-200",
+                    else: "bg-indigo-400/15 text-indigo-200"
+                  )
+                ]}>
+                  {missing_count_label(muscle.count)}
+                </span>
+              </div>
+              <p class="mt-2 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+                Ejercicios que lo cubren
+              </p>
+              <div class="mt-1.5 flex flex-wrap gap-1.5">
+                <span
+                  :for={exercise <- muscle.exercises}
+                  class="rounded-full bg-slate-800 px-2 py-1 text-[11px] text-slate-200"
+                >
+                  {exercise.name}
+                </span>
+              </div>
+            </article>
           </div>
         </div>
       </article>
